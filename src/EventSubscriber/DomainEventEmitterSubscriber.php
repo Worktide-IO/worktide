@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\EventSubscriber;
 
+use App\Entity\CustomFieldDefinition;
+use App\Entity\CustomFieldValue;
 use App\Entity\DomainEventLog;
 use App\Entity\Project;
 use App\Entity\ProjectMember;
@@ -52,6 +54,8 @@ final class DomainEventEmitterSubscriber
         TaskStatus::class => 'TaskStatus',
         TimeEntry::class => 'TimeEntry',
         Tag::class => 'Tag',
+        CustomFieldDefinition::class => 'CustomFieldDefinition',
+        CustomFieldValue::class => 'CustomFieldValue',
     ];
 
     /** @var list<GenericEntityChangedEvent> */

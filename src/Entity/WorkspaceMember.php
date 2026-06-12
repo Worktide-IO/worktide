@@ -13,6 +13,7 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use App\Entity\Enum\WorkspaceMemberRole;
+use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Repository\WorkspaceMemberRepository;
@@ -37,6 +38,7 @@ class WorkspaceMember
 {
     use EntityIdTrait;
     use TimestampableTrait;
+    use AuditableTrait;
 
     #[ORM\ManyToOne(inversedBy: 'members')]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]

@@ -16,9 +16,12 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use App\Entity\Enum\TaskPriority;
+use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
+use App\Entity\Trait\ExternalReferenceTrait;
 use App\Entity\Trait\SoftDeletableTrait;
 use App\Entity\Trait\TimestampableTrait;
+use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\TaskRepository;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -63,6 +66,9 @@ class Task
     use TimestampableTrait;
     use SoftDeletableTrait;
     use WorkspaceScopedTrait;
+    use VersionedTrait;
+    use AuditableTrait;
+    use ExternalReferenceTrait;
 
     #[ORM\ManyToOne(inversedBy: 'tasks')]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
