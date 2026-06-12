@@ -11,6 +11,7 @@ use App\Entity\Task;
 use App\Entity\User;
 use App\Repository\ProjectRepository;
 use App\Repository\TaskRepository;
+use App\Repository\WorkspaceMemberRepository;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\AccessDecisionManagerInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\Vote;
@@ -32,6 +33,7 @@ final class CommentVoter extends Voter
         private readonly AccessDecisionManagerInterface $decisions,
         private readonly ProjectRepository $projects,
         private readonly TaskRepository $tasks,
+        private readonly WorkspaceMemberRepository $wsMembers,
     ) {}
 
     protected function supports(string $attribute, mixed $subject): bool
@@ -54,12 +56,24 @@ final class CommentVoter extends Voter
         }
 
         $canView = $this->decisions->decide($token, [WorktidePermission::VIEW], $targetEntity);
-        if ($attribute === WorktidePermission::VIEW) {
-            return $canView;
-        }
-
         if (!$canView) {
             return false;
+        }
+
+        // Hidden-for-connect-users: external (cross-workspace) ProjectMembers
+        // don't get to see this comment at all. Only true workspace members do.
+        if ($subject->isHiddenForConnectUsers()) {
+            $isWorkspaceMember = $this->wsMembers->findOneBy([
+                'workspace' => $subject->getWorkspace(),
+                'user' => $user,
+            ]) !== null;
+            if (!$isWorkspaceMember) {
+                return false;
+            }
+        }
+
+        if ($attribute === WorktidePermission::VIEW) {
+            return true;
         }
 
         $isAuthor = $subject->getAuthor()->getId()?->equals($user->getId()) === true;

@@ -73,11 +73,13 @@ final class DomainEventEmitterSubscriber
             if ($type === null) {
                 continue;
             }
+            $payload = $this->snapshotInserted($entity, $uow);
+            $payload = $this->enrichPayload($entity, GenericEntityChangedEvent::ACTION_CREATED, $payload, []);
             $this->pending[] = new GenericEntityChangedEvent(
                 aggregateType: $type,
                 aggregateId: $this->extractUuid($entity),
                 action: GenericEntityChangedEvent::ACTION_CREATED,
-                payload: $this->snapshotInserted($entity, $uow),
+                payload: $payload,
                 workspace: $this->extractWorkspace($entity),
             );
         }
@@ -91,11 +93,13 @@ final class DomainEventEmitterSubscriber
             if ($changeSet === []) {
                 continue;
             }
+            $payload = $this->normaliseChangeSet($changeSet);
+            $payload = $this->enrichPayload($entity, GenericEntityChangedEvent::ACTION_UPDATED, $payload, $changeSet);
             $this->pending[] = new GenericEntityChangedEvent(
                 aggregateType: $type,
                 aggregateId: $this->extractUuid($entity),
                 action: GenericEntityChangedEvent::ACTION_UPDATED,
-                payload: $this->normaliseChangeSet($changeSet),
+                payload: $payload,
                 workspace: $this->extractWorkspace($entity),
             );
         }
@@ -196,6 +200,50 @@ final class DomainEventEmitterSubscriber
             ];
         }
         return $out;
+    }
+
+    /**
+     * Adds awork-compatible contextual keys to the event payload so the
+     * activity feed reads as "Sven assigned this to Alex" rather than only
+     * "assignee changed from <uuid> to <uuid>".
+     *
+     * @param array<string, mixed> $payload
+     * @param array<string, array{0: mixed, 1: mixed}> $changeSet
+     * @return array<string, mixed>
+     */
+    private function enrichPayload(object $entity, string $action, array $payload, array $changeSet): array
+    {
+        if ($entity instanceof Task && $action === GenericEntityChangedEvent::ACTION_UPDATED && isset($changeSet['assignee'])) {
+            [$old, $new] = $changeSet['assignee'];
+            $payload['unassignedUser'] = $old instanceof User ? $this->userBrief($old) : null;
+            $payload['assignedUser'] = $new instanceof User ? $this->userBrief($new) : null;
+        }
+
+        if ($entity instanceof Task && $action === GenericEntityChangedEvent::ACTION_CREATED && $entity->getAssignee() !== null) {
+            $payload['assignedUser'] = $this->userBrief($entity->getAssignee());
+        }
+
+        if (($entity instanceof ProjectMember || $entity instanceof WorkspaceMember) && $action !== GenericEntityChangedEvent::ACTION_UPDATED) {
+            $payload['member'] = $this->userBrief($entity->getUser());
+            if ($entity instanceof ProjectMember) {
+                $project = $entity->getProject();
+                $payload['project'] = ['id' => $project->getId()?->toRfc4122(), 'name' => $project->getName(), 'key' => $project->getKey()];
+            }
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @return array{id: string|null, email: string, fullName: string}
+     */
+    private function userBrief(User $user): array
+    {
+        return [
+            'id' => $user->getId()?->toRfc4122(),
+            'email' => $user->getEmail(),
+            'fullName' => $user->getFullName(),
+        ];
     }
 
     private function normaliseValue(mixed $value): mixed
