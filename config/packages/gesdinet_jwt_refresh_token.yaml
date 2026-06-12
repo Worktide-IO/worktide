@@ -1,0 +1,8 @@
+gesdinet_jwt_refresh_token:
+    refresh_token_class: App\Entity\RefreshToken
+    ttl: 2592000   # 30 days
+    ttl_update: true
+    single_use: true
+    cookie:
+        enabled: false
+    return_expiration: true
