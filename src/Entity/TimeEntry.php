@@ -4,6 +4,19 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
+use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
+use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
+use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Doctrine\Orm\Filter\RangeFilter;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Post;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
@@ -18,6 +31,28 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'time_entry_task_idx', columns: ['task_id'])]
 #[ORM\Index(name: 'time_entry_starts_at_idx', columns: ['starts_at'])]
 #[ORM\HasLifecycleCallbacks]
+#[ApiResource(
+    shortName: 'TimeEntry',
+    operations: [
+        new GetCollection(),
+        new Get(),
+        new Post(),
+        new Patch(),
+        new Delete(),
+    ],
+)]
+#[ApiFilter(SearchFilter::class, properties: [
+    'workspace' => 'exact',
+    'user' => 'exact',
+    'project' => 'exact',
+    'task' => 'exact',
+    'note' => 'partial',
+])]
+#[ApiFilter(BooleanFilter::class, properties: ['isBillable', 'isLocked'])]
+#[ApiFilter(DateFilter::class, properties: ['startsAt', 'endsAt', 'createdAt'])]
+#[ApiFilter(ExistsFilter::class, properties: ['task', 'endsAt'])]
+#[ApiFilter(RangeFilter::class, properties: ['durationMinutes'])]
+#[ApiFilter(OrderFilter::class, properties: ['startsAt', 'endsAt', 'durationMinutes', 'createdAt'])]
 class TimeEntry
 {
     use EntityIdTrait;

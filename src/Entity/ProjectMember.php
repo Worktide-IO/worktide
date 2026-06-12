@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Post;
 use App\Entity\Enum\ProjectMemberRole;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\TimestampableTrait;
@@ -14,6 +22,17 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'project_members')]
 #[ORM\UniqueConstraint(name: 'project_user_unique', columns: ['project_id', 'user_id'])]
 #[ORM\HasLifecycleCallbacks]
+#[ApiResource(
+    shortName: 'ProjectMember',
+    operations: [
+        new GetCollection(),
+        new Get(),
+        new Post(),
+        new Patch(),
+        new Delete(),
+    ],
+)]
+#[ApiFilter(SearchFilter::class, properties: ['project' => 'exact', 'user' => 'exact', 'role' => 'exact'])]
 class ProjectMember
 {
     use EntityIdTrait;

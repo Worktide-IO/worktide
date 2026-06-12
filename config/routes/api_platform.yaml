@@ -1,0 +1,13 @@
+api_platform:
+    resource: .
+    type: api_platform
+    prefix: /v1
+    host: api.worktide.ddev.site
+
+when@prod:
+    api_platform:
+        resource: .
+        type: api_platform
+        prefix: /v1
+        # TODO: override with the production API host once domain is set
+        host: api.worktide.com
