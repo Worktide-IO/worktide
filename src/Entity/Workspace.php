@@ -30,11 +30,11 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiResource(
     shortName: 'Workspace',
     operations: [
-        new GetCollection(),
-        new Get(),
-        new Post(),
-        new Patch(),
-        new Delete(),
+        new GetCollection(security: "is_granted('ROLE_USER')"),
+        new Get(security: "is_granted('VIEW', object)"),
+        new Post(security: "is_granted('ROLE_USER')"),
+        new Patch(security: "is_granted('EDIT', object)"),
+        new Delete(security: "is_granted('DELETE', object)"),
     ],
 )]
 #[ApiFilter(SearchFilter::class, properties: ['name' => 'partial', 'slug' => 'exact'])]

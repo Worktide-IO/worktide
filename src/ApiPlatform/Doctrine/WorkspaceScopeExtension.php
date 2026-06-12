@@ -70,10 +70,12 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         QueryNameGeneratorInterface $queryNameGenerator,
         string $resourceClass,
     ): void {
-        if (!$this->isWorkspaceScoped($resourceClass)) {
+        if ($this->security->isGranted('ROLE_SUPER_ADMIN')) {
             return;
         }
-        if ($this->security->isGranted('ROLE_SUPER_ADMIN')) {
+
+        $isWorkspaceItself = $resourceClass === Workspace::class;
+        if (!$isWorkspaceItself && !$this->isWorkspaceScoped($resourceClass)) {
             return;
         }
 
@@ -86,17 +88,18 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         }
 
         $userParam = $queryNameGenerator->generateParameterName('scopeUserId');
-        $em = $queryBuilder->getEntityManager();
-
-        // Build a correlated EXISTS subquery so we don't have to materialise
-        // the workspace list (which would require binding an array of UUIDs).
         $subAlias = $queryNameGenerator->generateJoinAlias('wmscope');
+
+        // For Workspace itself: filter to workspaces the user is a member of.
+        // For other resources: filter to entities whose .workspace the user is a member of.
+        $wsExpr = $isWorkspaceItself ? $rootAlias : sprintf('%s.workspace', $rootAlias);
+
         $subDql = sprintf(
-            'SELECT 1 FROM %s %s WHERE %s.workspace = %s.workspace AND %s.user = :%s',
+            'SELECT 1 FROM %s %s WHERE %s.workspace = %s AND %s.user = :%s',
             WorkspaceMember::class,
             $subAlias,
             $subAlias,
-            $rootAlias,
+            $wsExpr,
             $subAlias,
             $userParam,
         );
@@ -105,7 +108,12 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
             ->andWhere(sprintf('EXISTS (%s)', $subDql))
             ->setParameter($userParam, $user->getId(), UuidType::NAME);
 
-        // Optional narrowing via X-Workspace-Id header.
+        // X-Workspace-Id narrowing — only meaningful for workspace-scoped resources
+        // (Workspace itself is already filtered to membership).
+        if ($isWorkspaceItself) {
+            return;
+        }
+
         $requested = $this->requestStack->getCurrentRequest()?->headers->get('X-Workspace-Id');
         if ($requested === null || $requested === '') {
             return;
@@ -125,9 +133,6 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
 
     private function isWorkspaceScoped(string $resourceClass): bool
     {
-        if ($resourceClass === Workspace::class) {
-            return false;
-        }
         $traits = [];
         $class = $resourceClass;
         while ($class !== false) {
