@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\EventSubscriber;
 
+use App\Entity\Comment;
 use App\Entity\CustomFieldDefinition;
 use App\Entity\CustomFieldValue;
 use App\Entity\DomainEventLog;
@@ -56,6 +57,7 @@ final class DomainEventEmitterSubscriber
         Tag::class => 'Tag',
         CustomFieldDefinition::class => 'CustomFieldDefinition',
         CustomFieldValue::class => 'CustomFieldValue',
+        Comment::class => 'Comment',
     ];
 
     /** @var list<GenericEntityChangedEvent> */

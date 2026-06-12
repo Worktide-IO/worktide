@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\DataFixtures;
 
+use App\Entity\Comment;
 use App\Entity\CustomFieldDefinition;
 use App\Entity\CustomFieldValue;
+use App\Entity\Enum\CommentTarget;
 use App\Entity\Enum\CustomFieldTarget;
 use App\Entity\Enum\CustomFieldType;
 use App\Entity\Enum\ProjectMemberRole;
@@ -196,6 +198,11 @@ class AppFixtures extends Fixture
             ],
         ];
 
+        /** @var array<string, Project> $createdProjects */
+        $createdProjects = [];
+        /** @var array<string, Task> $createdTasks */
+        $createdTasks = [];
+
         foreach ($projectsData as $p) {
             $project = (new Project())
                 ->setWorkspace($workspace)
@@ -212,6 +219,7 @@ class AppFixtures extends Fixture
                 $project->addTag($tags[$tagName]);
             }
             $om->persist($project);
+            $createdProjects[$p['key']] = $project;
 
             $om->persist(
                 (new ProjectMember())
@@ -244,6 +252,7 @@ class AppFixtures extends Fixture
                     $task->addTag($tags[$tn]);
                 }
                 $om->persist($task);
+                $createdTasks[sprintf('%s-%d', $p['key'], $idx + 1)] = $task;
 
                 if ($p['key'] === 'WORK' && $idx < 3) {
                     for ($d = 1; $d <= 3; $d++) {
@@ -264,6 +273,39 @@ class AppFixtures extends Fixture
                     }
                 }
             }
+        }
+
+        // Intermediate flush — UUIDs are populated by Doctrine's UuidGenerator
+        // only at persist time, so comments can now reference task/project ids.
+        $om->flush();
+
+        // ---- Comments (B1) ------------------------------------------------
+        $commentData = [
+            // [target, key, author-idx, content, pinned?, isResolved?]
+            [CommentTarget::Project, 'WORK', 0, "Kickoff war heute. Backlog für Sprint 1 steht.", true, false],
+            [CommentTarget::Project, 'WORK', 1, "Architektur-Entscheidung: wir nehmen Worktide selbst als Dogfood-Plattform 🚀", false, false],
+            [CommentTarget::Task, 'WORK-1', 1, "Skeleton steht — Symfony 8.1 + DDEV laufen. Nächster Schritt: Auth.", false, true],
+            [CommentTarget::Task, 'WORK-2', 0, "Bitte mit Username + Passwort + Remember-Me bauen.", false, false],
+            [CommentTarget::Task, 'WORK-4', 0, "Permissions: erstmal Voter, später granular per Role-Entity.", false, false],
+            [CommentTarget::Project, 'KA', 1, "Kunde A meldet sich am Montag wegen Termin-Fenster.", true, false],
+        ];
+
+        foreach ($commentData as [$targetType, $key, $authorIdx, $content, $pinned, $resolved]) {
+            $targetEntity = $targetType === CommentTarget::Project
+                ? $createdProjects[$key]
+                : $createdTasks[$key];
+
+            $comment = (new Comment())
+                ->setWorkspace($workspace)
+                ->setTarget($targetType)
+                ->setTargetId($targetEntity->getId())
+                ->setAuthor($users[$authorIdx])
+                ->setContent($content)
+                ->setIsResolved($resolved);
+            if ($pinned) {
+                $comment->pin($users[0]);
+            }
+            $om->persist($comment);
         }
 
         $om->flush();
