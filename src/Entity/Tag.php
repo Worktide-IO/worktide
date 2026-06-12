@@ -14,8 +14,11 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use App\Entity\Enum\TagScope;
+use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
+use App\Entity\Trait\ExternalReferenceTrait;
 use App\Entity\Trait\TimestampableTrait;
+use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\TagRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -45,6 +48,9 @@ class Tag
     use EntityIdTrait;
     use TimestampableTrait;
     use WorkspaceScopedTrait;
+    use VersionedTrait;
+    use AuditableTrait;
+    use ExternalReferenceTrait;
 
     #[ORM\Column(length: 60)]
     private string $name;

@@ -13,9 +13,12 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
+use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
+use App\Entity\Trait\ExternalReferenceTrait;
 use App\Entity\Trait\SoftDeletableTrait;
 use App\Entity\Trait\TimestampableTrait;
+use App\Entity\Trait\VersionedTrait;
 use App\Repository\WorkspaceRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -41,6 +44,9 @@ class Workspace
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
+    use VersionedTrait;
+    use AuditableTrait;
+    use ExternalReferenceTrait;
 
     #[ORM\Column(length: 120)]
     private string $name;

@@ -17,8 +17,11 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
+use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
+use App\Entity\Trait\ExternalReferenceTrait;
 use App\Entity\Trait\TimestampableTrait;
+use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\TimeEntryRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -58,6 +61,9 @@ class TimeEntry
     use EntityIdTrait;
     use TimestampableTrait;
     use WorkspaceScopedTrait;
+    use VersionedTrait;
+    use AuditableTrait;
+    use ExternalReferenceTrait;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]

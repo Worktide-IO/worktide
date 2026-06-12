@@ -16,9 +16,12 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
+use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
+use App\Entity\Trait\ExternalReferenceTrait;
 use App\Entity\Trait\SoftDeletableTrait;
 use App\Entity\Trait\TimestampableTrait;
+use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\ProjectRepository;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -59,6 +62,9 @@ class Project
     use TimestampableTrait;
     use SoftDeletableTrait;
     use WorkspaceScopedTrait;
+    use VersionedTrait;
+    use AuditableTrait;
+    use ExternalReferenceTrait;
 
     #[ORM\Column(length: 160)]
     private string $name;

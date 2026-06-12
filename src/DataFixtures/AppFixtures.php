@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\DataFixtures;
 
+use App\Entity\CustomFieldDefinition;
+use App\Entity\CustomFieldValue;
+use App\Entity\Enum\CustomFieldTarget;
+use App\Entity\Enum\CustomFieldType;
 use App\Entity\Enum\ProjectMemberRole;
 use App\Entity\Enum\TagScope;
 use App\Entity\Enum\TaskPriority;
@@ -99,6 +103,28 @@ class AppFixtures extends Fixture
                 ->setIsDefault($default);
             $om->persist($ts);
             $taskStatuses[$i] = $ts;
+        }
+
+        // ---- Custom Field Definitions ------------------------------------
+        $cfDefs = [];
+        $cfData = [
+            ['project', 'budget_owner', 'Budget-Verantwortlicher', CustomFieldTarget::Project, CustomFieldType::User, []],
+            ['project', 'priority_class', 'Priorisierung', CustomFieldTarget::Project, CustomFieldType::Select, ['A', 'B', 'C']],
+            ['task', 'effort_estimate', 'Schätzung in Stunden', CustomFieldTarget::Task, CustomFieldType::Number, []],
+            ['task', 'requires_review', 'Review nötig?', CustomFieldTarget::Task, CustomFieldType::Boolean, []],
+            ['task', 'review_url', 'Review-Link', CustomFieldTarget::Task, CustomFieldType::Url, []],
+        ];
+        foreach ($cfData as $i => [$_, $key, $label, $target, $type, $options]) {
+            $def = (new CustomFieldDefinition())
+                ->setWorkspace($workspace)
+                ->setTarget($target)
+                ->setType($type)
+                ->setKey($key)
+                ->setLabel($label)
+                ->setOptions($options)
+                ->setPosition($i * 10);
+            $om->persist($def);
+            $cfDefs[$key] = $def;
         }
 
         // ---- Tags ---------------------------------------------------------

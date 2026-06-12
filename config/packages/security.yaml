@@ -12,6 +12,13 @@ security:
             # Ensure dev tools and static assets are always allowed
             pattern: ^/(_profiler|_wdt|assets|build)/
             security: false
+        api:
+            pattern: ^/v1
+            stateless: true
+            lazy: true
+            provider: users_in_memory
+            # Auth providers (JWT, API-Key, OAuth) come in Phase 2 — for now
+            # the API is open and runs without session usage.
         main:
             lazy: true
             provider: users_in_memory

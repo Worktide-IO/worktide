@@ -14,8 +14,10 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use App\Entity\Trait\EntityIdTrait;
+use App\Entity\Trait\ExternalReferenceTrait;
 use App\Entity\Trait\SoftDeletableTrait;
 use App\Entity\Trait\TimestampableTrait;
+use App\Entity\Trait\VersionedTrait;
 use App\Repository\UserRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -43,6 +45,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
+    use VersionedTrait;
+    use ExternalReferenceTrait;
 
     #[ORM\Column(length: 180, unique: true)]
     private string $email;
