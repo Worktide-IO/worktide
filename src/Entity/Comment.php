@@ -23,6 +23,8 @@ use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\CommentRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -63,7 +65,7 @@ use Symfony\Component\Uid\Uuid;
     'parent' => 'exact',
     'content' => 'partial',
 ])]
-#[ApiFilter(BooleanFilter::class, properties: ['isResolved'])]
+#[ApiFilter(BooleanFilter::class, properties: ['isResolved', 'isHiddenForConnectUsers'])]
 #[ApiFilter(ExistsFilter::class, properties: ['pinnedAt', 'parent', 'editedAt'])]
 #[ApiFilter(DateFilter::class, properties: ['createdAt', 'updatedAt'])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt', 'pinnedAt'])]
@@ -108,6 +110,26 @@ class Comment
 
     #[ORM\Column]
     private bool $isResolved = false;
+
+    /**
+     * Hidden from external (cross-workspace) project members. Worktide-internal
+     * notes that should not leak to invited agency collaborators.
+     */
+    #[ORM\Column]
+    private bool $isHiddenForConnectUsers = false;
+
+    /** @var list<string> URLs surfaced as link-unfurl previews in the UI. */
+    #[ORM\Column(type: 'json')]
+    private array $previews = [];
+
+    /** @var Collection<int, CommentReaction> */
+    #[ORM\OneToMany(targetEntity: CommentReaction::class, mappedBy: 'comment', cascade: ['remove'], orphanRemoval: true)]
+    private Collection $reactions;
+
+    public function __construct()
+    {
+        $this->reactions = new ArrayCollection();
+    }
 
     public function getTarget(): CommentTarget
     {
@@ -226,5 +248,35 @@ class Comment
     {
         $this->isResolved = $value;
         return $this;
+    }
+
+    public function isHiddenForConnectUsers(): bool
+    {
+        return $this->isHiddenForConnectUsers;
+    }
+
+    public function setIsHiddenForConnectUsers(bool $value): self
+    {
+        $this->isHiddenForConnectUsers = $value;
+        return $this;
+    }
+
+    /** @return list<string> */
+    public function getPreviews(): array
+    {
+        return $this->previews;
+    }
+
+    /** @param list<string> $previews */
+    public function setPreviews(array $previews): self
+    {
+        $this->previews = array_values(array_filter($previews, 'is_string'));
+        return $this;
+    }
+
+    /** @return Collection<int, CommentReaction> */
+    public function getReactions(): Collection
+    {
+        return $this->reactions;
     }
 }
