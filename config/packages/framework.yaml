@@ -5,6 +5,10 @@ framework:
     # Note that the session will be started ONLY if you read or write from it.
     session: true
 
+    uid:
+        default_uuid_version: 7
+        time_based_uuid_version: 7
+
     #esi: true
     #fragments: true
 
