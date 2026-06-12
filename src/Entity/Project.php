@@ -4,6 +4,18 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
+use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
+use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
+use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Post;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
 use App\Entity\Trait\TimestampableTrait;
@@ -18,6 +30,29 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\UniqueConstraint(name: 'project_workspace_key_unique', columns: ['workspace_id', 'project_key'])]
 #[ORM\Index(name: 'project_workspace_idx', columns: ['workspace_id'])]
 #[ORM\HasLifecycleCallbacks]
+#[ApiResource(
+    shortName: 'Project',
+    operations: [
+        new GetCollection(),
+        new Get(),
+        new Post(),
+        new Patch(),
+        new Delete(),
+    ],
+)]
+#[ApiFilter(SearchFilter::class, properties: [
+    'name' => 'partial',
+    'key' => 'exact',
+    'description' => 'partial',
+    'workspace' => 'exact',
+    'status' => 'exact',
+    'owner' => 'exact',
+    'tags' => 'exact',
+])]
+#[ApiFilter(BooleanFilter::class, properties: ['isArchived'])]
+#[ApiFilter(DateFilter::class, properties: ['startsOn', 'dueOn', 'createdAt', 'updatedAt'])]
+#[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'owner', 'dueOn'])]
+#[ApiFilter(OrderFilter::class, properties: ['name', 'key', 'createdAt', 'updatedAt', 'dueOn', 'startsOn'])]
 class Project
 {
     use EntityIdTrait;

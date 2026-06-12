@@ -5,7 +5,8 @@ php_version: "8.4"
 webserver_type: apache-fpm
 xdebug_enabled: false
 additional_hostnames: []
-additional_fqdns: []
+additional_fqdns:
+    - api.worktide.ddev.site
 database:
     type: mysql
     version: "8.0"

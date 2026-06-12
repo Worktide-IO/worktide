@@ -4,6 +4,17 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
+use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
+use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Post;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
@@ -20,6 +31,32 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'task_project_idx', columns: ['project_id'])]
 #[ORM\Index(name: 'task_assignee_idx', columns: ['assignee_id'])]
 #[ORM\HasLifecycleCallbacks]
+#[ApiResource(
+    shortName: 'Task',
+    operations: [
+        new GetCollection(),
+        new Get(),
+        new Post(),
+        new Patch(),
+        new Delete(),
+    ],
+)]
+#[ApiFilter(SearchFilter::class, properties: [
+    'identifier' => 'exact',
+    'title' => 'partial',
+    'description' => 'partial',
+    'workspace' => 'exact',
+    'project' => 'exact',
+    'status' => 'exact',
+    'priority' => 'exact',
+    'assignee' => 'exact',
+    'createdBy' => 'exact',
+    'parent' => 'exact',
+    'tags' => 'exact',
+])]
+#[ApiFilter(DateFilter::class, properties: ['dueOn', 'startedOn', 'createdAt', 'updatedAt'])]
+#[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'assignee', 'dueOn', 'parent'])]
+#[ApiFilter(OrderFilter::class, properties: ['identifier', 'title', 'priority', 'position', 'dueOn', 'createdAt', 'updatedAt'])]
 class Task
 {
     use EntityIdTrait;
