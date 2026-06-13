@@ -15,6 +15,8 @@
         "doctrine/doctrine-migrations-bundle": "^4.0",
         "doctrine/orm": "^3.6",
         "gesdinet/jwt-refresh-token-bundle": "^2.0",
+        "league/flysystem": "^3.34",
+        "league/flysystem-local": "^3.31",
         "lexik/jwt-authentication-bundle": "^3.2",
         "nelmio/cors-bundle": "^2.6",
         "phpdocumentor/reflection-docblock": "^6.0",
