@@ -21,3 +21,10 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+    # Auto-convert Symfony Uid objects to their binary form when bound to a
+    # prepared statement without an explicit type — fixes API Platform
+    # SearchFilter on UUID-FK columns (see src/Doctrine/Middleware/UuidBinding).
+    App\Doctrine\Middleware\UuidBinding\UuidBindingMiddleware:
+        tags:
+            - { name: doctrine.middleware }
