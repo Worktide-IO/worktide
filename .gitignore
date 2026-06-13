@@ -22,3 +22,13 @@
 ###> lexik/jwt-authentication-bundle ###
 /config/jwt/*.pem
 ###< lexik/jwt-authentication-bundle ###
+
+# awork import snapshot (contains real customer data — do not commit)
+/var/awork-snapshot/users.json
+/var/awork-snapshot/companies.json
+/var/awork-snapshot/projects-all.json
+/var/awork-snapshot/projectstatuses.json
+/var/awork-snapshot/projecttypes.json
+/var/awork-snapshot/projects/
+/var/awork-snapshot/tasks/
+/var/awork-snapshot/picked-ids.json

@@ -44,3 +44,7 @@ services:
     App\Service\FileStorage:
         arguments:
             $filesystem: '@file_storage.filesystem'
+
+    App\Command\AworkImportCommand:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
