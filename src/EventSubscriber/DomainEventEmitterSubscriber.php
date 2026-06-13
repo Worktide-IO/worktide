@@ -10,6 +10,8 @@ use App\Entity\CustomFieldDefinition;
 use App\Entity\CustomFieldOption;
 use App\Entity\CustomFieldValue;
 use App\Entity\DomainEventLog;
+use App\Entity\File;
+use App\Entity\FileVersion;
 use App\Entity\Project;
 use App\Entity\ProjectMember;
 use App\Entity\ProjectMilestone;
@@ -72,6 +74,8 @@ final class DomainEventEmitterSubscriber
         ChecklistItem::class => 'ChecklistItem',
         TaskDependency::class => 'TaskDependency',
         ProjectMilestone::class => 'ProjectMilestone',
+        File::class => 'File',
+        FileVersion::class => 'FileVersion',
     ];
 
     /** @var list<GenericEntityChangedEvent> */

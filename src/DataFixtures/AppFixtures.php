@@ -12,11 +12,15 @@ use App\Entity\Enum\CommentTarget;
 use App\Entity\Enum\CustomFieldTarget;
 use App\Entity\Enum\CustomFieldType;
 use App\Entity\Enum\ProjectMemberRole;
+use App\Entity\Enum\FileTarget;
 use App\Entity\Enum\TaskDependencyType;
+use App\Entity\File;
+use App\Entity\FileVersion;
 use App\Entity\ProjectMilestone;
 use App\Entity\TaskDependency;
 use App\Entity\TaskList;
 use App\Entity\TaskListEntry;
+use App\Service\FileStorage;
 use App\Entity\Enum\TagScope;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Enum\WorkspaceMemberRole;
@@ -38,6 +42,7 @@ class AppFixtures extends Fixture
 {
     public function __construct(
         private readonly UserPasswordHasherInterface $hasher,
+        private readonly FileStorage $fileStorage,
     ) {}
 
     public function load(ObjectManager $om): void
@@ -411,6 +416,77 @@ class AppFixtures extends Fixture
                 $milestone->setReachedBy($users[0]);
             }
             $om->persist($milestone);
+        }
+
+        // ---- Files (B4) — real bytes on Flysystem -----------------------
+        $om->flush(); // ensure UUIDs exist for files referencing tasks/projects
+
+        $fileSpecs = [
+            [
+                'target' => FileTarget::Project,
+                'targetEntity' => $createdProjects['WORK'],
+                'displayName' => 'Worktide-Pitch.md',
+                'originalFilename' => 'pitch.md',
+                'mimeType' => 'text/markdown',
+                'bytes' => "# Worktide\n\nProject + Task + Time + CRM, alles in einem.\n\n## Phase 1\n- Workspace + Projects + Tasks\n- Time tracking\n- Comments + Activities\n",
+                'uploadedBy' => 0,
+            ],
+            [
+                'target' => FileTarget::Task,
+                'targetEntity' => $createdTasks['WORK-1'],
+                'displayName' => 'Schema.txt',
+                'originalFilename' => 'schema.txt',
+                'mimeType' => 'text/plain',
+                'bytes' => "Worktide Phase-1 Schema\n=========================\n\nWorkspace --< Project --< Task --< TimeEntry\n        \\--< WorkspaceMember\nProject --< ProjectMember\n",
+                'uploadedBy' => 1,
+            ],
+            [
+                'target' => FileTarget::Workspace,
+                'targetEntity' => $workspace,
+                'displayName' => 'README.txt',
+                'originalFilename' => 'readme.txt',
+                'mimeType' => 'text/plain',
+                'bytes' => "Wappler Systems Workspace\nLast seeded: " . $now->format('c') . "\n",
+                'uploadedBy' => 0,
+            ],
+        ];
+
+        foreach ($fileSpecs as $spec) {
+            $file = (new File())
+                ->setWorkspace($workspace)
+                ->setTarget($spec['target'])
+                ->setTargetId($spec['targetEntity']->getId())
+                ->setName($spec['displayName'])
+                ->setMimeType($spec['mimeType'])
+                ->setUploadedBy($users[$spec['uploadedBy']]);
+            $om->persist($file);
+            $om->flush(); // get File UUID
+
+            $version = (new FileVersion())
+                ->setFile($file)
+                ->setVersionNumber(1)
+                ->setOriginalFilename($spec['originalFilename'])
+                ->setMimeType($spec['mimeType'])
+                ->setChecksum('pending')
+                ->setStoragePath('pending')
+                ->setUploadedBy($users[$spec['uploadedBy']]);
+            $om->persist($version);
+            $om->flush(); // get version UUID
+
+            $info = $this->fileStorage->writeBytes(
+                $spec['bytes'],
+                $workspace,
+                $file->getId(),
+                $version->getId(),
+                $spec['originalFilename'],
+            );
+
+            $version
+                ->setSize($info['size'])
+                ->setChecksum($info['checksum'])
+                ->setStoragePath($info['path']);
+
+            $file->setCurrentVersion($version);
         }
 
         foreach ($commentData as [$targetType, $key, $authorIdx, $content, $pinned, $resolved]) {

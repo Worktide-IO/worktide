@@ -28,3 +28,19 @@ services:
     App\Doctrine\Middleware\UuidBinding\UuidBindingMiddleware:
         tags:
             - { name: doctrine.middleware }
+
+    # Flysystem local-disk adapter pointed at var/uploads. Production can swap
+    # this to an AwsS3V3Adapter via env without touching FileStorage callers.
+    file_storage.adapter:
+        class: League\Flysystem\Local\LocalFilesystemAdapter
+        arguments:
+            $location: '%kernel.project_dir%/var/uploads'
+
+    file_storage.filesystem:
+        class: League\Flysystem\Filesystem
+        arguments:
+            - '@file_storage.adapter'
+
+    App\Service\FileStorage:
+        arguments:
+            $filesystem: '@file_storage.filesystem'
