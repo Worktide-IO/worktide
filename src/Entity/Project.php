@@ -116,6 +116,10 @@ class Project
     #[ORM\Column]
     private bool $isMultiAssignmentAllowed = true;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Workflow $workflow = null;
+
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $startsOn = null;
 
@@ -314,6 +318,9 @@ class Project
 
     public function isMultiAssignmentAllowed(): bool { return $this->isMultiAssignmentAllowed; }
     public function setIsMultiAssignmentAllowed(bool $v): self { $this->isMultiAssignmentAllowed = $v; return $this; }
+
+    public function getWorkflow(): ?Workflow { return $this->workflow; }
+    public function setWorkflow(?Workflow $workflow): self { $this->workflow = $workflow; return $this; }
 
     /** @return Collection<int, ProjectMember> */
     public function getMembers(): Collection
