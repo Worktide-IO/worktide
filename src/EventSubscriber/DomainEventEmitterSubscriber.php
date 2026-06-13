@@ -12,10 +12,12 @@ use App\Entity\CustomFieldValue;
 use App\Entity\DomainEventLog;
 use App\Entity\Project;
 use App\Entity\ProjectMember;
+use App\Entity\ProjectMilestone;
 use App\Entity\ProjectStatus;
 use App\Entity\ProjectType;
 use App\Entity\Tag;
 use App\Entity\Task;
+use App\Entity\TaskDependency;
 use App\Entity\TaskList;
 use App\Entity\TaskListEntry;
 use App\Entity\TaskStatus;
@@ -68,6 +70,8 @@ final class DomainEventEmitterSubscriber
         TaskList::class => 'TaskList',
         TaskListEntry::class => 'TaskListEntry',
         ChecklistItem::class => 'ChecklistItem',
+        TaskDependency::class => 'TaskDependency',
+        ProjectMilestone::class => 'ProjectMilestone',
     ];
 
     /** @var list<GenericEntityChangedEvent> */

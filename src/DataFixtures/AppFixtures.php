@@ -12,6 +12,9 @@ use App\Entity\Enum\CommentTarget;
 use App\Entity\Enum\CustomFieldTarget;
 use App\Entity\Enum\CustomFieldType;
 use App\Entity\Enum\ProjectMemberRole;
+use App\Entity\Enum\TaskDependencyType;
+use App\Entity\ProjectMilestone;
+use App\Entity\TaskDependency;
 use App\Entity\TaskList;
 use App\Entity\TaskListEntry;
 use App\Entity\Enum\TagScope;
@@ -357,6 +360,57 @@ class AppFixtures extends Fixture
                 }
                 $om->persist($item);
             }
+        }
+
+        // ---- TaskDependencies (B3) ---------------------------------------
+        // WORK-1 (MVP Skeleton) → blocks WORK-2 (Login-Form)
+        // WORK-2 (Login-Form) → blocks WORK-3 (Time-Tracker UI)
+        // WORK-1 → blocks WORK-4 (Permission-Modell)
+        $depPairs = [
+            ['WORK-1', 'WORK-2', TaskDependencyType::FinishToStart, 0],
+            ['WORK-2', 'WORK-3', TaskDependencyType::FinishToStart, 60],
+            ['WORK-1', 'WORK-4', TaskDependencyType::FinishToStart, 0],
+            ['KA-1', 'KA-2', TaskDependencyType::FinishToStart, 0],
+        ];
+        foreach ($depPairs as [$predKey, $succKey, $type, $lag]) {
+            if (isset($createdTasks[$predKey], $createdTasks[$succKey])) {
+                $dep = (new TaskDependency())
+                    ->setWorkspace($workspace)
+                    ->setPredecessor($createdTasks[$predKey])
+                    ->setSuccessor($createdTasks[$succKey])
+                    ->setType($type)
+                    ->setLagMinutes($lag);
+                $om->persist($dep);
+            }
+        }
+
+        // ---- ProjectMilestones (B3) --------------------------------------
+        $milestoneData = [
+            ['WORK', 'MVP Release', '#a78bfa', '+30 days', 0, ['WORK-1', 'WORK-2'], false],
+            ['WORK', 'Beta-Launch', '#facc15', '+60 days', 10, ['WORK-3', 'WORK-4'], false],
+            ['KA', 'Go-Live', '#22c55e', '+45 days', 0, ['KA-3'], false],
+        ];
+        foreach ($milestoneData as [$projKey, $name, $color, $dueOffset, $position, $taskKeys, $isReached]) {
+            if (!isset($createdProjects[$projKey])) {
+                continue;
+            }
+            $milestone = (new ProjectMilestone())
+                ->setWorkspace($workspace)
+                ->setProject($createdProjects[$projKey])
+                ->setName($name)
+                ->setColor($color)
+                ->setDueOn($now->modify($dueOffset))
+                ->setPosition($position);
+            foreach ($taskKeys as $tk) {
+                if (isset($createdTasks[$tk])) {
+                    $milestone->addTask($createdTasks[$tk]);
+                }
+            }
+            if ($isReached) {
+                $milestone->setIsReached(true);
+                $milestone->setReachedBy($users[0]);
+            }
+            $om->persist($milestone);
         }
 
         foreach ($commentData as [$targetType, $key, $authorIdx, $content, $pinned, $resolved]) {
