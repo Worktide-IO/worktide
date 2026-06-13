@@ -22,6 +22,8 @@ use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\CustomFieldDefinitionRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -94,6 +96,31 @@ class CustomFieldDefinition
 
     #[ORM\Column]
     private int $position = 0;
+
+    /** @var Collection<int, CustomFieldOption> */
+    #[ORM\OneToMany(targetEntity: CustomFieldOption::class, mappedBy: 'definition', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['position' => 'ASC'])]
+    private Collection $optionDefinitions;
+
+    public function __construct()
+    {
+        $this->optionDefinitions = new ArrayCollection();
+    }
+
+    /** @return Collection<int, CustomFieldOption> */
+    public function getOptionDefinitions(): Collection
+    {
+        return $this->optionDefinitions;
+    }
+
+    public function addOptionDefinition(CustomFieldOption $option): self
+    {
+        if (!$this->optionDefinitions->contains($option)) {
+            $option->setDefinition($this);
+            $this->optionDefinitions->add($option);
+        }
+        return $this;
+    }
 
     public function getTarget(): CustomFieldTarget
     {

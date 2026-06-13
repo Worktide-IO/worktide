@@ -49,10 +49,11 @@ use Doctrine\ORM\Mapping as ORM;
     'description' => 'partial',
     'workspace' => 'exact',
     'status' => 'exact',
+    'projectType' => 'exact',
     'owner' => 'exact',
     'tags' => 'exact',
 ])]
-#[ApiFilter(BooleanFilter::class, properties: ['isArchived'])]
+#[ApiFilter(BooleanFilter::class, properties: ['isArchived', 'isPrivate', 'isRetainer', 'isMultiAssignmentAllowed', 'isBillableByDefault'])]
 #[ApiFilter(DateFilter::class, properties: ['startsOn', 'dueOn', 'createdAt', 'updatedAt'])]
 #[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'owner', 'dueOn'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'key', 'createdAt', 'updatedAt', 'dueOn', 'startsOn'])]
@@ -85,6 +86,35 @@ class Project
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?User $owner = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?ProjectType $projectType = null;
+
+    #[ORM\Column]
+    private bool $isPrivate = false;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $closedOn = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $closedBy = null;
+
+    #[ORM\Column]
+    private bool $isBillableByDefault = true;
+
+    #[ORM\Column]
+    private bool $deductNonBillableHours = false;
+
+    #[ORM\Column]
+    private bool $hasImage = false;
+
+    #[ORM\Column]
+    private bool $isRetainer = false;
+
+    #[ORM\Column]
+    private bool $isMultiAssignmentAllowed = true;
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $startsOn = null;
@@ -227,6 +257,55 @@ class Project
         $this->budgetMinutes = $budgetMinutes;
         return $this;
     }
+
+    public function getProjectType(): ?ProjectType
+    {
+        return $this->projectType;
+    }
+
+    public function setProjectType(?ProjectType $type): self
+    {
+        $this->projectType = $type;
+        return $this;
+    }
+
+    public function isPrivate(): bool { return $this->isPrivate; }
+    public function setIsPrivate(bool $v): self { $this->isPrivate = $v; return $this; }
+
+    public function getClosedOn(): ?\DateTimeImmutable { return $this->closedOn; }
+    public function setClosedOn(?\DateTimeImmutable $when): self { $this->closedOn = $when; return $this; }
+
+    public function getClosedBy(): ?User { return $this->closedBy; }
+    public function setClosedBy(?User $user): self { $this->closedBy = $user; return $this; }
+
+    public function close(User $by): self
+    {
+        $this->closedOn = new \DateTimeImmutable();
+        $this->closedBy = $by;
+        return $this;
+    }
+
+    public function reopen(): self
+    {
+        $this->closedOn = null;
+        $this->closedBy = null;
+        return $this;
+    }
+
+    public function isBillableByDefault(): bool { return $this->isBillableByDefault; }
+    public function setIsBillableByDefault(bool $v): self { $this->isBillableByDefault = $v; return $this; }
+
+    public function isDeductNonBillableHours(): bool { return $this->deductNonBillableHours; }
+    public function setDeductNonBillableHours(bool $v): self { $this->deductNonBillableHours = $v; return $this; }
+
+    public function hasImage(): bool { return $this->hasImage; }
+    public function setHasImage(bool $v): self { $this->hasImage = $v; return $this; }
+
+    public function isRetainer(): bool { return $this->isRetainer; }
+    public function setIsRetainer(bool $v): self { $this->isRetainer = $v; return $this; }
+
+    public function isMultiAssignmentAllowed(): bool { return $this->isMultiAssignmentAllowed; }
+    public function setIsMultiAssignmentAllowed(bool $v): self { $this->isMultiAssignmentAllowed = $v; return $this; }
 
     /** @return Collection<int, ProjectMember> */
     public function getMembers(): Collection

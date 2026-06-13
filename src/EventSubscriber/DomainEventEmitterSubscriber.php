@@ -6,11 +6,13 @@ namespace App\EventSubscriber;
 
 use App\Entity\Comment;
 use App\Entity\CustomFieldDefinition;
+use App\Entity\CustomFieldOption;
 use App\Entity\CustomFieldValue;
 use App\Entity\DomainEventLog;
 use App\Entity\Project;
 use App\Entity\ProjectMember;
 use App\Entity\ProjectStatus;
+use App\Entity\ProjectType;
 use App\Entity\Tag;
 use App\Entity\Task;
 use App\Entity\TaskStatus;
@@ -57,7 +59,9 @@ final class DomainEventEmitterSubscriber
         Tag::class => 'Tag',
         CustomFieldDefinition::class => 'CustomFieldDefinition',
         CustomFieldValue::class => 'CustomFieldValue',
+        CustomFieldOption::class => 'CustomFieldOption',
         Comment::class => 'Comment',
+        ProjectType::class => 'ProjectType',
     ];
 
     /** @var list<GenericEntityChangedEvent> */
@@ -213,15 +217,20 @@ final class DomainEventEmitterSubscriber
      */
     private function enrichPayload(object $entity, string $action, array $payload, array $changeSet): array
     {
-        if ($entity instanceof Task && $action === GenericEntityChangedEvent::ACTION_UPDATED && isset($changeSet['assignee'])) {
-            [$old, $new] = $changeSet['assignee'];
-            $payload['unassignedUser'] = $old instanceof User ? $this->userBrief($old) : null;
-            $payload['assignedUser'] = $new instanceof User ? $this->userBrief($new) : null;
+        if ($entity instanceof Task && $action === GenericEntityChangedEvent::ACTION_CREATED) {
+            $assignees = [];
+            foreach ($entity->getAssignees() as $a) {
+                $assignees[] = $this->userBrief($a);
+            }
+            if ($assignees !== []) {
+                $payload['assignedUsers'] = $assignees;
+            }
         }
-
-        if ($entity instanceof Task && $action === GenericEntityChangedEvent::ACTION_CREATED && $entity->getAssignee() !== null) {
-            $payload['assignedUser'] = $this->userBrief($entity->getAssignee());
-        }
+        // Note: Multi-assignee changes are emitted by the join-table operations
+        // themselves (Doctrine doesn't put ManyToMany changes into the changeset
+        // of the owning entity). When a future "set-assignees" controller lands,
+        // it should explicitly dispatch a "task.assignees_changed" event with
+        // added/removed user-briefs.
 
         if (($entity instanceof ProjectMember || $entity instanceof WorkspaceMember) && $action !== GenericEntityChangedEvent::ACTION_UPDATED) {
             $payload['member'] = $this->userBrief($entity->getUser());
