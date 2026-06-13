@@ -18,14 +18,18 @@ use App\Entity\ProjectMilestone;
 use App\Entity\ProjectStatus;
 use App\Entity\ProjectTemplate;
 use App\Entity\ProjectType;
+use App\Entity\Workflow;
 use App\Entity\Tag;
 use App\Entity\Task;
 use App\Entity\TaskBundle;
 use App\Entity\TaskDependency;
 use App\Entity\TaskList;
 use App\Entity\TaskListEntry;
+use App\Entity\TaskSchedule;
 use App\Entity\TaskStatus;
 use App\Entity\TaskTemplate;
+use App\Entity\Automation;
+use App\Entity\AutomationAction;
 use App\Entity\TimeEntry;
 use App\Entity\User;
 use App\Entity\Workspace;
@@ -36,6 +40,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\OnFlushEventArgs;
 use Doctrine\ORM\Event\PostFlushEventArgs;
 use Doctrine\ORM\Events;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Uid\Uuid;
 
 /**
@@ -82,10 +87,18 @@ final class DomainEventEmitterSubscriber
         ProjectTemplate::class => 'ProjectTemplate',
         TaskBundle::class => 'TaskBundle',
         TaskTemplate::class => 'TaskTemplate',
+        Workflow::class => 'Workflow',
+        Automation::class => 'Automation',
+        AutomationAction::class => 'AutomationAction',
+        TaskSchedule::class => 'TaskSchedule',
     ];
 
     /** @var list<GenericEntityChangedEvent> */
     private array $pending = [];
+
+    public function __construct(
+        private readonly EventDispatcherInterface $events,
+    ) {}
 
     public function onFlush(OnFlushEventArgs $args): void
     {
@@ -168,6 +181,13 @@ final class DomainEventEmitterSubscriber
 
         // Flush again — DomainEventLog is NOT in TRACKED, so this won't recurse.
         $em->flush();
+
+        // Now hand the events off to anyone who wants to react — Automation
+        // dispatcher, future webhook senders, etc. We dispatch AFTER the log
+        // is persisted so consumers can rely on the log being in sync.
+        foreach ($events as $event) {
+            $this->events->dispatch($event);
+        }
     }
 
     private function extractUuid(object $entity): ?Uuid

@@ -18,11 +18,17 @@ use App\Entity\File;
 use App\Entity\FileVersion;
 use App\Entity\ProjectMilestone;
 use App\Entity\TaskDependency;
+use App\Entity\Automation;
+use App\Entity\AutomationAction;
+use App\Entity\Enum\AutomationActionType;
+use App\Entity\Enum\AutomationTriggerType;
 use App\Entity\ProjectTemplate;
 use App\Entity\TaskBundle;
 use App\Entity\TaskList;
 use App\Entity\TaskListEntry;
+use App\Entity\TaskSchedule;
 use App\Entity\TaskTemplate;
+use App\Entity\Workflow;
 use App\Service\FileStorage;
 use App\Entity\Enum\TagScope;
 use App\Entity\Enum\TaskPriority;
@@ -422,6 +428,59 @@ class AppFixtures extends Fixture
         }
 
         // ---- Files (B4) — real bytes on Flysystem -----------------------
+        // ---- Workflows + Automations (B6) --------------------------------
+        // Extra "archiveable" tag for the demo automation to attach.
+        $archiveTag = (new \App\Entity\Tag())
+            ->setWorkspace($workspace)
+            ->setName('archiveable')
+            ->setColor('#475569')
+            ->setScope(\App\Entity\Enum\TagScope::Task);
+        $om->persist($archiveTag);
+        $tags['archiveable'] = $archiveTag;
+
+        $workflow = (new Workflow())
+            ->setWorkspace($workspace)
+            ->setName('Worktide-Standard-Workflow')
+            ->setDescription('Auto-tag completed tasks for monthly cleanup.')
+            ->setColor('#22c55e');
+        $om->persist($workflow);
+
+        $om->flush(); // workflow needs an ID before we reference it in automations + projects
+
+        $erledigtStatus = $taskStatuses[3]; // "Erledigt" (isCompleted = true)
+
+        $automation = (new Automation())
+            ->setWorkspace($workspace)
+            ->setWorkflow($workflow)
+            ->setName('Tag erledigte Tasks als archiveable')
+            ->setTriggerType(AutomationTriggerType::TaskStatusChanged)
+            ->setTriggerConfig(['toStatusId' => $erledigtStatus->getId()->toRfc4122()])
+            ->setPosition(10);
+        $om->persist($automation);
+
+        $action = (new AutomationAction())
+            ->setAutomation($automation)
+            ->setType(AutomationActionType::AddTaskTag)
+            ->setConfig(['tagId' => $archiveTag->getId()->toRfc4122()])
+            ->setPosition(10);
+        $om->persist($action);
+
+        // Hook WORK project to the workflow so its tasks trigger the automation.
+        $createdProjects['WORK']->setWorkflow($workflow);
+
+        // ---- TaskSchedule (B6) -------------------------------------------
+        $schedule = (new TaskSchedule())
+            ->setWorkspace($workspace)
+            ->setProject($createdProjects['WORK'])
+            ->setName('Wöchentlicher Standup')
+            ->setCronExpression('0 9 * * 1') // Mondays 9am
+            ->setTimezone('Europe/Berlin')
+            ->setTaskTitle('Wöchentlicher Standup — Worktide')
+            ->setTaskDescription('Was lief letzte Woche? Was steht an? Welche Blocker?')
+            ->setTaskPriority('normal')
+            ->setTaskEstimatedMinutes(30);
+        $om->persist($schedule);
+
         // ---- Templates (B5) ----------------------------------------------
         $standardBundle = (new TaskBundle())
             ->setWorkspace($workspace)
