@@ -137,10 +137,45 @@ class Task
     #[ORM\JoinTable(name: 'task_tags')]
     private Collection $tags;
 
+    /** @var Collection<int, TaskListEntry> */
+    #[ORM\OneToMany(targetEntity: TaskListEntry::class, mappedBy: 'task', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $listEntries;
+
+    /** @var Collection<int, ChecklistItem> */
+    #[ORM\OneToMany(targetEntity: ChecklistItem::class, mappedBy: 'task', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['position' => 'ASC'])]
+    private Collection $checklistItems;
+
     public function __construct()
     {
         $this->tags = new ArrayCollection();
         $this->assignees = new ArrayCollection();
+        $this->listEntries = new ArrayCollection();
+        $this->checklistItems = new ArrayCollection();
+    }
+
+    /** @return Collection<int, TaskListEntry> */
+    public function getListEntries(): Collection { return $this->listEntries; }
+
+    /** @return Collection<int, ChecklistItem> */
+    public function getChecklistItems(): Collection { return $this->checklistItems; }
+
+    /** Number of checklist items on this task (for awork-style task summaries). */
+    public function getChecklistItemsCount(): int
+    {
+        return $this->checklistItems->count();
+    }
+
+    /** Number of checked-off checklist items. */
+    public function getChecklistItemsDoneCount(): int
+    {
+        $done = 0;
+        foreach ($this->checklistItems as $item) {
+            if ($item->isDone()) {
+                $done++;
+            }
+        }
+        return $done;
     }
 
     public function getProject(): Project

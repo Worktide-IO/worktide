@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\DataFixtures;
 
+use App\Entity\ChecklistItem;
 use App\Entity\Comment;
 use App\Entity\CustomFieldDefinition;
 use App\Entity\CustomFieldValue;
@@ -11,6 +12,8 @@ use App\Entity\Enum\CommentTarget;
 use App\Entity\Enum\CustomFieldTarget;
 use App\Entity\Enum\CustomFieldType;
 use App\Entity\Enum\ProjectMemberRole;
+use App\Entity\TaskList;
+use App\Entity\TaskListEntry;
 use App\Entity\Enum\TagScope;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Enum\WorkspaceMemberRole;
@@ -289,6 +292,72 @@ class AppFixtures extends Fixture
             [CommentTarget::Task, 'WORK-4', 0, "Permissions: erstmal Voter, später granular per Role-Entity.", false, false],
             [CommentTarget::Project, 'KA', 1, "Kunde A meldet sich am Montag wegen Termin-Fenster.", true, false],
         ];
+
+        // ---- TaskLists + Entries (B2) -------------------------------------
+        $listColumns = [
+            ['Backlog', '#94a3b8'],
+            ['In Arbeit', '#3b82f6'],
+            ['Review', '#f59e0b'],
+            ['Erledigt', '#22c55e'],
+        ];
+        foreach ($createdProjects as $projectKey => $project) {
+            $listsForProject = [];
+            foreach ($listColumns as $i => [$name, $color]) {
+                $list = (new TaskList())
+                    ->setWorkspace($workspace)
+                    ->setProject($project)
+                    ->setName($name)
+                    ->setColor($color)
+                    ->setPosition((float) (($i + 1) * 10));
+                $om->persist($list);
+                $listsForProject[$name] = $list;
+            }
+
+            $positionPerList = ['Backlog' => 0, 'In Arbeit' => 0, 'Review' => 0, 'Erledigt' => 0];
+            foreach ($createdTasks as $taskIdentifier => $task) {
+                if (!str_starts_with($taskIdentifier, $projectKey . '-')) {
+                    continue;
+                }
+                $statusName = $task->getStatus()->getName();
+                $listName = match ($statusName) {
+                    'Backlog', 'In Arbeit', 'Review', 'Erledigt' => $statusName,
+                    default => 'Backlog',
+                };
+                $list = $listsForProject[$listName];
+                $positionPerList[$listName] += 10;
+                $entry = (new TaskListEntry())
+                    ->setList($list)
+                    ->setTask($task)
+                    ->setPosition((float) $positionPerList[$listName]);
+                $om->persist($entry);
+            }
+        }
+
+        // ---- Checklist Items on WORK-1 ------------------------------------
+        $work1 = $createdTasks['WORK-1'] ?? null;
+        if ($work1 !== null) {
+            $items = [
+                ['DDEV-Projekt aufsetzen', true, $users[0]],
+                ['Symfony 8.1 installieren', true, $users[0]],
+                ['Doctrine + Migrations', true, $users[0]],
+                ['Erste Entity (Workspace) anlegen', false, null],
+                ['Fixtures + Smoke-Test', false, null],
+            ];
+            foreach ($items as $i => [$name, $done, $by]) {
+                $item = (new ChecklistItem())
+                    ->setWorkspace($workspace)
+                    ->setTask($work1)
+                    ->setName($name)
+                    ->setPosition((float) (($i + 1) * 10));
+                if ($done) {
+                    $item->setIsDone(true);
+                    if ($by !== null) {
+                        $item->setCheckedBy($by);
+                    }
+                }
+                $om->persist($item);
+            }
+        }
 
         foreach ($commentData as [$targetType, $key, $authorIdx, $content, $pinned, $resolved]) {
             $targetEntity = $targetType === CommentTarget::Project

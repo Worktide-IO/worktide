@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\EventSubscriber;
 
+use App\Entity\ChecklistItem;
 use App\Entity\Comment;
 use App\Entity\CustomFieldDefinition;
 use App\Entity\CustomFieldOption;
@@ -15,6 +16,8 @@ use App\Entity\ProjectStatus;
 use App\Entity\ProjectType;
 use App\Entity\Tag;
 use App\Entity\Task;
+use App\Entity\TaskList;
+use App\Entity\TaskListEntry;
 use App\Entity\TaskStatus;
 use App\Entity\TimeEntry;
 use App\Entity\User;
@@ -62,6 +65,9 @@ final class DomainEventEmitterSubscriber
         CustomFieldOption::class => 'CustomFieldOption',
         Comment::class => 'Comment',
         ProjectType::class => 'ProjectType',
+        TaskList::class => 'TaskList',
+        TaskListEntry::class => 'TaskListEntry',
+        ChecklistItem::class => 'ChecklistItem',
     ];
 
     /** @var list<GenericEntityChangedEvent> */

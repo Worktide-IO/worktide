@@ -136,6 +136,10 @@ class Project
     #[ORM\OneToMany(targetEntity: Task::class, mappedBy: 'project', orphanRemoval: true)]
     private Collection $tasks;
 
+    /** @var Collection<int, TaskList> */
+    #[ORM\OneToMany(targetEntity: TaskList::class, mappedBy: 'project', orphanRemoval: true)]
+    private Collection $taskLists;
+
     /** @var Collection<int, Tag> */
     #[ORM\ManyToMany(targetEntity: Tag::class)]
     #[ORM\JoinTable(name: 'project_tags')]
@@ -146,7 +150,11 @@ class Project
         $this->members = new ArrayCollection();
         $this->tasks = new ArrayCollection();
         $this->tags = new ArrayCollection();
+        $this->taskLists = new ArrayCollection();
     }
+
+    /** @return Collection<int, TaskList> */
+    public function getTaskLists(): Collection { return $this->taskLists; }
 
     public function getName(): string
     {
