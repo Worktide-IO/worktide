@@ -16,13 +16,16 @@ use App\Entity\Project;
 use App\Entity\ProjectMember;
 use App\Entity\ProjectMilestone;
 use App\Entity\ProjectStatus;
+use App\Entity\ProjectTemplate;
 use App\Entity\ProjectType;
 use App\Entity\Tag;
 use App\Entity\Task;
+use App\Entity\TaskBundle;
 use App\Entity\TaskDependency;
 use App\Entity\TaskList;
 use App\Entity\TaskListEntry;
 use App\Entity\TaskStatus;
+use App\Entity\TaskTemplate;
 use App\Entity\TimeEntry;
 use App\Entity\User;
 use App\Entity\Workspace;
@@ -76,6 +79,9 @@ final class DomainEventEmitterSubscriber
         ProjectMilestone::class => 'ProjectMilestone',
         File::class => 'File',
         FileVersion::class => 'FileVersion',
+        ProjectTemplate::class => 'ProjectTemplate',
+        TaskBundle::class => 'TaskBundle',
+        TaskTemplate::class => 'TaskTemplate',
     ];
 
     /** @var list<GenericEntityChangedEvent> */
