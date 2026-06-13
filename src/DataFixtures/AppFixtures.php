@@ -18,10 +18,16 @@ use App\Entity\File;
 use App\Entity\FileVersion;
 use App\Entity\ProjectMilestone;
 use App\Entity\TaskDependency;
+use App\Entity\Absence;
 use App\Entity\Automation;
 use App\Entity\AutomationAction;
 use App\Entity\Enum\AutomationActionType;
 use App\Entity\Enum\AutomationTriggerType;
+use App\Entity\Team;
+use App\Entity\TypeOfWork;
+use App\Entity\UserCapacity;
+use App\Entity\UserContactInfo;
+use App\Entity\WorkspaceAbsence;
 use App\Entity\ProjectTemplate;
 use App\Entity\TaskBundle;
 use App\Entity\TaskList;
@@ -428,6 +434,79 @@ class AppFixtures extends Fixture
         }
 
         // ---- Files (B4) — real bytes on Flysystem -----------------------
+        // ---- Workforce (B7) ---------------------------------------------
+        // Types of Work
+        $typesOfWork = [];
+        foreach ([
+            ['Entwicklung',     '#3b82f6', true],
+            ['Projektleitung',  '#22c55e', true],
+            ['Meeting',         '#f59e0b', false],
+            ['Recherche',       '#a78bfa', true],
+        ] as [$name, $color, $billable]) {
+            $tow = (new TypeOfWork())
+                ->setWorkspace($workspace)
+                ->setName($name)
+                ->setColor($color)
+                ->setIsBillableByDefault($billable);
+            $om->persist($tow);
+            $typesOfWork[$name] = $tow;
+        }
+
+        // Team
+        $coreTeam = (new Team())
+            ->setWorkspace($workspace)
+            ->setName('Core-Team')
+            ->setIcon('users')
+            ->setColor('#6366f1')
+            ->setDescription('Hauptteam für Worktide-Entwicklung');
+        $coreTeam->addMember($users[0])->addMember($users[1])->addMember($users[2]);
+        $coreTeam->addProject($createdProjects['WORK']);
+        $om->persist($coreTeam);
+
+        // Capacities (8h Mo-Fr für alle ausser Tom mit 6h)
+        foreach ([
+            [$users[0], 480, 480, 480, 480, 480, 0, 0],
+            [$users[1], 480, 480, 480, 480, 480, 0, 0],
+            [$users[2], 480, 480, 480, 480, 480, 0, 0],
+            [$users[3], 360, 360, 360, 360, 360, 0, 0],
+        ] as $row) {
+            $user = array_shift($row);
+            [$mo, $di, $mi, $do, $fr, $sa, $so] = $row;
+            $cap = (new UserCapacity())
+                ->setUser($user)
+                ->setMonMinutes($mo)->setTueMinutes($di)->setWedMinutes($mi)
+                ->setThuMinutes($do)->setFriMinutes($fr)->setSatMinutes($sa)->setSunMinutes($so);
+            $om->persist($cap);
+        }
+
+        // Personal absence: Alex Urlaub
+        $alexAbsence = (new Absence())
+            ->setWorkspace($workspace)
+            ->setUser($users[1])
+            ->setStartsOn($now->modify('+14 days'))
+            ->setEndsOn($now->modify('+21 days'))
+            ->setType('vacation')
+            ->setDescription('Sommerurlaub');
+        $om->persist($alexAbsence);
+
+        // Workspace absence: Betriebsausflug
+        $companyDay = (new WorkspaceAbsence())
+            ->setWorkspace($workspace)
+            ->setName('Betriebsausflug')
+            ->setStartsOn($now->modify('+30 days'))
+            ->setEndsOn($now->modify('+30 days'))
+            ->setDescription('Halbtags, danach gemeinsames Abendessen');
+        $om->persist($companyDay);
+
+        // Contact info for Sven
+        $svenPhone = (new UserContactInfo())
+            ->setUser($users[0])
+            ->setType('phone')
+            ->setSubType('mobile')
+            ->setValue('+49 170 1234567')
+            ->setLabel('Work mobile');
+        $om->persist($svenPhone);
+
         // ---- Workflows + Automations (B6) --------------------------------
         // Extra "archiveable" tag for the demo automation to attach.
         $archiveTag = (new \App\Entity\Tag())
