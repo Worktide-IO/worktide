@@ -22,6 +22,11 @@ use App\Entity\Absence;
 use App\Entity\Automation;
 use App\Entity\AutomationAction;
 use App\Entity\Autopilot;
+use App\Entity\Document;
+use App\Entity\DocumentContributor;
+use App\Entity\DocumentSpace;
+use App\Entity\Enum\DocumentAccess;
+use App\Entity\Enum\DocumentBodyFormat;
 use App\Entity\TaskView;
 use App\Entity\Enum\AutomationActionType;
 use App\Entity\Enum\AutomationTriggerType;
@@ -594,6 +599,100 @@ class AppFixtures extends Fixture
                 ['kind' => 'overdue_tasks',     'config' => ['gracePeriodDays' => 0], 'isEnabled' => true],
                 ['kind' => 'due_soon',          'config' => ['withinDays' => 14], 'isEnabled' => true],
             ]));
+
+        // ---- Documents (B9) ----------------------------------------------
+        $knowledgeSpace = (new DocumentSpace())
+            ->setWorkspace($workspace)
+            ->setName('Knowledge Base')
+            ->setDescription('Allgemeines Wissen: Onboarding, Prozesse, Tools.')
+            ->setColor('#6366f1')
+            ->setEmoji('📚')
+            ->setPosition(10);
+        $om->persist($knowledgeSpace);
+
+        $projectSpace = (new DocumentSpace())
+            ->setWorkspace($workspace)
+            ->setName('Projekt-Dokumentation')
+            ->setDescription('Pro Projekt: Briefings, Architektur-Entscheidungen, Postmortems.')
+            ->setColor('#f59e0b')
+            ->setEmoji('📐')
+            ->setPosition(20);
+        $om->persist($projectSpace);
+
+        $onboarding = (new Document())
+            ->setWorkspace($workspace)
+            ->setSpace($knowledgeSpace)
+            ->setName('Onboarding-Guide')
+            ->setEmoji('🚀')
+            ->setBodyFormat(DocumentBodyFormat::Markdown)
+            ->setBody(<<<MD
+# Willkommen bei Worktide
+
+Dieser Guide fasst die wichtigsten Tools und Abläufe für neue Team-Mitglieder zusammen.
+
+## Erste Schritte
+1. Zugänge anfragen (Slack, GitLab, Lexoffice)
+2. Workspace-Tour mit dem Onboarding-Buddy
+3. Erste Tasks in `Onboarding`-Projekt durchgehen
+
+## Wichtige Links
+- Projekt-Übersicht im Workspace
+- Wiki / Knowledge Base
+- Time-Tracking-Richtlinien
+MD)
+            ->setPosition(10);
+        $om->persist($onboarding);
+
+        $worktideArchDoc = (new Document())
+            ->setWorkspace($workspace)
+            ->setSpace($projectSpace)
+            ->setProject($work)
+            ->setName('Worktide — Architektur-Entscheidungen')
+            ->setEmoji('🏛️')
+            ->setBodyFormat(DocumentBodyFormat::Markdown)
+            ->setBody(<<<MD
+# Architektur-Entscheidungen
+
+## ADR-001: UUIDv7 als Primärschlüssel
+Wir verwenden UUIDv7 statt Auto-Increment-IDs, weil…
+
+## ADR-002: API Platform auf Subdomain
+`api.worktide.ddev.site/v1` — entkoppelt Frontend-Routing vom API-Routing.
+
+## ADR-003: Multi-Tenancy via Workspace
+Jede tenant-scoped Entity bekommt `WorkspaceScopedTrait`. Voter prüfen Workspace-Mitgliedschaft.
+MD)
+            ->setPosition(10);
+        $om->persist($worktideArchDoc);
+
+        $privateScratch = (new Document())
+            ->setWorkspace($workspace)
+            ->setName('Sven — Private Notes')
+            ->setEmoji('🔒')
+            ->setIsPrivate(true)
+            ->setBodyFormat(DocumentBodyFormat::Markdown)
+            ->setBody("Private Scratch-Notes — nur für Sven sichtbar.")
+            ->setPosition(99);
+        $om->persist($privateScratch);
+
+        // Document with a contributor sharing
+        $sharedNote = (new Document())
+            ->setWorkspace($workspace)
+            ->setSpace($knowledgeSpace)
+            ->setName('Geteilte Notizen — Recherche')
+            ->setEmoji('📝')
+            ->setIsPrivate(true)
+            ->setBodyFormat(DocumentBodyFormat::Markdown)
+            ->setBody('Privat, aber explizit mit dem zweiten User als Manager geteilt.')
+            ->setPosition(50);
+        $om->persist($sharedNote);
+
+        if (isset($users[1])) {
+            $om->persist((new DocumentContributor())
+                ->setDocument($sharedNote)
+                ->setUser($users[1])
+                ->setAccess(DocumentAccess::Manage));
+        }
 
         // ---- Templates (B5) ----------------------------------------------
         $standardBundle = (new TaskBundle())

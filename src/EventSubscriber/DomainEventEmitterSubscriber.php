@@ -9,6 +9,9 @@ use App\Entity\Comment;
 use App\Entity\CustomFieldDefinition;
 use App\Entity\CustomFieldOption;
 use App\Entity\CustomFieldValue;
+use App\Entity\Document;
+use App\Entity\DocumentContributor;
+use App\Entity\DocumentSpace;
 use App\Entity\DomainEventLog;
 use App\Entity\File;
 use App\Entity\FileVersion;
@@ -109,6 +112,9 @@ final class DomainEventEmitterSubscriber
         UserContactInfo::class => 'UserContactInfo',
         TaskView::class => 'TaskView',
         Autopilot::class => 'Autopilot',
+        DocumentSpace::class => 'DocumentSpace',
+        Document::class => 'Document',
+        DocumentContributor::class => 'DocumentContributor',
     ];
 
     /** @var list<GenericEntityChangedEvent> */
