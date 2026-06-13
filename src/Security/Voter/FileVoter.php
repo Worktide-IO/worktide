@@ -11,6 +11,7 @@ use App\Entity\Task;
 use App\Entity\User;
 use App\Entity\Workspace;
 use App\Repository\CommentRepository;
+use App\Repository\DocumentRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
@@ -25,7 +26,7 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
  * Files inherit access from the entity they're attached to. Hidden-for-
  * connect-users follows the same external-collaborator rule as Comment.
  *
- * Document target is reserved for B9; currently denied.
+ * Files attached to a Document delegate to DocumentVoter via the AccessDecisionManager.
  */
 final class FileVoter extends Voter
 {
@@ -36,6 +37,7 @@ final class FileVoter extends Voter
         private readonly WorkspaceRepository $workspaces,
         private readonly UserRepository $users,
         private readonly CommentRepository $comments,
+        private readonly DocumentRepository $documents,
         private readonly WorkspaceMemberRepository $wsMembers,
     ) {}
 
@@ -96,7 +98,7 @@ final class FileVoter extends Voter
             FileTarget::Workspace => $this->workspaces->find($file->getTargetId()),
             FileTarget::User => $this->users->find($file->getTargetId()),
             FileTarget::Comment => $this->comments->find($file->getTargetId()),
-            FileTarget::Document => null,
+            FileTarget::Document => $this->documents->find($file->getTargetId()),
         };
     }
 

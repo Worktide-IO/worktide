@@ -9,6 +9,7 @@ use App\Entity\Enum\CommentTarget;
 use App\Entity\Project;
 use App\Entity\Task;
 use App\Entity\User;
+use App\Repository\DocumentRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\TaskRepository;
 use App\Repository\WorkspaceMemberRepository;
@@ -24,8 +25,8 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
  *  DELETE = author of the comment, or VIEW + workspace EDIT on target.
  *  MANAGE = same as EDIT (used for pin/unpin operations).
  *
- * Document target is recognised but voting is denied until the Document entity
- * lands in block B9.
+ * Comments on Documents inherit the underlying Document's VIEW/EDIT — handled
+ * via DocumentVoter through the AccessDecisionManager delegation below.
  */
 final class CommentVoter extends Voter
 {
@@ -33,6 +34,7 @@ final class CommentVoter extends Voter
         private readonly AccessDecisionManagerInterface $decisions,
         private readonly ProjectRepository $projects,
         private readonly TaskRepository $tasks,
+        private readonly DocumentRepository $documents,
         private readonly WorkspaceMemberRepository $wsMembers,
     ) {}
 
@@ -90,7 +92,7 @@ final class CommentVoter extends Voter
         return match ($comment->getTarget()) {
             CommentTarget::Project => $this->projects->find($comment->getTargetId()),
             CommentTarget::Task => $this->tasks->find($comment->getTargetId()),
-            CommentTarget::Document => null,
+            CommentTarget::Document => $this->documents->find($comment->getTargetId()),
         };
     }
 }
