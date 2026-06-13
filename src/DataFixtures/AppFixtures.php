@@ -18,8 +18,11 @@ use App\Entity\File;
 use App\Entity\FileVersion;
 use App\Entity\ProjectMilestone;
 use App\Entity\TaskDependency;
+use App\Entity\ProjectTemplate;
+use App\Entity\TaskBundle;
 use App\Entity\TaskList;
 use App\Entity\TaskListEntry;
+use App\Entity\TaskTemplate;
 use App\Service\FileStorage;
 use App\Entity\Enum\TagScope;
 use App\Entity\Enum\TaskPriority;
@@ -419,6 +422,47 @@ class AppFixtures extends Fixture
         }
 
         // ---- Files (B4) — real bytes on Flysystem -----------------------
+        // ---- Templates (B5) ----------------------------------------------
+        $standardBundle = (new TaskBundle())
+            ->setWorkspace($workspace)
+            ->setName('Standard-Webprojekt')
+            ->setColor('#6366f1')
+            ->setDescription('Wiederverwendbare Tasks für ein Standard-Webentwicklungs-Projekt.');
+        $om->persist($standardBundle);
+
+        $bundleTasks = [
+            ['Kickoff-Meeting',          TaskPriority::High,    60,  1,  ['Termin finden', 'Agenda verschicken']],
+            ['Anforderungs-Workshop',    TaskPriority::High,    240, 3,  []],
+            ['Designs erstellen',        TaskPriority::Normal,  480, 14, []],
+            ['Entwicklung Sprint 1',     TaskPriority::Normal,  1200, 28, []],
+            ['Testing + QA',             TaskPriority::Normal,  300, 42, []],
+            ['Launch + Übergabe',        TaskPriority::Urgent,  120, 49, ['DNS-Switch', 'Monitoring scharf']],
+        ];
+        $bundlePosition = 0;
+        foreach ($bundleTasks as [$title, $prio, $est, $dayOffset, $checklist]) {
+            $bundlePosition += 10;
+            $tpl = (new TaskTemplate())
+                ->setWorkspace($workspace)
+                ->setBundle($standardBundle)
+                ->setTitle($title)
+                ->setPriority($prio)
+                ->setEstimatedMinutes($est)
+                ->setDueDayOffset($dayOffset)
+                ->setPosition($bundlePosition)
+                ->setDefaultChecklist($checklist);
+            $om->persist($tpl);
+        }
+
+        $projectTemplate = (new ProjectTemplate())
+            ->setWorkspace($workspace)
+            ->setName('Webprojekt — Standard')
+            ->setDescription('Standardisierter Ablauf für mittlere Webprojekte mit Kickoff, Workshop, Entwicklung und Launch.')
+            ->setColor('#6366f1')
+            ->setTaskBundle($standardBundle)
+            ->setDefaultBudgetMinutes(2400)
+            ->setDefaultIsBillableByDefault(true);
+        $om->persist($projectTemplate);
+
         $om->flush(); // ensure UUIDs exist for files referencing tasks/projects
 
         $fileSpecs = [
