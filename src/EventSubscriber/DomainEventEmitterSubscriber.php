@@ -32,6 +32,8 @@ use App\Entity\Absence;
 use App\Entity\AbsenceRegion;
 use App\Entity\Automation;
 use App\Entity\AutomationAction;
+use App\Entity\Autopilot;
+use App\Entity\TaskView;
 use App\Entity\Team;
 use App\Entity\TypeOfWork;
 use App\Entity\UserCapacity;
@@ -105,6 +107,8 @@ final class DomainEventEmitterSubscriber
         AbsenceRegion::class => 'AbsenceRegion',
         UserCapacity::class => 'UserCapacity',
         UserContactInfo::class => 'UserContactInfo',
+        TaskView::class => 'TaskView',
+        Autopilot::class => 'Autopilot',
     ];
 
     /** @var list<GenericEntityChangedEvent> */

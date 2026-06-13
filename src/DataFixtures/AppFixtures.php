@@ -21,6 +21,8 @@ use App\Entity\TaskDependency;
 use App\Entity\Absence;
 use App\Entity\Automation;
 use App\Entity\AutomationAction;
+use App\Entity\Autopilot;
+use App\Entity\TaskView;
 use App\Entity\Enum\AutomationActionType;
 use App\Entity\Enum\AutomationTriggerType;
 use App\Entity\Team;
@@ -559,6 +561,39 @@ class AppFixtures extends Fixture
             ->setTaskPriority('normal')
             ->setTaskEstimatedMinutes(30);
         $om->persist($schedule);
+
+        // ---- Reporting + Autopilot (B8) ----------------------------------
+        $work = $createdProjects['WORK'];
+
+        // Demo TaskViews for Sven
+        $om->persist((new TaskView())
+            ->setWorkspace($workspace)
+            ->setOwner($users[0])
+            ->setName('Meine offenen Tasks')
+            ->setIcon('user')
+            ->setColor('#3b82f6')
+            ->setFilter(['assignees' => '/v1/users/' . $users[0]->getId()?->toRfc4122(), 'exists[closedOn]' => 'false'])
+            ->setSortOrder(['dueOn' => 'asc']));
+
+        $om->persist((new TaskView())
+            ->setWorkspace($workspace)
+            ->setOwner($users[0])
+            ->setName('Diese Woche fällig')
+            ->setIcon('clock')
+            ->setColor('#f59e0b')
+            ->setFilter(['dueOn[before]' => $now->modify('+7 days')->format('Y-m-d')])
+            ->setSortOrder(['priority' => 'desc', 'dueOn' => 'asc'])
+            ->setIsShared(true));
+
+        // Autopilot on WORK with 3 rules
+        $om->persist((new Autopilot())
+            ->setWorkspace($workspace)
+            ->setProject($work)
+            ->setRules([
+                ['kind' => 'budget_threshold',  'config' => ['percent' => 50], 'isEnabled' => true],
+                ['kind' => 'overdue_tasks',     'config' => ['gracePeriodDays' => 0], 'isEnabled' => true],
+                ['kind' => 'due_soon',          'config' => ['withinDays' => 14], 'isEnabled' => true],
+            ]));
 
         // ---- Templates (B5) ----------------------------------------------
         $standardBundle = (new TaskBundle())
