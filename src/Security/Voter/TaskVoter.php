@@ -38,12 +38,13 @@ final class TaskVoter extends Voter
             return false;
         }
 
-        // Assignee can always view + edit their own task.
-        if (
-            ($attribute === WorktidePermission::VIEW || $attribute === WorktidePermission::EDIT)
-            && $subject->getAssignee()?->getId()?->equals($user->getId())
-        ) {
-            return true;
+        // Any assignee can always view + edit their own task.
+        if ($attribute === WorktidePermission::VIEW || $attribute === WorktidePermission::EDIT) {
+            foreach ($subject->getAssignees() as $assignee) {
+                if ($assignee->getId()?->equals($user->getId())) {
+                    return true;
+                }
+            }
         }
 
         $projectAttr = $attribute === WorktidePermission::DELETE

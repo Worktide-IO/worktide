@@ -32,7 +32,6 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'tasks')]
 #[ORM\Index(name: 'task_workspace_idx', columns: ['workspace_id'])]
 #[ORM\Index(name: 'task_project_idx', columns: ['project_id'])]
-#[ORM\Index(name: 'task_assignee_idx', columns: ['assignee_id'])]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     shortName: 'Task',
@@ -52,13 +51,14 @@ use Doctrine\ORM\Mapping as ORM;
     'project' => 'exact',
     'status' => 'exact',
     'priority' => 'exact',
-    'assignee' => 'exact',
+    'assignees' => 'exact',
     'createdBy' => 'exact',
     'parent' => 'exact',
     'tags' => 'exact',
 ])]
-#[ApiFilter(DateFilter::class, properties: ['dueOn', 'startedOn', 'createdAt', 'updatedAt'])]
-#[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'assignee', 'dueOn', 'parent'])]
+#[ApiFilter(DateFilter::class, properties: ['dueOn', 'startedOn', 'closedOn', 'createdAt', 'updatedAt'])]
+#[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'dueOn', 'parent', 'closedOn'])]
+#[ApiFilter(\ApiPlatform\Doctrine\Orm\Filter\BooleanFilter::class, properties: ['isPrio', 'isHiddenForConnectUsers'])]
 #[ApiFilter(OrderFilter::class, properties: ['identifier', 'title', 'priority', 'position', 'dueOn', 'createdAt', 'updatedAt'])]
 class Task
 {
@@ -90,9 +90,10 @@ class Task
     #[ORM\Column(length: 12, enumType: TaskPriority::class)]
     private TaskPriority $priority = TaskPriority::Normal;
 
-    #[ORM\ManyToOne]
-    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
-    private ?User $assignee = null;
+    /** @var Collection<int, User> */
+    #[ORM\ManyToMany(targetEntity: User::class)]
+    #[ORM\JoinTable(name: 'task_assignees')]
+    private Collection $assignees;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -114,6 +115,23 @@ class Task
     #[ORM\Column]
     private int $position = 0;
 
+    #[ORM\Column]
+    private bool $isPrio = false;
+
+    /**
+     * Internal task that must not be visible to external (cross-workspace)
+     * project members. Same semantics as Comment.isHiddenForConnectUsers.
+     */
+    #[ORM\Column]
+    private bool $isHiddenForConnectUsers = false;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $closedOn = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $closedBy = null;
+
     /** @var Collection<int, Tag> */
     #[ORM\ManyToMany(targetEntity: Tag::class)]
     #[ORM\JoinTable(name: 'task_tags')]
@@ -122,6 +140,7 @@ class Task
     public function __construct()
     {
         $this->tags = new ArrayCollection();
+        $this->assignees = new ArrayCollection();
     }
 
     public function getProject(): Project
@@ -190,15 +209,40 @@ class Task
         return $this;
     }
 
-    public function getAssignee(): ?User
+    /** @return Collection<int, User> */
+    public function getAssignees(): Collection
     {
-        return $this->assignee;
+        return $this->assignees;
     }
 
-    public function setAssignee(?User $assignee): self
+    public function addAssignee(User $user): self
     {
-        $this->assignee = $assignee;
+        if (!$this->assignees->contains($user)) {
+            $this->assignees->add($user);
+        }
         return $this;
+    }
+
+    public function removeAssignee(User $user): self
+    {
+        $this->assignees->removeElement($user);
+        return $this;
+    }
+
+    /** @param list<User> $users */
+    public function setAssignees(array $users): self
+    {
+        $this->assignees->clear();
+        foreach ($users as $u) {
+            $this->addAssignee($u);
+        }
+        return $this;
+    }
+
+    /** Convenience for the common single-assignee case. */
+    public function getPrimaryAssignee(): ?User
+    {
+        return $this->assignees->first() ?: null;
     }
 
     public function getCreatedBy(): ?User
@@ -264,6 +308,32 @@ class Task
     public function setPosition(int $position): self
     {
         $this->position = $position;
+        return $this;
+    }
+
+    public function isPrio(): bool { return $this->isPrio; }
+    public function setIsPrio(bool $v): self { $this->isPrio = $v; return $this; }
+
+    public function isHiddenForConnectUsers(): bool { return $this->isHiddenForConnectUsers; }
+    public function setIsHiddenForConnectUsers(bool $v): self { $this->isHiddenForConnectUsers = $v; return $this; }
+
+    public function getClosedOn(): ?\DateTimeImmutable { return $this->closedOn; }
+    public function setClosedOn(?\DateTimeImmutable $when): self { $this->closedOn = $when; return $this; }
+
+    public function getClosedBy(): ?User { return $this->closedBy; }
+    public function setClosedBy(?User $user): self { $this->closedBy = $user; return $this; }
+
+    public function close(User $by): self
+    {
+        $this->closedOn = new \DateTimeImmutable();
+        $this->closedBy = $by;
+        return $this;
+    }
+
+    public function reopen(): self
+    {
+        $this->closedOn = null;
+        $this->closedBy = null;
         return $this;
     }
 

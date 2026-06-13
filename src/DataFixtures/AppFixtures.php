@@ -243,7 +243,7 @@ class AppFixtures extends Fixture
                     ->setTitle($title)
                     ->setStatus($taskStatuses[$statusIdx])
                     ->setPriority($priority)
-                    ->setAssignee($users[$assigneeIdx])
+                    ->setAssignees([$users[$assigneeIdx]])
                     ->setCreatedBy($users[$p['owner']])
                     ->setDueOn($now->modify('+' . (7 + $idx * 4) . ' days'))
                     ->setEstimatedMinutes(($idx + 1) * 60)
