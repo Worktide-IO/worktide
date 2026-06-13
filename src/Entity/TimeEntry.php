@@ -49,9 +49,10 @@ use Doctrine\ORM\Mapping as ORM;
     'user' => 'exact',
     'project' => 'exact',
     'task' => 'exact',
+    'typeOfWork' => 'exact',
     'note' => 'partial',
 ])]
-#[ApiFilter(BooleanFilter::class, properties: ['isBillable', 'isLocked'])]
+#[ApiFilter(BooleanFilter::class, properties: ['isBillable', 'isBilled', 'isLocked'])]
 #[ApiFilter(DateFilter::class, properties: ['startsAt', 'endsAt', 'createdAt'])]
 #[ApiFilter(ExistsFilter::class, properties: ['task', 'endsAt'])]
 #[ApiFilter(RangeFilter::class, properties: ['durationMinutes'])]
@@ -72,6 +73,17 @@ class TimeEntry
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Project $project;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?TypeOfWork $typeOfWork = null;
+
+    /**
+     * Awork-style: timesheet entry has been "billed" (invoice sent) — separate
+     * concept from isBillable (eligible for billing).
+     */
+    #[ORM\Column]
+    private bool $isBilled = false;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -116,6 +128,12 @@ class TimeEntry
         $this->project = $project;
         return $this;
     }
+
+    public function getTypeOfWork(): ?TypeOfWork { return $this->typeOfWork; }
+    public function setTypeOfWork(?TypeOfWork $type): self { $this->typeOfWork = $type; return $this; }
+
+    public function isBilled(): bool { return $this->isBilled; }
+    public function setIsBilled(bool $v): self { $this->isBilled = $v; return $this; }
 
     public function getTask(): ?Task
     {

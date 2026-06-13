@@ -28,8 +28,15 @@ use App\Entity\TaskListEntry;
 use App\Entity\TaskSchedule;
 use App\Entity\TaskStatus;
 use App\Entity\TaskTemplate;
+use App\Entity\Absence;
+use App\Entity\AbsenceRegion;
 use App\Entity\Automation;
 use App\Entity\AutomationAction;
+use App\Entity\Team;
+use App\Entity\TypeOfWork;
+use App\Entity\UserCapacity;
+use App\Entity\UserContactInfo;
+use App\Entity\WorkspaceAbsence;
 use App\Entity\TimeEntry;
 use App\Entity\User;
 use App\Entity\Workspace;
@@ -91,6 +98,13 @@ final class DomainEventEmitterSubscriber
         Automation::class => 'Automation',
         AutomationAction::class => 'AutomationAction',
         TaskSchedule::class => 'TaskSchedule',
+        TypeOfWork::class => 'TypeOfWork',
+        Team::class => 'Team',
+        Absence::class => 'Absence',
+        WorkspaceAbsence::class => 'WorkspaceAbsence',
+        AbsenceRegion::class => 'AbsenceRegion',
+        UserCapacity::class => 'UserCapacity',
+        UserContactInfo::class => 'UserContactInfo',
     ];
 
     /** @var list<GenericEntityChangedEvent> */
