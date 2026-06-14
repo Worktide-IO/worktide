@@ -27,9 +27,15 @@ use App\Entity\DocumentContributor;
 use App\Entity\DocumentSpace;
 use App\Entity\Contact;
 use App\Entity\Customer;
+use App\Entity\CustomerSystem;
+use App\Entity\Enum\BillingCycle;
 use App\Entity\Enum\Capability;
 use App\Entity\Enum\CustomerStatus;
+use App\Entity\Enum\SubscriptionStatus;
+use App\Entity\Enum\SystemEnvironment;
+use App\Entity\Enum\SystemType;
 use App\Entity\RolePermissionOverride;
+use App\Entity\ServiceSubscription;
 use App\Entity\Webhook;
 use App\Entity\Enum\DocumentAccess;
 use App\Entity\Enum\DocumentBodyFormat;
@@ -786,6 +792,107 @@ MD)
         // Link the demo Project to the Acme customer so reports + portal logic
         // have at least one customer-linked project to chew on.
         $work->setCustomer($acmeCustomer);
+
+        // ---- CRM-2: CustomerSystems + ServiceSubscriptions ---------------
+        $acmeTypo3 = (new CustomerSystem())
+            ->setCustomer($acmeCustomer)
+            ->setName('Acme Hauptseite')
+            ->setType(SystemType::TYPO3)
+            ->setSystemVersion('13.4')
+            ->setUrl('https://www.acme-software.example')
+            ->setStagingUrl('https://stage.acme-software.example')
+            ->setAdminLoginUrl('https://www.acme-software.example/typo3/')
+            ->setHostingProvider('Hetzner Cloud')
+            ->setEnvironment(SystemEnvironment::Production)
+            ->setNotes('Hauptpräsenz, Marketing-Site mit news + ke_search Suchindex.');
+        $om->persist($acmeTypo3);
+
+        $acmeWordpress = (new CustomerSystem())
+            ->setCustomer($acmeCustomer)
+            ->setName('Acme Blog')
+            ->setType(SystemType::WordPress)
+            ->setSystemVersion('6.6')
+            ->setUrl('https://blog.acme-software.example')
+            ->setHostingProvider('Hetzner Cloud')
+            ->setEnvironment(SystemEnvironment::Production);
+        $om->persist($acmeWordpress);
+
+        $globexShop = (new CustomerSystem())
+            ->setCustomer($globexCustomer)
+            ->setName('Globex Online-Shop')
+            ->setType(SystemType::Shopware)
+            ->setSystemVersion('6.6')
+            ->setUrl('https://shop.globex.example')
+            ->setHostingProvider('AWS Frankfurt')
+            ->setEnvironment(SystemEnvironment::Production)
+            ->setIsActive(false)
+            ->setNotes('Noch im Pitch — Shop ist beim aktuellen Anbieter, Übernahme bei Auftrag.');
+        $om->persist($globexShop);
+
+        // System-bound: monthly TYPO3 hosting + maintenance
+        $om->persist((new ServiceSubscription())
+            ->setCustomer($acmeCustomer)
+            ->setSystem($acmeTypo3)
+            ->setName('TYPO3 Hosting + Maintenance')
+            ->setDescription('Hetzner Cloud CPX21, Backups, TYPO3 Updates, SSL.')
+            ->setPriceCents(28000)
+            ->setCurrency('eur')
+            ->setBillingCycle(BillingCycle::Monthly)
+            ->setStatus(SubscriptionStatus::Active)
+            ->setStartedOn(new \DateTimeImmutable('2024-09-01'))
+            ->setAutoRenew(true));
+
+        // System-bound: yearly WordPress security pack
+        $om->persist((new ServiceSubscription())
+            ->setCustomer($acmeCustomer)
+            ->setSystem($acmeWordpress)
+            ->setName('WordPress Security Pack')
+            ->setDescription('Wordfence Premium + monthly security audits.')
+            ->setPriceCents(120000)
+            ->setCurrency('eur')
+            ->setBillingCycle(BillingCycle::Yearly)
+            ->setStatus(SubscriptionStatus::Active)
+            ->setStartedOn(new \DateTimeImmutable('2025-01-15'))
+            ->setAutoRenew(true));
+
+        // Customer-wide retainer (no system FK)
+        $om->persist((new ServiceSubscription())
+            ->setCustomer($acmeCustomer)
+            ->setName('Premium Retainer 10h')
+            ->setDescription('10 monthly support hours, carry-over for 1 quarter.')
+            ->setPriceCents(95000)
+            ->setCurrency('eur')
+            ->setBillingCycle(BillingCycle::Monthly)
+            ->setStatus(SubscriptionStatus::Active)
+            ->setStartedOn(new \DateTimeImmutable('2024-06-01'))
+            ->setAutoRenew(true));
+
+        // One-off setup fee from a year ago (already billed, kept for history)
+        $om->persist((new ServiceSubscription())
+            ->setCustomer($acmeCustomer)
+            ->setSystem($acmeTypo3)
+            ->setName('Initial setup')
+            ->setDescription('Migration TYPO3 v11→v13 inkl. Datenmodell-Cleanup.')
+            ->setPriceCents(450000)
+            ->setCurrency('eur')
+            ->setBillingCycle(BillingCycle::Once)
+            ->setStatus(SubscriptionStatus::Cancelled)
+            ->setStartedOn(new \DateTimeImmutable('2024-08-01'))
+            ->setEndedOn(new \DateTimeImmutable('2024-08-31'))
+            ->setAutoRenew(false));
+
+        // Trial subscription for Globex
+        $om->persist((new ServiceSubscription())
+            ->setCustomer($globexCustomer)
+            ->setSystem($globexShop)
+            ->setName('Hosting Migration — Trial')
+            ->setDescription('30-day trial, then transition to standard hosting.')
+            ->setPriceCents(0)
+            ->setCurrency('eur')
+            ->setBillingCycle(BillingCycle::Monthly)
+            ->setStatus(SubscriptionStatus::Trial)
+            ->setStartedOn(new \DateTimeImmutable('-3 days'))
+            ->setAutoRenew(false));
 
         // ---- Permission overrides (B11) ----------------------------------
         // Tighten the default Member role for the demo workspace: they may

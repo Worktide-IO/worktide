@@ -31,6 +31,7 @@ including voter isolation and webhook delivery.
 | B11 | Granular per-role permissions with workspace overrides | ✓ |
 | Sweep | Personal Access Tokens, Workspace Invitations, Active Timer + Private Tasks, Time Tracking Settings | ✓ |
 | CRM-1 | Customer + Contact entities, Project.customer FK, awork-companies backfill | ✓ |
+| CRM-2 | CustomerSystem (TYPO3/WP/...) + ServiceSubscription with auto-computed next-billing | ✓ |
 
 Code at this point: 46 entities, 14 enums, 17 API controllers, 12 voters,
 a comprehensive DataFixtures seed, a Doctrine middleware for UUID-FK binding,
@@ -161,9 +162,13 @@ Short-term:
 Phase 3 (CRM + Integrations):
 - ✓ CRM-1: Customer + Contact entities, Project.customer link (awork
   companies imported as Customers).
-- CRM-2: CustomerSystem (TYPO3 / WordPress instances per customer) +
-  ServiceSubscription (booked monthly/yearly services for billing).
-- TYPO3 customer portal so clients can see booked services + invoices
+- ✓ CRM-2: CustomerSystem (TYPO3 / WordPress instances per customer) +
+  ServiceSubscription with cents-precision pricing, BillingCycle enum,
+  and an auto-computed nextBillingOn that drives the upcoming-billing
+  query.
+- CRM-3: TYPO3 customer portal so clients can see booked systems +
+  services + invoices (via Contact.linkedUser).
+- CRM-4: Invoice + Billing cycle (turn nextBillingOn into actual invoices).
 - OAuth-per-workspace external system links (Lexoffice, GitLab, …)
 - Cross-agency project collaboration via guest workspaces
 - Document vault (AV-contracts etc.) with retention rules
