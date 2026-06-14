@@ -25,6 +25,7 @@ use App\Entity\Autopilot;
 use App\Entity\Document;
 use App\Entity\DocumentContributor;
 use App\Entity\DocumentSpace;
+use App\Entity\Webhook;
 use App\Entity\Enum\DocumentAccess;
 use App\Entity\Enum\DocumentBodyFormat;
 use App\Entity\TaskView;
@@ -693,6 +694,15 @@ MD)
                 ->setUser($users[1])
                 ->setAccess(DocumentAccess::Manage));
         }
+
+        // ---- Webhooks (B10) ----------------------------------------------
+        $om->persist((new Webhook())
+            ->setWorkspace($workspace)
+            ->setName('Demo Echo Sink')
+            ->setUrl('https://api.worktide.ddev.site/v1/_webhook-echo')
+            ->setSecret('demo-secret-' . bin2hex(random_bytes(8)))
+            ->setEventTypes(['task.*', 'project.*'])
+            ->setIsActive(true));
 
         // ---- Templates (B5) ----------------------------------------------
         $standardBundle = (new TaskBundle())
