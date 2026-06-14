@@ -25,6 +25,8 @@ use App\Entity\Autopilot;
 use App\Entity\Document;
 use App\Entity\DocumentContributor;
 use App\Entity\DocumentSpace;
+use App\Entity\Enum\Capability;
+use App\Entity\RolePermissionOverride;
 use App\Entity\Webhook;
 use App\Entity\Enum\DocumentAccess;
 use App\Entity\Enum\DocumentBodyFormat;
@@ -703,6 +705,21 @@ MD)
             ->setSecret('demo-secret-' . bin2hex(random_bytes(8)))
             ->setEventTypes(['task.*', 'project.*'])
             ->setIsActive(true));
+
+        // ---- Permission overrides (B11) ----------------------------------
+        // Tighten the default Member role for the demo workspace: they may
+        // create and edit projects but not delete them, and they cannot
+        // touch other users' tasks even when they otherwise could edit them.
+        $om->persist((new RolePermissionOverride())
+            ->setWorkspace($workspace)
+            ->setRole(WorkspaceMemberRole::Member)
+            ->setCapability(Capability::ProjectDelete)
+            ->setIsGranted(false));
+        $om->persist((new RolePermissionOverride())
+            ->setWorkspace($workspace)
+            ->setRole(WorkspaceMemberRole::Member)
+            ->setCapability(Capability::TaskDeleteOthers)
+            ->setIsGranted(false));
 
         // ---- Templates (B5) ----------------------------------------------
         $standardBundle = (new TaskBundle())
