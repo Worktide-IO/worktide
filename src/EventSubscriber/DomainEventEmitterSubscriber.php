@@ -6,6 +6,8 @@ namespace App\EventSubscriber;
 
 use App\Entity\ChecklistItem;
 use App\Entity\Comment;
+use App\Entity\Contact;
+use App\Entity\Customer;
 use App\Entity\CustomFieldDefinition;
 use App\Entity\CustomFieldOption;
 use App\Entity\CustomFieldValue;
@@ -125,6 +127,8 @@ final class DomainEventEmitterSubscriber
         WorkspaceInvitation::class => 'WorkspaceInvitation',
         PersonalAccessToken::class => 'PersonalAccessToken',
         TimeTrackingSettings::class => 'TimeTrackingSettings',
+        Customer::class => 'Customer',
+        Contact::class => 'Contact',
     ];
 
     /** @var list<GenericEntityChangedEvent> */

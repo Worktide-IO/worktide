@@ -1,0 +1,234 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Entity;
+
+use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
+use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
+use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Post;
+use App\Entity\Enum\CustomerStatus;
+use App\Entity\Trait\AuditableTrait;
+use App\Entity\Trait\EntityIdTrait;
+use App\Entity\Trait\ExternalReferenceTrait;
+use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TimestampableTrait;
+use App\Entity\Trait\VersionedTrait;
+use App\Entity\Trait\WorkspaceScopedTrait;
+use App\Repository\CustomerRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Validator\Constraints as Assert;
+
+/**
+ * A workspace-scoped customer record — the agency's view of one client.
+ *
+ * This is *deliberately* not modeled like awork's `Company` entity, which
+ * existed only as an FK on Project (no first-class customer DB). In Worktide
+ * each Workspace owns a full CRM of Customers; Projects optionally link to a
+ * Customer, ServiceSubscriptions hang off CustomerSystems (Phase 3 block 2),
+ * and the TYPO3 client portal will read this same table.
+ *
+ * `isCompany` flips the schema between "company with VAT and legalName" and
+ * "private person with first/last name". The flat `addressLine1/2/zip/city/
+ * country` fields are good enough for the MVP — a future block can move
+ * addresses into a polymorphic Address entity if we need multi-address
+ * (billing / shipping / visit).
+ *
+ * Lifecycle: Prospect → Active → Inactive | Churned → Archived. The status
+ * field is informational — no automated transitions yet; an operator
+ * patches it as the relationship evolves.
+ */
+#[ORM\Entity(repositoryClass: CustomerRepository::class)]
+#[ORM\Table(name: 'customers')]
+#[ORM\Index(name: 'customer_workspace_status_idx', columns: ['workspace_id', 'status'])]
+#[ORM\Index(name: 'customer_name_idx', columns: ['workspace_id', 'name'])]
+#[ORM\HasLifecycleCallbacks]
+#[ApiResource(
+    shortName: 'Customer',
+    operations: [
+        new GetCollection(security: "is_granted('ROLE_USER')"),
+        new Get(security: "is_granted('VIEW', object.getWorkspace())"),
+        new Post(security: "is_granted('ROLE_USER')"),
+        new Patch(security: "is_granted('EDIT', object.getWorkspace())"),
+        new Delete(security: "is_granted('EDIT', object.getWorkspace())"),
+    ],
+)]
+#[ApiFilter(SearchFilter::class, properties: [
+    'workspace' => 'exact',
+    'name' => 'partial',
+    'legalName' => 'partial',
+    'email' => 'partial',
+    'status' => 'exact',
+    'industry' => 'partial',
+    'tags.id' => 'exact',
+])]
+#[ApiFilter(BooleanFilter::class, properties: ['isCompany'])]
+#[ApiFilter(ExistsFilter::class, properties: ['deletedAt'])]
+#[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt', 'updatedAt', 'status'])]
+class Customer
+{
+    use EntityIdTrait;
+    use TimestampableTrait;
+    use SoftDeletableTrait;
+    use WorkspaceScopedTrait;
+    use VersionedTrait;
+    use AuditableTrait;
+    use ExternalReferenceTrait;
+
+    /** Display name — usually the company name; for individuals, "Lastname, Firstname". */
+    #[ORM\Column(length: 200)]
+    #[Assert\NotBlank]
+    private string $name;
+
+    /** Formal company name for invoices ("Foo GmbH & Co. KG") — only meaningful when isCompany. */
+    #[ORM\Column(length: 200, nullable: true)]
+    private ?string $legalName = null;
+
+    #[ORM\Column]
+    private bool $isCompany = true;
+
+    #[ORM\Column(length: 40, nullable: true)]
+    private ?string $vatId = null;
+
+    #[ORM\Column(length: 254, nullable: true)]
+    #[Assert\Email(mode: Assert\Email::VALIDATION_MODE_STRICT)]
+    private ?string $email = null;
+
+    #[ORM\Column(length: 40, nullable: true)]
+    private ?string $phone = null;
+
+    #[ORM\Column(length: 2048, nullable: true)]
+    #[Assert\Url(requireTld: true)]
+    private ?string $website = null;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $industry = null;
+
+    #[ORM\Column(length: 200, nullable: true)]
+    private ?string $addressLine1 = null;
+
+    #[ORM\Column(length: 200, nullable: true)]
+    private ?string $addressLine2 = null;
+
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $zip = null;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $city = null;
+
+    /** ISO 3166-1 alpha-2 (e.g. "DE", "AT") — optional, stored uppercase. */
+    #[ORM\Column(length: 2, nullable: true)]
+    private ?string $country = null;
+
+    #[ORM\Column(length: 16, enumType: CustomerStatus::class)]
+    private CustomerStatus $status = CustomerStatus::Active;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $notes = null;
+
+    /** Picks the primary engagement owner / account manager for this customer. */
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $accountManager = null;
+
+    /**
+     * Customers may be tagged ("retainer", "vip", "ngo") for filtering. We reuse
+     * the workspace-wide Tag entity (scope=customer) rather than a Customer-only
+     * tag schema; that way Project / Task / Customer share one tag pool.
+     *
+     * @var Collection<int, Tag>
+     */
+    #[ORM\ManyToMany(targetEntity: Tag::class)]
+    #[ORM\JoinTable(name: 'customer_tag_map')]
+    private Collection $tags;
+
+    /** @var Collection<int, Contact> */
+    #[ORM\OneToMany(targetEntity: Contact::class, mappedBy: 'customer', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $contacts;
+
+    /** @var Collection<int, Project> */
+    #[ORM\OneToMany(targetEntity: Project::class, mappedBy: 'customer')]
+    private Collection $projects;
+
+    public function __construct()
+    {
+        $this->tags = new ArrayCollection();
+        $this->contacts = new ArrayCollection();
+        $this->projects = new ArrayCollection();
+    }
+
+    public function getName(): string { return $this->name; }
+    public function setName(string $name): self { $this->name = $name; return $this; }
+
+    public function getLegalName(): ?string { return $this->legalName; }
+    public function setLegalName(?string $v): self { $this->legalName = $v; return $this; }
+
+    public function isCompany(): bool { return $this->isCompany; }
+    public function setIsCompany(bool $v): self { $this->isCompany = $v; return $this; }
+
+    public function getVatId(): ?string { return $this->vatId; }
+    public function setVatId(?string $v): self { $this->vatId = $v; return $this; }
+
+    public function getEmail(): ?string { return $this->email; }
+    public function setEmail(?string $v): self { $this->email = $v === null ? null : mb_strtolower(trim($v)); return $this; }
+
+    public function getPhone(): ?string { return $this->phone; }
+    public function setPhone(?string $v): self { $this->phone = $v; return $this; }
+
+    public function getWebsite(): ?string { return $this->website; }
+    public function setWebsite(?string $v): self { $this->website = $v; return $this; }
+
+    public function getIndustry(): ?string { return $this->industry; }
+    public function setIndustry(?string $v): self { $this->industry = $v; return $this; }
+
+    public function getAddressLine1(): ?string { return $this->addressLine1; }
+    public function setAddressLine1(?string $v): self { $this->addressLine1 = $v; return $this; }
+
+    public function getAddressLine2(): ?string { return $this->addressLine2; }
+    public function setAddressLine2(?string $v): self { $this->addressLine2 = $v; return $this; }
+
+    public function getZip(): ?string { return $this->zip; }
+    public function setZip(?string $v): self { $this->zip = $v; return $this; }
+
+    public function getCity(): ?string { return $this->city; }
+    public function setCity(?string $v): self { $this->city = $v; return $this; }
+
+    public function getCountry(): ?string { return $this->country; }
+    public function setCountry(?string $v): self { $this->country = $v === null ? null : strtoupper($v); return $this; }
+
+    public function getStatus(): CustomerStatus { return $this->status; }
+    public function setStatus(CustomerStatus $s): self { $this->status = $s; return $this; }
+
+    public function getNotes(): ?string { return $this->notes; }
+    public function setNotes(?string $v): self { $this->notes = $v; return $this; }
+
+    public function getAccountManager(): ?User { return $this->accountManager; }
+    public function setAccountManager(?User $u): self { $this->accountManager = $u; return $this; }
+
+    /** @return Collection<int, Tag> */
+    public function getTags(): Collection { return $this->tags; }
+    public function addTag(Tag $tag): self
+    {
+        if (!$this->tags->contains($tag)) {
+            $this->tags->add($tag);
+        }
+        return $this;
+    }
+    public function removeTag(Tag $tag): self { $this->tags->removeElement($tag); return $this; }
+
+    /** @return Collection<int, Contact> */
+    public function getContacts(): Collection { return $this->contacts; }
+
+    /** @return Collection<int, Project> */
+    public function getProjects(): Collection { return $this->projects; }
+}

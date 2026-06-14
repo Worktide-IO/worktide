@@ -10,7 +10,7 @@ and (planned) a per-tenant customer database with TYPO3 client portal.
 
 ## Status
 
-Phase 2 of 2 — **all 11 blocks implemented + awork-sweep closed**.
+Phase 2 fully landed + awork-sweep closed; **Phase 3 (CRM) underway**.
 The data model has been validated against a real awork account: 10 picked
 projects with 218 tasks were imported and tested through the public API,
 including voter isolation and webhook delivery.
@@ -30,6 +30,7 @@ including voter isolation and webhook delivery.
 | B10 | Outbound HMAC-signed webhooks with async retry | ✓ |
 | B11 | Granular per-role permissions with workspace overrides | ✓ |
 | Sweep | Personal Access Tokens, Workspace Invitations, Active Timer + Private Tasks, Time Tracking Settings | ✓ |
+| CRM-1 | Customer + Contact entities, Project.customer FK, awork-companies backfill | ✓ |
 
 Code at this point: 46 entities, 14 enums, 17 API controllers, 12 voters,
 a comprehensive DataFixtures seed, a Doctrine middleware for UUID-FK binding,
@@ -158,8 +159,10 @@ Short-term:
 - Optional: Global search (needs FTS engine), Shared download links
 
 Phase 3 (CRM + Integrations):
-- Per-workspace customer database (different model from awork's
-  ProjectContacts — see notes in `~/.claude/projects/-home-svewap/memory/project_worktide.md`)
+- ✓ CRM-1: Customer + Contact entities, Project.customer link (awork
+  companies imported as Customers).
+- CRM-2: CustomerSystem (TYPO3 / WordPress instances per customer) +
+  ServiceSubscription (booked monthly/yearly services for billing).
 - TYPO3 customer portal so clients can see booked services + invoices
 - OAuth-per-workspace external system links (Lexoffice, GitLab, …)
 - Cross-agency project collaboration via guest workspaces

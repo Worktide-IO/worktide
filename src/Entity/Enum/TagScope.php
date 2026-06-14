@@ -8,5 +8,6 @@ enum TagScope: string
 {
     case Project = 'project';
     case Task = 'task';
+    case Customer = 'customer';
     case Any = 'any';
 }
