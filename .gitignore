@@ -32,3 +32,10 @@
 /var/awork-snapshot/projects/
 /var/awork-snapshot/tasks/
 /var/awork-snapshot/picked-ids.json
+
+# IDE
+/.idea/
+
+# Local CD/brand bundle dump (lives in worktide-web/public/brand/ now)
+/files.zip
+/logo.svg
