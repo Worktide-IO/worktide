@@ -156,8 +156,8 @@ ddev exec php bin/console app:autopilots:evaluate # fire alert rules
 ## Roadmap
 
 Short-term:
-- License decision (currently TBD)
 - Optional: Global search (needs FTS engine), Shared download links
+- TypeScript/Dart OpenAPI clients published from CI
 
 Phase 3 (CRM + Integrations):
 - ✓ CRM-1: Customer + Contact entities, Project.customer link (awork
@@ -198,7 +198,12 @@ migrations/                       # Doctrine migrations (one per block)
 var/awork-snapshot/               # gitignored; pull.sh writes JSON dumps here
 ```
 
+## Related repositories
+
+- [`worktide-web`](https://github.com/Worktide-IO/worktide-web) — React 19 +
+  Refine SPA frontend.
+- `worktide-mobile` (planned) — Flutter mobile app.
+
 ## License
 
-To be determined. Until a license is added, the source is provided for
-inspection only — no redistribution rights are granted.
+MIT — see [`LICENSE`](./LICENSE).
