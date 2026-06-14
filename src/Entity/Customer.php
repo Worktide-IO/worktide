@@ -62,6 +62,11 @@ use Symfony\Component\Validator\Constraints as Assert;
         new Patch(security: "is_granted('EDIT', object.getWorkspace())"),
         new Delete(security: "is_granted('EDIT', object.getWorkspace())"),
     ],
+    // Auto-publish create/update/delete to the Worktide Mercure hub so the
+    // SPA can live-update customer lists without polling. Topic is the
+    // IRI of the changed resource; clients subscribe to either the
+    // collection IRI for a wildcard match or to a single-customer IRI.
+    mercure: true,
 )]
 #[ApiFilter(SearchFilter::class, properties: [
     'workspace' => 'exact',
