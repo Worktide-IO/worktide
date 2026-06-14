@@ -61,6 +61,7 @@ use Symfony\Component\Validator\Constraints as Assert;
         new Patch(security: "is_granted('EDIT', object.getWorkspace())"),
         new Delete(security: "is_granted('EDIT', object.getWorkspace())"),
     ],
+    mercure: true,
 )]
 #[ApiFilter(SearchFilter::class, properties: [
     'workspace' => 'exact',
