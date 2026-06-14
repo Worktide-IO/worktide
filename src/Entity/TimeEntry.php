@@ -70,9 +70,15 @@ class TimeEntry
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private User $user;
 
+    /**
+     * Nullable to support time tracked against a "private" task (a task that
+     * itself has no project FK) and free-form workspace-level time entries
+     * without a project pin. Reporting queries that group by project simply
+     * bucket null-project rows as "(no project)".
+     */
     #[ORM\ManyToOne]
-    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
-    private Project $project;
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Project $project = null;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -118,12 +124,12 @@ class TimeEntry
         return $this;
     }
 
-    public function getProject(): Project
+    public function getProject(): ?Project
     {
         return $this->project;
     }
 
-    public function setProject(Project $project): self
+    public function setProject(?Project $project): self
     {
         $this->project = $project;
         return $this;

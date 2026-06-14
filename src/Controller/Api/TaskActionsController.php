@@ -112,8 +112,12 @@ final class TaskActionsController
         if (!\is_array($userIds)) {
             throw new BadRequestHttpException('userIds must be an array of UUIDs.');
         }
-        if (\count($userIds) > 1 && !$task->getProject()->isMultiAssignmentAllowed()) {
+        $project = $task->getProject();
+        if (\count($userIds) > 1 && $project !== null && !$project->isMultiAssignmentAllowed()) {
             throw new BadRequestHttpException('Project does not allow multi-assignment.');
+        }
+        if (\count($userIds) > 0 && $project === null) {
+            throw new BadRequestHttpException('Private tasks (no project) cannot be assigned to other users.');
         }
 
         $users = [];
@@ -219,7 +223,7 @@ final class TaskActionsController
             'id' => $task->getId()?->toRfc4122(),
             'identifier' => $task->getIdentifier(),
             'title' => $task->getTitle(),
-            'projectId' => $task->getProject()->getId()?->toRfc4122(),
+            'projectId' => $task->getProject()?->getId()?->toRfc4122(),
         ]);
     }
 

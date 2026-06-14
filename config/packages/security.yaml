@@ -33,6 +33,11 @@ security:
             pattern: ^/v1
             stateless: true
             provider: app_user_provider
+            # Personal Access Tokens are checked first — its supports() returns
+            # false for anything that isn't wt_pat_..., so JWT keeps handling
+            # regular Bearer-eyJ... requests transparently.
+            custom_authenticators:
+                - App\Security\PersonalAccessTokenAuthenticator
             jwt: ~
 
         main:
@@ -45,6 +50,7 @@ security:
         - { path: ^/v1/docs,         roles: PUBLIC_ACCESS }
         - { path: ^/v1/contexts,     roles: PUBLIC_ACCESS }
         - { path: ^/v1/_webhook-echo, roles: PUBLIC_ACCESS }   # dev sink for outbound webhooks
+        - { path: ^/v1/workspace_invitations/[^/]+/accept, roles: PUBLIC_ACCESS }   # token IS the credential
         - { path: ^/v1/$,            roles: PUBLIC_ACCESS }
         - { path: ^/v1,              roles: ROLE_USER }
 

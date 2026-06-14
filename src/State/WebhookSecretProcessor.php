@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\State;
 
-use ApiPlatform\Doctrine\Common\State\PersistProcessor;
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProcessorInterface;
 use App\Entity\Webhook;
@@ -24,11 +23,11 @@ use Symfony\Component\HttpFoundation\RequestStack;
  *
  * For PATCH, callers may omit `secret`; existing values stay intact.
  */
-#[AsDecorator('api_platform.doctrine.orm.state.persist_processor')]
+#[AsDecorator('api_platform.doctrine.orm.state.persist_processor', priority: 10)]
 final class WebhookSecretProcessor implements ProcessorInterface
 {
     public function __construct(
-        private readonly PersistProcessor $inner,
+        private readonly ProcessorInterface $inner,
         private readonly RequestStack $requests,
     ) {}
 

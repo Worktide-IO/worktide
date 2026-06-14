@@ -19,6 +19,7 @@ use App\Entity\Project;
 use App\Entity\ProjectMember;
 use App\Entity\ProjectMilestone;
 use App\Entity\ProjectStatus;
+use App\Entity\PersonalAccessToken;
 use App\Entity\ProjectTemplate;
 use App\Entity\ProjectType;
 use App\Entity\RolePermissionOverride;
@@ -44,7 +45,9 @@ use App\Entity\UserCapacity;
 use App\Entity\UserContactInfo;
 use App\Entity\Webhook;
 use App\Entity\WorkspaceAbsence;
+use App\Entity\WorkspaceInvitation;
 use App\Entity\TimeEntry;
+use App\Entity\TimeTrackingSettings;
 use App\Entity\User;
 use App\Entity\Workspace;
 use App\Entity\WorkspaceMember;
@@ -119,6 +122,9 @@ final class DomainEventEmitterSubscriber
         DocumentContributor::class => 'DocumentContributor',
         Webhook::class => 'Webhook',
         RolePermissionOverride::class => 'RolePermissionOverride',
+        WorkspaceInvitation::class => 'WorkspaceInvitation',
+        PersonalAccessToken::class => 'PersonalAccessToken',
+        TimeTrackingSettings::class => 'TimeTrackingSettings',
     ];
 
     /** @var list<GenericEntityChangedEvent> */

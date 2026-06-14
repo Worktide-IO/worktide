@@ -70,9 +70,15 @@ class Task
     use AuditableTrait;
     use ExternalReferenceTrait;
 
+    /**
+     * Tasks without a project ("private tasks") are personal todos that belong
+     * to a workspace but don't show up in any project board. They follow the
+     * same auth rules — owner-only visibility — via the Voter, and let users
+     * track miscellaneous work alongside structured project tasks.
+     */
     #[ORM\ManyToOne(inversedBy: 'tasks')]
-    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
-    private Project $project;
+    #[ORM\JoinColumn(nullable: true, onDelete: 'CASCADE')]
+    private ?Project $project = null;
 
     #[ORM\Column(length: 24)]
     private string $identifier;
@@ -178,12 +184,12 @@ class Task
         return $done;
     }
 
-    public function getProject(): Project
+    public function getProject(): ?Project
     {
         return $this->project;
     }
 
-    public function setProject(Project $project): self
+    public function setProject(?Project $project): self
     {
         $this->project = $project;
         return $this;
