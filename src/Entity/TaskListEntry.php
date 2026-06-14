@@ -43,6 +43,7 @@ use Doctrine\ORM\Mapping as ORM;
         new Patch(security: "is_granted('EDIT', object.getList())"),
         new Delete(security: "is_granted('EDIT', object.getList())"),
     ],
+    mercure: true,
 )]
 #[ApiFilter(SearchFilter::class, properties: ['list' => 'exact', 'task' => 'exact'])]
 #[ApiFilter(OrderFilter::class, properties: ['position'])]

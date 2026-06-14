@@ -32,6 +32,7 @@ use Doctrine\ORM\Mapping as ORM;
         new Patch(),
         new Delete(),
     ],
+    mercure: true,
 )]
 #[ApiFilter(SearchFilter::class, properties: ['project' => 'exact', 'user' => 'exact', 'role' => 'exact'])]
 class ProjectMember

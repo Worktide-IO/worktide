@@ -36,6 +36,7 @@ use Doctrine\ORM\Mapping as ORM;
         new Patch(),
         new Delete(),
     ],
+    mercure: true,
 )]
 #[ApiFilter(SearchFilter::class, properties: [
     'name' => 'partial',
