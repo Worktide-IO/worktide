@@ -48,3 +48,7 @@ services:
     App\Command\AworkImportCommand:
         arguments:
             $projectDir: '%kernel.project_dir%'
+
+    App\Controller\Api\WebhookEchoController:
+        arguments:
+            $projectDir: '%kernel.project_dir%'

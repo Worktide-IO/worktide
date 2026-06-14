@@ -44,6 +44,7 @@ security:
         - { path: ^/v1/auth/refresh, roles: PUBLIC_ACCESS }
         - { path: ^/v1/docs,         roles: PUBLIC_ACCESS }
         - { path: ^/v1/contexts,     roles: PUBLIC_ACCESS }
+        - { path: ^/v1/_webhook-echo, roles: PUBLIC_ACCESS }   # dev sink for outbound webhooks
         - { path: ^/v1/$,            roles: PUBLIC_ACCESS }
         - { path: ^/v1,              roles: ROLE_USER }
 

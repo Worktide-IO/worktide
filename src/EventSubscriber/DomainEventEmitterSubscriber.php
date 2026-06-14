@@ -41,6 +41,7 @@ use App\Entity\Team;
 use App\Entity\TypeOfWork;
 use App\Entity\UserCapacity;
 use App\Entity\UserContactInfo;
+use App\Entity\Webhook;
 use App\Entity\WorkspaceAbsence;
 use App\Entity\TimeEntry;
 use App\Entity\User;
@@ -115,6 +116,7 @@ final class DomainEventEmitterSubscriber
         DocumentSpace::class => 'DocumentSpace',
         Document::class => 'Document',
         DocumentContributor::class => 'DocumentContributor',
+        Webhook::class => 'Webhook',
     ];
 
     /** @var list<GenericEntityChangedEvent> */
