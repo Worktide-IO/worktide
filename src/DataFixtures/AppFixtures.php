@@ -25,7 +25,10 @@ use App\Entity\Autopilot;
 use App\Entity\Document;
 use App\Entity\DocumentContributor;
 use App\Entity\DocumentSpace;
+use App\Entity\Contact;
+use App\Entity\Customer;
 use App\Entity\Enum\Capability;
+use App\Entity\Enum\CustomerStatus;
 use App\Entity\RolePermissionOverride;
 use App\Entity\Webhook;
 use App\Entity\Enum\DocumentAccess;
@@ -705,6 +708,84 @@ MD)
             ->setSecret('demo-secret-' . bin2hex(random_bytes(8)))
             ->setEventTypes(['task.*', 'project.*'])
             ->setIsActive(true));
+
+        // ---- CRM (Phase 3 — Block 1) -------------------------------------
+        $acmeCustomer = (new Customer())
+            ->setWorkspace($workspace)
+            ->setName('Acme GmbH')
+            ->setLegalName('Acme Software GmbH & Co. KG')
+            ->setIsCompany(true)
+            ->setVatId('DE123456789')
+            ->setEmail('info@acme-software.example')
+            ->setPhone('+49 30 1234567')
+            ->setWebsite('https://acme-software.example')
+            ->setIndustry('Software')
+            ->setAddressLine1('Friedrichstraße 12')
+            ->setZip('10117')
+            ->setCity('Berlin')
+            ->setCountry('DE')
+            ->setStatus(CustomerStatus::Active)
+            ->setAccountManager($users[0])
+            ->setNotes('Long-running customer — TYPO3 + WordPress projects, monthly retainer.');
+        $om->persist($acmeCustomer);
+
+        $globexCustomer = (new Customer())
+            ->setWorkspace($workspace)
+            ->setName('Globex Corp')
+            ->setLegalName('Globex Corporation Ltd.')
+            ->setIsCompany(true)
+            ->setEmail('hello@globex.example')
+            ->setWebsite('https://globex.example')
+            ->setIndustry('Consumer goods')
+            ->setStatus(CustomerStatus::Prospect)
+            ->setAccountManager($users[1] ?? $users[0])
+            ->setNotes('Pitched in Q2, awaiting decision.');
+        $om->persist($globexCustomer);
+
+        $personalCustomer = (new Customer())
+            ->setWorkspace($workspace)
+            ->setName('Müller, Anna')
+            ->setIsCompany(false)
+            ->setEmail('anna@example.com')
+            ->setCity('München')
+            ->setCountry('DE')
+            ->setStatus(CustomerStatus::Inactive)
+            ->setNotes('Privatkundin — Einzel-Website 2023, abgeschlossen.');
+        $om->persist($personalCustomer);
+
+        $primary = (new Contact())
+            ->setCustomer($acmeCustomer)
+            ->setSalutation('Mr')
+            ->setFirstName('Tobias')
+            ->setLastName('Schmidt')
+            ->setTitle('Dr.')
+            ->setPosition('CTO')
+            ->setEmail('t.schmidt@acme-software.example')
+            ->setPhone('+49 30 1234567-21')
+            ->setMobile('+49 171 1234567')
+            ->setIsPrimary(true);
+        $om->persist($primary);
+
+        $om->persist((new Contact())
+            ->setCustomer($acmeCustomer)
+            ->setSalutation('Ms')
+            ->setFirstName('Lisa')
+            ->setLastName('Wagner')
+            ->setPosition('Marketing Manager')
+            ->setEmail('l.wagner@acme-software.example')
+            ->setPhone('+49 30 1234567-15'));
+
+        $om->persist((new Contact())
+            ->setCustomer($globexCustomer)
+            ->setFirstName('Hans')
+            ->setLastName('Becker')
+            ->setPosition('Head of Digital')
+            ->setEmail('hans.becker@globex.example')
+            ->setIsPrimary(true));
+
+        // Link the demo Project to the Acme customer so reports + portal logic
+        // have at least one customer-linked project to chew on.
+        $work->setCustomer($acmeCustomer);
 
         // ---- Permission overrides (B11) ----------------------------------
         // Tighten the default Member role for the demo workspace: they may

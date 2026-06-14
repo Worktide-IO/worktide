@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Entity\Customer;
+use App\Entity\Enum\CustomerStatus;
 use App\Entity\Enum\ProjectMemberRole;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Enum\WorkspaceMemberRole;
@@ -94,6 +96,7 @@ final class AworkImportCommand extends Command
         $projectTypes = $this->readJson("$dir/projecttypes.json");
         $projectStatuses = $this->readJson("$dir/projectstatuses.json");
         $picked = $this->readJson("$dir/picked-ids.json");
+        $companies = file_exists("$dir/companies.json") ? $this->readJson("$dir/companies.json") : [];
 
         $this->em->beginTransaction();
         try {
@@ -113,6 +116,9 @@ final class AworkImportCommand extends Command
             $taskStatusMap = $this->importPerProjectTaskStatuses($dir, $picked, $workspace);
             $io->writeln(sprintf('TaskStatuses (workspace-collapsed): %d', count($taskStatusMap)));
 
+            $customerMap = $this->importCustomers($companies, $workspace);
+            $io->writeln(sprintf('Customers: %d', count($customerMap)));
+
             $this->em->flush();
 
             $projectMap = [];
@@ -131,6 +137,7 @@ final class AworkImportCommand extends Command
                     $userMap,
                     $projectTypeMap,
                     $projectStatusMap,
+                    $customerMap,
                 );
                 $projectMap[$pid] = $project;
 
@@ -352,6 +359,81 @@ final class AworkImportCommand extends Command
     }
 
     /**
+     * Map awork Companies → Worktide Customers. Picks the first email /
+     * phone / url / address entry off the awork contactInfos array (each
+     * has a `type` discriminator) and stuffs them into the flat Customer
+     * fields. Address strings come in awork as freeform single-line text;
+     * we drop them into addressLine1 verbatim.
+     *
+     * @param array<array<string,mixed>> $rows
+     * @return array<string, Customer>  awork company id → Customer
+     */
+    private function importCustomers(array $rows, Workspace $workspace): array
+    {
+        $repo = $this->em->getRepository(Customer::class);
+        $map = [];
+        foreach ($rows as $r) {
+            $awid = $r['id'] ?? null;
+            if (!\is_string($awid)) {
+                continue;
+            }
+            $name = trim((string) ($r['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $customer = $repo->findOneBy(['externalSource' => self::EXTERNAL_SOURCE, 'externalId' => self::ref($awid)]);
+            if ($customer === null) {
+                $customer = new Customer();
+            }
+
+            $email = $phone = $website = $address = null;
+            foreach (($r['companyContactInfos'] ?? []) as $ci) {
+                $type = $ci['type'] ?? null;
+                $value = $ci['value'] ?? null;
+                if (!\is_string($value) || $value === '') {
+                    continue;
+                }
+                match ($type) {
+                    'email' => $email ??= $value,
+                    'phone' => $phone ??= $value,
+                    'url'   => $website ??= $value,
+                    'address' => $address ??= $value,
+                    default => null,
+                };
+            }
+
+            $customer
+                ->setWorkspace($workspace)
+                ->setName($name)
+                ->setLegalName($name)
+                ->setIsCompany(true)
+                ->setIndustry(($r['industry'] ?? '') !== '' ? (string) $r['industry'] : null)
+                ->setEmail($email)
+                ->setPhone($phone)
+                ->setWebsite(self::sanitizeUrl($website))
+                ->setAddressLine1($address)
+                ->setStatus(($r['isExternal'] ?? false) ? CustomerStatus::Archived : CustomerStatus::Active);
+            $customer->setExternalSource(self::EXTERNAL_SOURCE);
+            $customer->setExternalId(self::ref($awid));
+            $this->em->persist($customer);
+            $map[$awid] = $customer;
+        }
+        return $map;
+    }
+
+    private static function sanitizeUrl(?string $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (preg_match('#^https?://#i', $value) !== 1) {
+            $value = 'https://' . $value;
+        }
+        return filter_var($value, \FILTER_VALIDATE_URL) === false ? null : $value;
+    }
+
+    /**
      * Walk every picked project's taskstatuses.json, dedupe by (lower(name), type)
      * across all projects, persist as workspace-scoped TaskStatuses.
      *
@@ -429,12 +511,20 @@ final class AworkImportCommand extends Command
      * @param array<string, ProjectType> $projectTypeMap
      * @param array<string, ProjectStatus> $projectStatusMap
      */
+    /**
+     * @param array<string, mixed> $p
+     * @param array<string, User> $userMap
+     * @param array<string, ProjectType> $projectTypeMap
+     * @param array<string, ProjectStatus> $projectStatusMap
+     * @param array<string, Customer> $customerMap
+     */
     private function upsertProject(
         array $p,
         Workspace $workspace,
         array $userMap,
         array $projectTypeMap,
         array $projectStatusMap,
+        array $customerMap = [],
     ): Project {
         $repo = $this->em->getRepository(Project::class);
         $awid = $p['id'];
@@ -481,6 +571,14 @@ final class AworkImportCommand extends Command
             ->setIsMultiAssignmentAllowed((bool) ($p['isMultiAssignmentAllowed'] ?? true))
             ->setBudgetMinutes($this->secondsToMinutes($p['timeBudget'] ?? null))
             ->setIsArchived(false);
+
+        $companyId = $p['companyId'] ?? null;
+        if (\is_string($companyId) && isset($customerMap[$companyId])) {
+            $project->setCustomer($customerMap[$companyId]);
+        } else {
+            $project->setCustomer(null);
+        }
+
         $project->setExternalSource(self::EXTERNAL_SOURCE);
         $project->setExternalId(self::ref($awid));
 

@@ -91,6 +91,15 @@ class Project
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?ProjectType $projectType = null;
 
+    /**
+     * The customer this project is for. Nullable because some projects are
+     * internal (no client to invoice). Replaces awork's `Company` FK with
+     * a link to our first-class CRM customer record.
+     */
+    #[ORM\ManyToOne(inversedBy: 'projects')]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Customer $customer = null;
+
     #[ORM\Column]
     private bool $isPrivate = false;
 
@@ -280,6 +289,9 @@ class Project
         $this->projectType = $type;
         return $this;
     }
+
+    public function getCustomer(): ?Customer { return $this->customer; }
+    public function setCustomer(?Customer $c): self { $this->customer = $c; return $this; }
 
     public function isPrivate(): bool { return $this->isPrivate; }
     public function setIsPrivate(bool $v): self { $this->isPrivate = $v; return $this; }
