@@ -15,6 +15,7 @@ use App\Entity\ProjectStatus;
 use App\Entity\ProjectType;
 use App\Entity\Task;
 use App\Entity\TaskStatus;
+use App\Entity\TimeEntry;
 use App\Entity\TypeOfWork;
 use App\Entity\User;
 use App\Entity\Workspace;
@@ -153,12 +154,20 @@ final class AworkImportCommand extends Command
                     $aworkTasks[$taskRow['id']] = $taskRow;
                 }
 
+                $teCount = 0;
+                $tePath = "$dir/time-entries/$pid.json";
+                if (is_file($tePath)) {
+                    $tedata = $this->readJson($tePath);
+                    $teCount = $this->importTimeEntries($tedata, $project, $userMap, $typeOfWorkMap);
+                }
+
                 $io->writeln(sprintf(
-                    '  · %s — %s: %d members, %d tasks',
+                    '  · %s — %s: %d members, %d tasks, %d time entries',
                     $project->getKey(),
                     $project->getName(),
                     count($pdata['members'] ?? []),
                     count($tdata),
+                    $teCount,
                 ));
             }
 
@@ -691,6 +700,93 @@ final class AworkImportCommand extends Command
 
         $this->em->persist($task);
         return $task;
+    }
+
+    /**
+     * Replicate awork's time entries for one project into Worktide TimeEntry
+     * rows. awork stores `startDateUtc` and `startTimeUtc` separately — we
+     * join them into a single DateTimeImmutable in UTC. Duration is in seconds
+     * and gets divided by 60 (rounded) into Worktide's minute granularity.
+     *
+     * Skips any row whose user is not in our map (= external user we chose
+     * not to import). Idempotent via (externalSource='awork', externalId).
+     *
+     * @param array<array<string,mixed>> $rows
+     * @param array<string, User> $userMap
+     * @param array<string, TypeOfWork> $typeOfWorkCache
+     * @return int  rows actually persisted (skipped users excluded)
+     */
+    private function importTimeEntries(
+        array $rows,
+        Project $project,
+        array $userMap,
+        array &$typeOfWorkCache,
+    ): int {
+        $repo = $this->em->getRepository(TimeEntry::class);
+        $imported = 0;
+        foreach ($rows as $r) {
+            $awid = $r['id'] ?? null;
+            $userAwId = $r['userId'] ?? ($r['user']['id'] ?? null);
+            if (!\is_string($awid) || !\is_string($userAwId) || !isset($userMap[$userAwId])) {
+                continue;
+            }
+
+            $entry = $repo->findOneBy(['externalSource' => self::EXTERNAL_SOURCE, 'externalId' => self::ref($awid)]);
+            if ($entry === null) {
+                $entry = new TimeEntry();
+            }
+
+            $startsAt = $this->joinUtc($r['startDateUtc'] ?? null, $r['startTimeUtc'] ?? null);
+            if ($startsAt === null) {
+                continue;
+            }
+            $endsAt = $this->joinUtc($r['endDateUtc'] ?? null, $r['endTimeUtc'] ?? null);
+
+            $duration = (int) ($r['duration'] ?? 0);
+            $minutes = $duration > 0 ? (int) round($duration / 60) : 0;
+
+            // typeOfWork inline on the entry — reuse the workspace cache.
+            $tow = $this->resolveTypeOfWork($r, $project->getWorkspace(), $typeOfWorkCache);
+
+            $entry
+                ->setWorkspace($project->getWorkspace())
+                ->setProject($project)
+                ->setUser($userMap[$userAwId])
+                ->setTypeOfWork($tow)
+                ->setStartsAt($startsAt)
+                ->setEndsAt($endsAt)
+                ->setDurationMinutes($minutes)
+                ->setNote(($r['note'] ?? '') !== '' ? (string) $r['note'] : null)
+                ->setIsBillable((bool) ($r['isBillable'] ?? true))
+                ->setIsBilled((bool) ($r['isBilled'] ?? false));
+
+            $entry->setExternalSource(self::EXTERNAL_SOURCE);
+            $entry->setExternalId(self::ref($awid));
+            $this->em->persist($entry);
+            $imported++;
+        }
+        return $imported;
+    }
+
+    /**
+     * Combine awork's separate date+time UTC parts back into one DateTime.
+     * Returns null when either part is missing or unparseable.
+     */
+    private function joinUtc(mixed $date, mixed $time): ?\DateTimeImmutable
+    {
+        if (!\is_string($date) || $date === '') {
+            return null;
+        }
+        // awork's startDateUtc looks like "2025-04-03T00:00:00Z" — strip the
+        // time half and graft on startTimeUtc ("08:40:00") so DST handling
+        // doesn't shift the timestamp.
+        $datePart = \substr($date, 0, 10);
+        $timePart = \is_string($time) && $time !== '' ? $time : '00:00:00';
+        try {
+            return new \DateTimeImmutable($datePart . 'T' . $timePart . 'Z');
+        } catch (\Exception) {
+            return null;
+        }
     }
 
     /**
