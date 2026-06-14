@@ -74,7 +74,12 @@ final class AutomationDispatcher
             return;
         }
 
-        $workflow = $task->getProject()->getWorkflow();
+        $project = $task->getProject();
+        if ($project === null) {
+            // Private tasks don't participate in project-scoped automations.
+            return;
+        }
+        $workflow = $project->getWorkflow();
         if ($workflow === null || !$workflow->isEnabled()) {
             return;
         }

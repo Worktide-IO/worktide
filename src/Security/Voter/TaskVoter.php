@@ -21,6 +21,9 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
  *           split into _own vs _others by whether the user created the task
  *  MANAGE = MANAGE on the project
  *
+ * Private tasks (project == null) are personal and visible only to their
+ * creator. No assignees, no project — the creator is the universe.
+ *
  * The fine-grained capability check (B11) is what lets a workspace owner say
  * "Members may not delete other people's tasks" without rewriting the voter.
  */
@@ -45,6 +48,13 @@ final class TaskVoter extends Voter
             return false;
         }
 
+        $project = $subject->getProject();
+        if ($project === null) {
+            // Private task — creator-only ACL, no further project delegation.
+            $isCreator = $subject->getCreatedBy()?->getId()?->equals($user->getId()) === true;
+            return $isCreator;
+        }
+
         // Any assignee can always view + edit their own task.
         if ($attribute === WorktidePermission::VIEW || $attribute === WorktidePermission::EDIT) {
             foreach ($subject->getAssignees() as $assignee) {
@@ -58,7 +68,7 @@ final class TaskVoter extends Voter
             ? WorktidePermission::EDIT
             : $attribute;
 
-        $projectAllows = $this->decisions->decide($token, [$projectAttr], $subject->getProject());
+        $projectAllows = $this->decisions->decide($token, [$projectAttr], $project);
         if (!$projectAllows) {
             return false;
         }

@@ -10,7 +10,7 @@ and (planned) a per-tenant customer database with TYPO3 client portal.
 
 ## Status
 
-Phase 2 of 2 — **all 11 blocks implemented** (Phase-1 foundations + B1–B11).
+Phase 2 of 2 — **all 11 blocks implemented + awork-sweep closed**.
 The data model has been validated against a real awork account: 10 picked
 projects with 218 tasks were imported and tested through the public API,
 including voter isolation and webhook delivery.
@@ -29,6 +29,7 @@ including voter isolation and webhook delivery.
 | B9 | Wiki-style documents (Spaces, Contributors, hierarchical) | ✓ |
 | B10 | Outbound HMAC-signed webhooks with async retry | ✓ |
 | B11 | Granular per-role permissions with workspace overrides | ✓ |
+| Sweep | Personal Access Tokens, Workspace Invitations, Active Timer + Private Tasks, Time Tracking Settings | ✓ |
 
 Code at this point: 46 entities, 14 enums, 17 API controllers, 12 voters,
 a comprehensive DataFixtures seed, a Doctrine middleware for UUID-FK binding,
@@ -152,9 +153,9 @@ ddev exec php bin/console app:autopilots:evaluate # fire alert rules
 
 ## Roadmap
 
-Short-term (Phase 2 wrap-up):
-- Final awork-API sweep — catch any remaining endpoints / fields we missed
+Short-term:
 - License decision (currently TBD)
+- Optional: Global search (needs FTS engine), Shared download links
 
 Phase 3 (CRM + Integrations):
 - Per-workspace customer database (different model from awork's
