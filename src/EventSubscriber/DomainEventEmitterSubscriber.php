@@ -8,6 +8,7 @@ use App\Entity\ChecklistItem;
 use App\Entity\Comment;
 use App\Entity\Contact;
 use App\Entity\Customer;
+use App\Entity\CustomerSystem;
 use App\Entity\CustomFieldDefinition;
 use App\Entity\CustomFieldOption;
 use App\Entity\CustomFieldValue;
@@ -25,6 +26,7 @@ use App\Entity\PersonalAccessToken;
 use App\Entity\ProjectTemplate;
 use App\Entity\ProjectType;
 use App\Entity\RolePermissionOverride;
+use App\Entity\ServiceSubscription;
 use App\Entity\Workflow;
 use App\Entity\Tag;
 use App\Entity\Task;
@@ -129,6 +131,8 @@ final class DomainEventEmitterSubscriber
         TimeTrackingSettings::class => 'TimeTrackingSettings',
         Customer::class => 'Customer',
         Contact::class => 'Contact',
+        CustomerSystem::class => 'CustomerSystem',
+        ServiceSubscription::class => 'ServiceSubscription',
     ];
 
     /** @var list<GenericEntityChangedEvent> */
