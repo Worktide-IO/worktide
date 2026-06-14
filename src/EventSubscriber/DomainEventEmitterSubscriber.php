@@ -21,6 +21,7 @@ use App\Entity\ProjectMilestone;
 use App\Entity\ProjectStatus;
 use App\Entity\ProjectTemplate;
 use App\Entity\ProjectType;
+use App\Entity\RolePermissionOverride;
 use App\Entity\Workflow;
 use App\Entity\Tag;
 use App\Entity\Task;
@@ -117,6 +118,7 @@ final class DomainEventEmitterSubscriber
         Document::class => 'Document',
         DocumentContributor::class => 'DocumentContributor',
         Webhook::class => 'Webhook',
+        RolePermissionOverride::class => 'RolePermissionOverride',
     ];
 
     /** @var list<GenericEntityChangedEvent> */
