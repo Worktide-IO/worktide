@@ -44,6 +44,7 @@ use Doctrine\ORM\Mapping as ORM;
         new Patch(security: "is_granted('MANAGE', object.getDocument())"),
         new Delete(security: "is_granted('MANAGE', object.getDocument())"),
     ],
+    mercure: true,
 )]
 #[ApiFilter(SearchFilter::class, properties: ['document' => 'exact', 'user' => 'exact', 'access' => 'exact'])]
 class DocumentContributor

@@ -56,6 +56,7 @@ use Symfony\Component\Uid\Uuid;
         new Patch(security: "is_granted('EDIT', object)"),
         new Delete(security: "is_granted('DELETE', object)"),
     ],
+    mercure: true,
 )]
 #[ApiFilter(SearchFilter::class, properties: [
     'workspace' => 'exact',

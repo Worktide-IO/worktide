@@ -38,6 +38,7 @@ use Doctrine\ORM\Mapping as ORM;
         new GetCollection(security: "is_granted('ROLE_USER')"),
         new Get(security: "is_granted('ROLE_USER')"),
     ],
+    mercure: true,
 )]
 class ActiveTimer
 {
