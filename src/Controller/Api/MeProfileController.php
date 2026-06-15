@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Entity\DomainEventLog;
 use App\Entity\User;
+use App\Service\PasswordPolicy;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -35,6 +39,8 @@ final class MeProfileController
         private readonly Security $security,
         private readonly EntityManagerInterface $em,
         private readonly UserPasswordHasherInterface $hasher,
+        private readonly RequestStack $requestStack,
+        private readonly PasswordPolicy $passwordPolicy,
     ) {}
 
     #[Route(
@@ -105,8 +111,20 @@ final class MeProfileController
         if ($current === null || $current === '' || $next === null || $next === '') {
             throw new BadRequestHttpException('currentPassword + newPassword required.');
         }
-        if (mb_strlen($next) < 8) {
-            throw new BadRequestHttpException('newPassword must be at least 8 characters.');
+        $violations = $this->passwordPolicy->violations($next);
+        if ($violations !== []) {
+            return new JsonResponse(
+                [
+                    'code' => Response::HTTP_UNPROCESSABLE_ENTITY,
+                    'message' => 'New password does not meet the policy.',
+                    'violations' => $violations,
+                    'policy' => [
+                        'minLength' => $this->passwordPolicy->minLength(),
+                        'minClasses' => $this->passwordPolicy->minClasses(),
+                    ],
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
         }
         if (!$this->hasher->isPasswordValid($user, $current)) {
             // Plain 400 (not 401) so the SPA can surface a form-level error
@@ -115,6 +133,18 @@ final class MeProfileController
         }
 
         $user->setPassword($this->hasher->hashPassword($user, $next));
+        $req = $this->requestStack->getMainRequest();
+        $this->em->persist(new DomainEventLog(
+            name: 'auth.password.changed',
+            aggregateType: 'Auth',
+            aggregateId: $user->getId(),
+            workspace: null,
+            actor: $user,
+            payload: [
+                'ip' => $req?->getClientIp() ?? 'unknown',
+                'userAgent' => mb_substr($req?->headers->get('User-Agent', '—') ?? '—', 0, 255),
+            ],
+        ));
         $this->em->flush();
 
         return new JsonResponse(['changed' => true]);

@@ -22,6 +22,14 @@ security:
                 password_path: password
                 success_handler: lexik_jwt_authentication.handler.authentication_success
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
+            # 5 attempts/minute per (ip + username) tuple. Symfony builds
+            # the limiter internally from these numbers — `limiter:` only
+            # accepts a RequestRateLimiterInterface, which our auth_login
+            # factory isn't. Successes do not consume the budget, only
+            # failures do.
+            login_throttling:
+                max_attempts: 5
+                interval: '1 minute'
 
         api_refresh:
             pattern: ^/v1/auth/refresh$

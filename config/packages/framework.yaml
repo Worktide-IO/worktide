@@ -9,6 +9,26 @@ framework:
         default_uuid_version: 7
         time_based_uuid_version: 7
 
+    # ----- Rate limiters -------------------------------------------------
+    # In-memory + cache-backed limiters protecting credential-handling
+    # endpoints. The "login" limiter is wired via security.firewall.login_
+    # throttling (Symfony picks it up by name); the others are applied in
+    # event subscribers because Symfony has no built-in throttle for our
+    # refresh / password-change routes.
+    rate_limiter:
+        auth_login:
+            policy: 'sliding_window'
+            limit: 5
+            interval: '1 minute'
+        auth_refresh:
+            policy: 'token_bucket'
+            limit: 30
+            rate: { interval: '1 minute', amount: 30 }
+        auth_password_change:
+            policy: 'fixed_window'
+            limit: 5
+            interval: '15 minutes'
+
     #esi: true
     #fragments: true
 
