@@ -7,6 +7,7 @@ namespace App\Controller\Api;
 use App\Entity\Contact;
 use App\Entity\Customer;
 use App\Entity\Enum\CustomerStatus;
+use App\Entity\Enum\TaskCreatedVia;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Project;
 use App\Entity\Task;
@@ -14,6 +15,7 @@ use App\Entity\TaskStatus;
 use App\Entity\User;
 use App\Entity\Workspace;
 use App\Repository\ProjectRepository;
+use App\Repository\TaskRepository;
 use App\Repository\TaskStatusRepository;
 use App\Repository\WorkspaceMemberRepository;
 use App\Security\Voter\WorktidePermission;
@@ -59,6 +61,7 @@ final class ImportController
         private readonly WorkspaceMemberRepository $wsMembers,
         private readonly ProjectRepository $projects,
         private readonly TaskStatusRepository $taskStatuses,
+        private readonly TaskRepository $tasks,
     ) {}
 
     #[Route(
@@ -90,6 +93,7 @@ final class ImportController
 
         $created = 0;
         $skipped = 0;
+        $matched = 0;
         /** @var list<array{row: int, message: string}> $errors */
         $errors = [];
 
@@ -129,6 +133,13 @@ final class ImportController
                     ),
                     default => throw new \LogicException('unreachable'),
                 };
+                // buildTask returns null when an idempotent match already
+                // exists — count as matched, not skipped (skipped = parse
+                // failure, matched = "we know this row, no-op").
+                if ($entity === null) {
+                    $matched++;
+                    continue;
+                }
                 if (!$dryRun) {
                     $this->em->persist($entity);
                 }
@@ -152,6 +163,7 @@ final class ImportController
         return new JsonResponse([
             'resource' => $resource,
             'created' => $created,
+            'matched' => $matched,
             'skipped' => $skipped,
             'errors' => $errors,
             'dryRun' => $dryRun,
@@ -279,6 +291,12 @@ final class ImportController
     }
 
     /**
+     * Build a Task from a CSV row.
+     *
+     * Returns `null` when the row's `correlationId` matches an existing
+     * task in the workspace — the caller treats that as an idempotent
+     * match (re-import-friendly) rather than a parse failure.
+     *
      * @param array<string, mixed> $row
      * @param array<string, Project> $projectsByKey
      * @param array<string, TaskStatus> $taskStatusesByName
@@ -289,7 +307,27 @@ final class ImportController
         User $author,
         array $projectsByKey,
         array $taskStatusesByName,
-    ): Task {
+    ): ?Task {
+        // correlationId is the first thing we look at: if the importer
+        // pre-stamps each row with a UUID derived from the source system
+        // (e.g. JIRA-1234 → uuidv5), re-runs become safe replays.
+        $correlationId = null;
+        $cidRaw = $this->str($row, 'correlationId');
+        if ($cidRaw !== null) {
+            try {
+                $correlationId = Uuid::fromString($cidRaw);
+            } catch (\InvalidArgumentException) {
+                throw new \DomainException("Invalid correlationId '$cidRaw' (must be UUID).");
+            }
+            $existing = $this->tasks->findOneBy([
+                'workspace' => $workspace,
+                'correlationId' => $correlationId,
+            ]);
+            if ($existing !== null) {
+                return null;
+            }
+        }
+
         $title = $this->str($row, 'title');
         if ($title === null || $title === '') {
             throw new \DomainException('title is required.');
@@ -333,7 +371,9 @@ final class ImportController
             ->setTitle($title)
             ->setDescription($this->str($row, 'description'))
             ->setStatus($status)
-            ->setCreatedBy($author);
+            ->setCreatedBy($author)
+            ->setCreatedVia(TaskCreatedVia::Import)
+            ->setCorrelationId($correlationId);
 
         $priorityStr = $this->str($row, 'priority');
         if ($priorityStr !== null) {
