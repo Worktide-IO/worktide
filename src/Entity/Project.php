@@ -56,7 +56,7 @@ use Doctrine\ORM\Mapping as ORM;
     'customer' => 'exact',
     'members.user' => 'exact',
 ])]
-#[ApiFilter(BooleanFilter::class, properties: ['isArchived', 'isPrivate', 'isRetainer', 'isMultiAssignmentAllowed', 'isBillableByDefault'])]
+#[ApiFilter(BooleanFilter::class, properties: ['isArchived', 'isPrivate', 'isRetainer', 'isMultiAssignmentAllowed', 'isBillableByDefault', 'isExternal', 'isProjectKeyVisible'])]
 #[ApiFilter(DateFilter::class, properties: ['startsOn', 'dueOn', 'createdAt', 'updatedAt'])]
 #[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'owner', 'dueOn', 'customer'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'key', 'createdAt', 'updatedAt', 'dueOn', 'startsOn'])]
@@ -127,6 +127,21 @@ class Project
 
     #[ORM\Column]
     private bool $isMultiAssignmentAllowed = true;
+
+    /**
+     * Connect-Project: visible to external (cross-workspace) members and
+     * the upcoming Customer-Portal. Hidden tasks
+     * (Task.isHiddenForConnectUsers) stay invisible regardless.
+     */
+    #[ORM\Column]
+    private bool $isExternal = false;
+
+    /**
+     * Controls whether the human-readable key (`ACME-123`) renders on
+     * task cards and lists. Some teams find it noisy.
+     */
+    #[ORM\Column]
+    private bool $isProjectKeyVisible = true;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -333,6 +348,12 @@ class Project
 
     public function isMultiAssignmentAllowed(): bool { return $this->isMultiAssignmentAllowed; }
     public function setIsMultiAssignmentAllowed(bool $v): self { $this->isMultiAssignmentAllowed = $v; return $this; }
+
+    public function isExternal(): bool { return $this->isExternal; }
+    public function setIsExternal(bool $v): self { $this->isExternal = $v; return $this; }
+
+    public function isProjectKeyVisible(): bool { return $this->isProjectKeyVisible; }
+    public function setIsProjectKeyVisible(bool $v): self { $this->isProjectKeyVisible = $v; return $this; }
 
     public function getWorkflow(): ?Workflow { return $this->workflow; }
     public function setWorkflow(?Workflow $workflow): self { $this->workflow = $workflow; return $this; }

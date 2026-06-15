@@ -53,7 +53,7 @@ use Doctrine\ORM\Mapping as ORM;
     'typeOfWork' => 'exact',
     'note' => 'partial',
 ])]
-#[ApiFilter(BooleanFilter::class, properties: ['isBillable', 'isBilled', 'isLocked'])]
+#[ApiFilter(BooleanFilter::class, properties: ['isBillable', 'isBilled', 'isLocked', 'isExternal'])]
 #[ApiFilter(DateFilter::class, properties: ['startsAt', 'endsAt', 'createdAt'])]
 #[ApiFilter(ExistsFilter::class, properties: ['task', 'endsAt'])]
 #[ApiFilter(RangeFilter::class, properties: ['durationMinutes'])]
@@ -113,6 +113,23 @@ class TimeEntry
 
     #[ORM\Column]
     private bool $isLocked = false;
+
+    /**
+     * Entry created via an external integration (Connect-Mailbox, awork
+     * import, public API). Mirrors Project.isExternal so cross-workspace
+     * reports can filter integration noise out.
+     */
+    #[ORM\Column]
+    private bool $isExternal = false;
+
+    /**
+     * IANA timezone identifier at the moment of capture
+     * (e.g. `Europe/Berlin`, `America/New_York`). Lets the UI render the
+     * entry in its original local time even after the user travelled or
+     * DST flipped between save and read.
+     */
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $timezone = null;
 
     public function getUser(): User
     {
@@ -218,6 +235,12 @@ class TimeEntry
         $this->isLocked = $value;
         return $this;
     }
+
+    public function isExternal(): bool { return $this->isExternal; }
+    public function setIsExternal(bool $v): self { $this->isExternal = $v; return $this; }
+
+    public function getTimezone(): ?string { return $this->timezone; }
+    public function setTimezone(?string $tz): self { $this->timezone = $tz; return $this; }
 
     public function isRunning(): bool
     {
