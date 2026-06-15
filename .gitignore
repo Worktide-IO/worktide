@@ -39,3 +39,5 @@
 # Local CD/brand bundle dump (lives in worktide-web/public/brand/ now)
 /files.zip
 /logo.svg
+
+Bildschirmfoto_*.png
