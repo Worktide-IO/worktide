@@ -52,3 +52,11 @@ services:
     App\Controller\Api\WebhookEchoController:
         arguments:
             $projectDir: '%kernel.project_dir%'
+
+    # Symfony's rate_limiter component does not auto-wire factories by
+    # parameter name — bind them explicitly so the AuthRateLimitSubscriber
+    # gets the right buckets. Names must match framework.rate_limiter.*.
+    App\EventSubscriber\AuthRateLimitSubscriber:
+        arguments:
+            $authRefreshLimiter: '@limiter.auth_refresh'
+            $authPasswordChangeLimiter: '@limiter.auth_password_change'
