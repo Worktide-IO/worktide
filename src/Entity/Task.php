@@ -52,7 +52,7 @@ use Doctrine\ORM\Mapping as ORM;
     'project' => 'exact',
     'status' => 'exact',
     'priority' => 'exact',
-    'assignees' => 'exact',
+    'assignedPrincipals.principalId' => 'exact',
     'createdBy' => 'exact',
     'parent' => 'exact',
     'tags' => 'exact',
@@ -97,10 +97,17 @@ class Task
     #[ORM\Column(length: 12, enumType: TaskPriority::class)]
     private TaskPriority $priority = TaskPriority::Normal;
 
-    /** @var Collection<int, User> */
-    #[ORM\ManyToMany(targetEntity: User::class)]
-    #[ORM\JoinTable(name: 'task_assignees')]
-    private Collection $assignees;
+    /**
+     * Polymorphic assignment principals — a mix of Users and Teams.
+     * Replaces the old `task_assignees` ManyToMany; the flat user-IRI
+     * list exposed as `assignees` in the API is derived from this
+     * collection plus expansion of team members (see
+     * `getAssignees()` below).
+     *
+     * @var Collection<int, TaskAssignee>
+     */
+    #[ORM\OneToMany(targetEntity: TaskAssignee::class, mappedBy: 'task', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $assignedPrincipals;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -156,7 +163,7 @@ class Task
     public function __construct()
     {
         $this->tags = new ArrayCollection();
-        $this->assignees = new ArrayCollection();
+        $this->assignedPrincipals = new ArrayCollection();
         $this->listEntries = new ArrayCollection();
         $this->checklistItems = new ArrayCollection();
     }
@@ -251,40 +258,76 @@ class Task
         return $this;
     }
 
-    /** @return Collection<int, User> */
-    public function getAssignees(): Collection
+    /**
+     * Structured principal collection. Use this in code that needs to
+     * distinguish between direct user assignments and team assignments
+     * (e.g. the UI's "assigned teams" badge).
+     *
+     * @return Collection<int, TaskAssignee>
+     */
+    public function getAssignedPrincipals(): Collection
     {
-        return $this->assignees;
+        return $this->assignedPrincipals;
     }
 
-    public function addAssignee(User $user): self
+    public function addAssignedPrincipal(TaskAssignee $p): self
     {
-        if (!$this->assignees->contains($user)) {
-            $this->assignees->add($user);
+        if (!$this->assignedPrincipals->contains($p)) {
+            $this->assignedPrincipals->add($p);
+            $p->setTask($this);
         }
         return $this;
     }
 
-    public function removeAssignee(User $user): self
+    public function removeAssignedPrincipal(TaskAssignee $p): self
     {
-        $this->assignees->removeElement($user);
+        $this->assignedPrincipals->removeElement($p);
         return $this;
     }
 
-    /** @param list<User> $users */
-    public function setAssignees(array $users): self
+    /**
+     * Backwards-compatible flat list of *directly* assigned user IRIs.
+     *
+     * Mirrors the legacy `assignees: string[]` API field clients have
+     * always seen. Team expansion (showing each team's members in the
+     * avatar stack) lives in a service layer — the entity here just
+     * surfaces the literal user-principals, no team-member walk.
+     *
+     * Use `getAssignedPrincipals()` when code needs to distinguish team
+     * vs user assignments; use `getAssignedTeamIris()` for the parallel
+     * team-IRI list.
+     *
+     * @return list<string>
+     */
+    public function getAssignees(): array
     {
-        $this->assignees->clear();
-        foreach ($users as $u) {
-            $this->addAssignee($u);
+        $out = [];
+        foreach ($this->assignedPrincipals as $p) {
+            \assert($p instanceof TaskAssignee);
+            if ($p->getPrincipalType() === \App\Entity\Enum\AssigneePrincipalType::User) {
+                $out[] = '/v1/users/' . $p->getPrincipalId()->toRfc4122();
+            }
         }
-        return $this;
+        return $out;
     }
 
-    /** Convenience for the common single-assignee case. */
-    public function getPrimaryAssignee(): ?User
+    /**
+     * Team IRIs directly assigned to this task. The SPA may render
+     * these as a separate "team chip" group or expand via a parallel
+     * /v1/teams fetch.
+     *
+     * @return list<string>
+     */
+    public function getAssignedTeams(): array
     {
-        return $this->assignees->first() ?: null;
+        $out = [];
+        foreach ($this->assignedPrincipals as $p) {
+            \assert($p instanceof TaskAssignee);
+            if ($p->getPrincipalType() === \App\Entity\Enum\AssigneePrincipalType::Team) {
+                $out[] = '/v1/teams/' . $p->getPrincipalId()->toRfc4122();
+            }
+        }
+        return $out;
     }
 
     public function getCreatedBy(): ?User
