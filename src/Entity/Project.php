@@ -53,10 +53,12 @@ use Doctrine\ORM\Mapping as ORM;
     'projectType' => 'exact',
     'owner' => 'exact',
     'tags' => 'exact',
+    'customer' => 'exact',
+    'members.user' => 'exact',
 ])]
 #[ApiFilter(BooleanFilter::class, properties: ['isArchived', 'isPrivate', 'isRetainer', 'isMultiAssignmentAllowed', 'isBillableByDefault'])]
 #[ApiFilter(DateFilter::class, properties: ['startsOn', 'dueOn', 'createdAt', 'updatedAt'])]
-#[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'owner', 'dueOn'])]
+#[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'owner', 'dueOn', 'customer'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'key', 'createdAt', 'updatedAt', 'dueOn', 'startsOn'])]
 class Project
 {
