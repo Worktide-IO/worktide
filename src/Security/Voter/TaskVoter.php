@@ -8,6 +8,7 @@ use App\Entity\Enum\Capability;
 use App\Entity\Task;
 use App\Entity\User;
 use App\Security\PermissionResolver;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\AccessDecisionManagerInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\Vote;
@@ -32,6 +33,7 @@ final class TaskVoter extends Voter
     public function __construct(
         private readonly AccessDecisionManagerInterface $decisions,
         private readonly PermissionResolver $permissions,
+        private readonly EntityManagerInterface $em,
     ) {}
 
     protected function supports(string $attribute, mixed $subject): bool
@@ -55,11 +57,32 @@ final class TaskVoter extends Voter
             return $isCreator;
         }
 
-        // Any assignee can always view + edit their own task.
+        // Any assignee can always view + edit their own task. Walk the
+        // structured principal collection so both direct user assignments
+        // AND team assignments (where this user is a member) grant
+        // access — Redmine-style Principal expansion.
         if ($attribute === WorktidePermission::VIEW || $attribute === WorktidePermission::EDIT) {
-            foreach ($subject->getAssignees() as $assignee) {
-                if ($assignee->getId()?->equals($user->getId())) {
-                    return true;
+            $userId = $user->getId();
+            if ($userId !== null) {
+                foreach ($subject->getAssignedPrincipals() as $p) {
+                    if ($p->getPrincipalType() === \App\Entity\Enum\AssigneePrincipalType::User
+                        && $p->getPrincipalId()->equals($userId)
+                    ) {
+                        return true;
+                    }
+                    if ($p->getPrincipalType() === \App\Entity\Enum\AssigneePrincipalType::Team) {
+                        // Expand team → its members. The team lookup is
+                        // cheap (workspace-scoped, fewer than dozens) and
+                        // happens at most a handful of times per request.
+                        $team = $this->em->find(\App\Entity\Team::class, $p->getPrincipalId());
+                        if ($team !== null) {
+                            foreach ($team->getMembers() as $m) {
+                                if ($m->getId()?->equals($userId)) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
