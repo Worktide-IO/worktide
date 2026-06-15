@@ -42,7 +42,10 @@ final class BatchOperationsController
 
     private const SETTABLE_FIELDS = [
         Project::class => ['color', 'isArchived', 'isPrivate', 'isBillableByDefault'],
-        Task::class => ['priority', 'isPrio', 'isHiddenForConnectUsers'],
+        // status accepts a TaskStatus IRI (`/v1/task_statuses/<uuid>`) — the
+        // body-applier resolves it via the FK; priority is the plain enum
+        // value (low/normal/high/urgent).
+        Task::class => ['status', 'priority', 'isPrio', 'isHiddenForConnectUsers'],
         TimeEntry::class => ['isBillable', 'isBilled', 'note'],
     ];
 
@@ -153,12 +156,52 @@ final class BatchOperationsController
                 continue;
             }
             $setter = 'set' . ucfirst($name);
-            if (\str_starts_with($name, 'is')) {
-                $setter = 'set' . ucfirst($name);
+            if (!\method_exists($entity, $setter)) {
+                continue;
             }
-            if (\method_exists($entity, $setter)) {
-                $entity->{$setter}($value);
+            // Resolve relation-IRIs to entities so the setter type-hint
+            // is satisfied. `status` (TaskStatus) is the only such field
+            // currently in SETTABLE_FIELDS; extending the table later
+            // means adding the IRI→class mapping here.
+            $value = $this->resolveValue($class, $name, $value);
+            if ($value === self::SKIP) {
+                continue;
             }
+            $entity->{$setter}($value);
+        }
+    }
+
+    private const SKIP = '__BATCH_SKIP__';
+
+    /**
+     * @param class-string $class
+     * @return mixed|self::SKIP  the scalar / entity to pass to the
+     *                           setter, or SKIP to leave the value
+     *                           unchanged (unresolvable IRI etc).
+     */
+    private function resolveValue(string $class, string $field, mixed $raw): mixed
+    {
+        if ($class === Task::class && $field === 'status' && \is_string($raw)) {
+            $id = $this->idFromIri($raw, '/v1/task_statuses/');
+            if ($id === null) return self::SKIP;
+            $status = $this->em->find(\App\Entity\TaskStatus::class, $id);
+            return $status ?? self::SKIP;
+        }
+        if ($class === Task::class && $field === 'priority' && \is_string($raw)) {
+            $enum = \App\Entity\Enum\TaskPriority::tryFrom($raw);
+            return $enum ?? self::SKIP;
+        }
+        return $raw;
+    }
+
+    private function idFromIri(string $iri, string $prefix): ?Uuid
+    {
+        if (!\str_starts_with($iri, $prefix)) return null;
+        $rest = substr($iri, strlen($prefix));
+        try {
+            return Uuid::fromString($rest);
+        } catch (\InvalidArgumentException) {
+            return null;
         }
     }
 
