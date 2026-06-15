@@ -15,6 +15,7 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
+use App\Entity\Enum\TaskCreatedVia;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
@@ -32,6 +33,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'tasks')]
 #[ORM\Index(name: 'task_workspace_idx', columns: ['workspace_id'])]
 #[ORM\Index(name: 'task_project_idx', columns: ['project_id'])]
+#[ORM\Index(name: 'task_correlation_idx', columns: ['correlation_id'])]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     shortName: 'Task',
@@ -116,11 +118,35 @@ class Task
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $dueOn = null;
 
+    /**
+     * Planned start (Soll). Used by Gantt and the AI auto-scheduler in
+     * Phase D — separate from `startedOn` (Ist, set when work begins).
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $startOn = null;
+
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $startedOn = null;
 
     #[ORM\Column(type: 'integer', nullable: true)]
     private ?int $estimatedMinutes = null;
+
+    /**
+     * Idempotency anchor for inbound channels (CSV-Import, Mail-Inbound,
+     * Webhook-Replay, AI-Breakdown). Indexed but not unique — multiple
+     * channels can collide deliberately on the same external reference.
+     * Callers that need uniqueness must check before insert.
+     */
+    #[ORM\Column(type: 'uuid', nullable: true)]
+    private ?\Symfony\Component\Uid\Uuid $correlationId = null;
+
+    /**
+     * How this task entered Worktide. Default is direct creation through
+     * the UI; importers, mail handlers, and automations stamp their own
+     * value so the activity feed and reports can attribute volume.
+     */
+    #[ORM\Column(length: 16, enumType: TaskCreatedVia::class)]
+    private TaskCreatedVia $createdVia = TaskCreatedVia::Created;
 
     #[ORM\ManyToOne(targetEntity: self::class)]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -352,6 +378,17 @@ class Task
         return $this;
     }
 
+    public function getStartOn(): ?\DateTimeImmutable
+    {
+        return $this->startOn;
+    }
+
+    public function setStartOn(?\DateTimeImmutable $startOn): self
+    {
+        $this->startOn = $startOn;
+        return $this;
+    }
+
     public function getStartedOn(): ?\DateTimeImmutable
     {
         return $this->startedOn;
@@ -360,6 +397,28 @@ class Task
     public function setStartedOn(?\DateTimeImmutable $startedOn): self
     {
         $this->startedOn = $startedOn;
+        return $this;
+    }
+
+    public function getCorrelationId(): ?\Symfony\Component\Uid\Uuid
+    {
+        return $this->correlationId;
+    }
+
+    public function setCorrelationId(?\Symfony\Component\Uid\Uuid $correlationId): self
+    {
+        $this->correlationId = $correlationId;
+        return $this;
+    }
+
+    public function getCreatedVia(): TaskCreatedVia
+    {
+        return $this->createdVia;
+    }
+
+    public function setCreatedVia(TaskCreatedVia $createdVia): self
+    {
+        $this->createdVia = $createdVia;
         return $this;
     }
 

@@ -17,4 +17,5 @@ enum CustomFieldType: string
     case Url = 'url';
     case Email = 'email';
     case User = 'user';
+    case Customer = 'customer';
 }
