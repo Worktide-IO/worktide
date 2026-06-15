@@ -82,8 +82,12 @@ Stand 2026-06-15. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 
 ### Schicht 1 — Mailbox-Layer (FreeScout-inspiriert)
 - **Mailbox-Entity** workspace-scoped: Name, IMAP/SMTP/OAuth-Config, Signature, Auto-Reply, isShared
-- **OAuth-per-Workspace**: Google Workspace, Microsoft Graph, Generic IMAP. Tokens encrypted-at-rest
-- **Mailbox-Sync-Worker** via Symfony Messenger
+- **Auth-Verfahren pro Mailbox** wählbar:
+  - **SMTP + IMAP mit Passwort** (Generic, App-Passwords für 2FA-Provider)
+  - **OAuth Microsoft 365 / Exchange Online** via Microsoft Graph — sowohl delegierte (User-Account) als auch Application-Permissions (Service-Mailbox). Scopes: Mail.Read, Mail.Send, Mail.ReadWrite. Refresh-Worker erneuert Tokens vor Ablauf.
+  - **OAuth Google Workspace** via Gmail API
+- Tokens encrypted-at-rest (libsodium via Symfony Secrets)
+- **Mailbox-Sync-Worker** via Symfony Messenger (IMAP-IDLE / Graph-Webhooks / Polling als Fallback)
 - **Mehrfach-Email** pro User und pro Contact: `EmailAddress(owner, address, isPrimary, isVerified)`
 
 ### Schicht 2 — Threading
@@ -130,6 +134,26 @@ Stand 2026-06-15. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 ### Schicht 5 — Smart Features
 - "Diese Aufgabe in Subtasks aufbrechen" (AI-Breakdown)
 - Natural-Language-Search → API-Filter-Generierung
+
+---
+
+## Phase D⁺ — Such-Service (optional)
+
+**Ziel:** Skalierbare Volltextsuche sobald die MySQL-`LIKE`-Variante an ihre Grenzen stößt. Vor Phase C (Mail-Bodies) selten gerechtfertigt; danach typischerweise mit dem ersten 100k+-Workspace fällig.
+
+**Wann lohnt es sich?**
+- Mail-Bodies / Conversation-Threads sollen volltext-durchsucht werden mit Ranking + Highlighting
+- Typo-Toleranz + "did you mean" + Facetten (Status / Priority / Customer) im Such-Dropdown
+- Workspaces mit 100k+ Tasks oder Conversations — `LIKE '%…%'` skaliert nicht, MySQL FULLTEXT-Index nur eingeschränkt brauchbar (kein Ranking, kein Fuzzy)
+
+**Architektur**
+- **`SearchProviderInterface`** in der globalen Suche: `MysqlSearchProvider` bleibt Default, `MeilisearchSearchProvider` / `TypesenseSearchProvider` als Drop-in
+- **Indexer** via Symfony Messenger: Doctrine-Lifecycle-Events (`postPersist` / `postUpdate` / `postRemove`) feuern `IndexDocument`-Messages — kein synchroner Pfad, damit Schreibvorgänge nicht blockieren
+- **Reindex-Command** für Bootstrap + Schema-Migrationen: `worktide:search:reindex --resource=tasks,conversations`
+- **Per-Workspace-Toggle** in den Workspace-Settings: standard MySQL, Aktivierung schaltet auf Meilisearch um (Tenant-Isolation via Index-Pro-Workspace oder per-Workspace-Filter)
+- **Self-hostable**: Meilisearch oder Typesense (beide MIT-lizensiert, eine Binary, kein Cluster-Overhead) — kein Lock-in via Elasticsearch / Algolia
+
+**Migration**: Phase A's globale Suche (Cmd+/) bleibt funktional — sie kriegt einfach einen anderen Provider hintergeklemmt. Frontend ändert sich nicht.
 
 ---
 
@@ -201,9 +225,10 @@ Stand 2026-06-15. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 2. **Phase C** — Mail-Integration: größter Workflow-Hebel + Brücke für KI
 3. **Phase B** — Issue-Tracking-Architektur (kann parallel zu C laufen, weil getrennte Schichten)
 4. **Phase D** — KI: hängt an Phase-C-Daten
-5. **Phase E** — CRM-Vervollständigung + Customer-Portal (kann parallel zu D laufen)
-6. **Phase F** — Enterprise: bedarfsgetrieben nach erstem Enterprise-Kunden
-7. **Phase G** — alles andere bei Bedarf
+5. **Phase D⁺** — Such-Service (Meilisearch / Typesense): optional, erst zünden wenn MySQL-`LIKE` nicht mehr reicht (Mail-Bodies oder >100k Datensätze)
+6. **Phase E** — CRM-Vervollständigung + Customer-Portal (kann parallel zu D laufen)
+7. **Phase F** — Enterprise: bedarfsgetrieben nach erstem Enterprise-Kunden
+8. **Phase G** — alles andere bei Bedarf
 
 ---
 
