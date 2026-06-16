@@ -1,26 +1,39 @@
 # Worktide
 
 > Open-source project, task, time and CRM management — a functional hybrid of
-> awork and Redmine, built on Symfony 8 with a clean REST API.
+> awork, Redmine and Confluence, built on Symfony 8 with a clean REST API and
+> a React 19 SPA. Plus an MCP server so AI agents (Claude Code, Claude
+> Desktop, …) can work *with* your projects.
 
 Worktide is being developed as a self-hostable replacement for the
-WapplerSystems agency stack: project tracking, task boards, time logging,
-recurring schedules, autopilot alerts, workflow automation, document spaces,
-and (planned) a per-tenant customer database with TYPO3 client portal.
+WapplerSystems agency stack: project tracking, task boards with subtasks +
+dependencies, time logging, retainers, automations, a wiki with a
+block-editor, a tag system, role permission matrix, CRM with customer
+systems & service subscriptions, document revisions, personal access
+tokens, plus a Model-Context-Protocol server with 18 tools.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Project board with tags, subtasks, blocked badges](docs/screenshots/01-project-board.png) | ![Wiki / Docs editor (BlockNote)](docs/screenshots/02-documents-editor.png) |
+| Project board — kanban with tags, subtask counts, "blocked-by" indicators, drag-drop status changes. | Wiki-style docs — BlockNote editor with `/`-commands, nested page tree, autosave + revision history. |
+| ![Berechtigungs-Matrix](docs/screenshots/03-permissions-matrix.png) | ![Budget-Widget on project detail](docs/screenshots/04-budget-widget.png) |
+| Role × Capability permission matrix. Toggle a cell → workspace override; the small "Override" badge + reset arrow restore the default. | Per-project budget donut. Colour shifts at 80% / 100% so over-budget projects can't hide. |
 
 ## Status
 
-Phase 2 fully landed + awork-sweep closed; **Phase 3 (CRM) underway**.
-The data model has been validated against a real awork account: 10 picked
-projects with 218 tasks were imported and tested through the public API,
-including voter isolation and webhook delivery.
+Phase 2 fully landed + awork-sweep closed + CRM-1/2 shipped. **Phase 3 (CRM
+deepening + Docs + AI groundwork) underway.** Late-2026 the data model has
+been validated against a real awork account (10 projects, 218 tasks
+round-tripped through the public API with voter isolation + webhook delivery).
 
 | Block | Feature | Status |
 |---|---|---|
 | Phase 1 | Workspace/Project/Task/TimeEntry foundations, JWT auth, voters | ✓ |
 | B1 | Polymorphic comments + activity feeds | ✓ |
 | B2 | Task lists + checklist items | ✓ |
-| B3 | Task dependencies + project milestones | ✓ |
+| B3 | Task dependencies (4 PM types) + project milestones | ✓ |
 | B4 | Polymorphic file attachments + versioning | ✓ |
 | B5 | Project + Task templates | ✓ |
 | B6 | Workflow automation + recurring schedules | ✓ |
@@ -32,10 +45,20 @@ including voter isolation and webhook delivery.
 | Sweep | Personal Access Tokens, Workspace Invitations, Active Timer + Private Tasks, Time Tracking Settings | ✓ |
 | CRM-1 | Customer + Contact entities, Project.customer FK, awork-companies backfill | ✓ |
 | CRM-2 | CustomerSystem (TYPO3/WP/...) + ServiceSubscription with auto-computed next-billing | ✓ |
+| Sec-1 | Login throttling, auth audit log, password policy, refresh-token rotation | ✓ |
+| Sec-2 | "Remember me" session, idle-logout, active-session list + revocation | ✓ |
+| Sec-3 | Per-workspace JWT-TTL override | ✓ |
+| Tag-1 | Workspace-wide tagging (project / task / customer / any) with picker + filter + management UI | ✓ |
+| Subtasks | Self-referential parent-task + UI tree | ✓ |
+| Dependencies | 4 PM dependency types (FS / SS / FF / SF) + lag minutes, cycle detection | ✓ |
+| Docs-A | BlockNote rich-text editor, page tree, autosave, revision history with restore | ✓ |
+| Perms-UI | Role × capability matrix with toggle + override + reset to default | ✓ |
+| MCP | Standalone MCP server exposing 18 tools (`tasks.*`, `projects.*`, `time.*`, `me.*`) | ✓ |
 
-Code at this point: 46 entities, 14 enums, 17 API controllers, 12 voters,
-a comprehensive DataFixtures seed, a Doctrine middleware for UUID-FK binding,
-a domain-event log auto-populated from Doctrine, and an awork importer.
+Code at this point: 50+ entities, 17+ enums, 22+ API controllers, 14+ voters,
+a comprehensive DataFixtures seed, Doctrine middleware for UUID-FK binding,
+domain-event log auto-populated from Doctrine, an awork importer + a Personal
+Access Token authenticator decoupled from the JWT firewall.
 
 ## Stack
 
@@ -156,24 +179,62 @@ ddev exec php bin/console app:autopilots:evaluate # fire alert rules
 ## Roadmap
 
 Short-term:
-- Optional: Global search (needs FTS engine), Shared download links
-- TypeScript/Dart OpenAPI clients published from CI
+- Document Backlinks ("This page is referenced by …") + Mentions
+- Inline-comments on a text selection in the wiki
+- Global search (needs FTS engine — Meilisearch / Typesense)
+- TypeScript / Dart OpenAPI clients published from CI
 
 Phase 3 (CRM + Integrations):
-- ✓ CRM-1: Customer + Contact entities, Project.customer link (awork
-  companies imported as Customers).
-- ✓ CRM-2: CustomerSystem (TYPO3 / WordPress instances per customer) +
-  ServiceSubscription with cents-precision pricing, BillingCycle enum,
-  and an auto-computed nextBillingOn that drives the upcoming-billing
-  query.
-- CRM-3: TYPO3 customer portal so clients can see booked systems +
-  services + invoices (via Contact.linkedUser).
-- CRM-4: Invoice + Billing cycle (turn nextBillingOn into actual invoices).
+- ✓ CRM-1: Customer + Contact entities, Project.customer link
+- ✓ CRM-2: CustomerSystem + ServiceSubscription with nextBillingOn
+- ✓ Tag system (project / task / customer / any) with picker + filter + management UI
+- ✓ Permission matrix UI (role × capability + overrides + reset)
+- ✓ Personal Access Tokens with one-shot reveal + Sicherheit-Tab (sessions list, idle-logout)
+- ✓ MCP server (`worktide-mcp`, Node/TypeScript, 18 tools)
+- CRM-3: TYPO3 customer portal so clients can see booked systems + services + invoices
+- CRM-4: Invoice + Billing cycle (turn nextBillingOn into actual invoices)
 - OAuth-per-workspace external system links (Lexoffice, GitLab, …)
+
+Phase 4 (AI-driven Project Management):
+
+The big vision is a **source-agnostic InboundEvent pipeline** — Email,
+Slack/Teams, Voice transcripts, Monitoring alerts (Zabbix / Prometheus /
+Datadog), WhatsApp, RSS / CVE feeds, OCR'd letters — each normalised into
+a common shape, then an LLM proposes tasks, notifications or schedule
+shifts. The user confirms (default) or auto-accepts (opt-in per
+workspace / project / user). The recommended LLM backend is shown per
+adapter according to GDPR sensitivity:
+
+- public feeds → Anthropic / OpenAI direct
+- B2B / internal chat → EU-cloud (Azure-EU, Mistral, AWS Bedrock-EU)
+- voice / OCR'd legal post / health data → on-prem Ollama (mandatory)
+
+External customer communication is **always human-in-the-loop** — the
+auto-mode never sends mail to a third party without explicit
+confirmation.
+
+Phase 5+ (Plattform):
+
+- Realtime co-edit in the wiki (Mercure + Y.js)
+- Document Whiteboards (tldraw embed)
 - Cross-agency project collaboration via guest workspaces
 - Document vault (AV-contracts etc.) with retention rules
-- External SSO (Keycloak / Azure AD)
+- External SSO (Keycloak / Azure AD), TOTP-2FA, Passkeys
 - Inbound webhooks + first-class GitLab/GitHub issue mirroring
+
+## Companion: the MCP server
+
+[`worktide-mcp`](https://github.com/Worktide-IO/worktide-mcp) (separate
+repo) lets Claude Code / Claude Desktop / any MCP-aware client call
+Worktide tools directly. Authentication uses a Personal Access Token
+created in the SPA under `/access-tokens`. Eighteen tools cover task
+search/create/update/complete/dependency, project list/get/board/create/
+archive, time runningTimer/start/stop/log/report and identity /
+my-assigned queries. Example session:
+
+> "Which tasks am I assigned this week?" → `me.myAssignedTasks`
+> "Make a subtask called Auth recherchieren under WORK-1" → `tasks.create`
+> "Stop the timer, I'm taking a break" → `time.stop`
 
 ## Project layout
 
