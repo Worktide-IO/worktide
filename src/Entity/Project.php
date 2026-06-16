@@ -31,6 +31,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: ProjectRepository::class)]
 #[ORM\Table(name: 'projects')]
 #[ORM\UniqueConstraint(name: 'project_workspace_key_unique', columns: ['workspace_id', 'project_key'])]
+#[ORM\UniqueConstraint(name: 'project_workspace_number_unique', columns: ['workspace_id', 'project_number'])]
 #[ORM\Index(name: 'project_workspace_idx', columns: ['workspace_id'])]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
@@ -47,6 +48,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiFilter(SearchFilter::class, properties: [
     'name' => 'partial',
     'key' => 'exact',
+    'number' => 'partial',
     'description' => 'partial',
     'workspace' => 'exact',
     'status' => 'exact',
@@ -59,7 +61,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiFilter(BooleanFilter::class, properties: ['isArchived', 'isPrivate', 'isRetainer', 'isMultiAssignmentAllowed', 'isBillableByDefault', 'isExternal', 'isProjectKeyVisible'])]
 #[ApiFilter(DateFilter::class, properties: ['startsOn', 'dueOn', 'createdAt', 'updatedAt'])]
 #[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'owner', 'dueOn', 'customer'])]
-#[ApiFilter(OrderFilter::class, properties: ['name', 'key', 'createdAt', 'updatedAt', 'dueOn', 'startsOn'])]
+#[ApiFilter(OrderFilter::class, properties: ['name', 'key', 'number', 'createdAt', 'updatedAt', 'dueOn', 'startsOn'])]
 class Project
 {
     use EntityIdTrait;
@@ -75,6 +77,21 @@ class Project
 
     #[ORM\Column(name: 'project_key', length: 16)]
     private string $key;
+
+    /**
+     * Human-readable, individuell vergebene Projektnummer (z. B.
+     * "2026-014", "P-1234", "INTEWA-2026-01"). Lebt parallel zu
+     * `key` — der bleibt der maschinenfreundliche Slug für
+     * Task-Identifier (`KEY-123`), die `number` ist die Referenz für
+     * Buchhaltung / Verträge / Rechnungen.
+     *
+     * Unique per Workspace, nullable für Bestandsprojekte. Auto-Fill
+     * über Workspace-Pattern (`Workspace.settings.projectNumber.pattern`,
+     * z. B. `{YEAR}-{SEQ:3}`) — manuelle Übersteuerung beim Create
+     * möglich. Vergabe-Logik lebt in ProjectNumberGenerator.
+     */
+    #[ORM\Column(name: 'project_number', length: 32, nullable: true)]
+    private ?string $number = null;
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
@@ -206,6 +223,18 @@ class Project
     public function setKey(string $key): self
     {
         $this->key = strtoupper($key);
+        return $this;
+    }
+
+    public function getNumber(): ?string
+    {
+        return $this->number;
+    }
+
+    public function setNumber(?string $number): self
+    {
+        $trimmed = $number === null ? null : trim($number);
+        $this->number = $trimmed === '' ? null : $trimmed;
         return $this;
     }
 
