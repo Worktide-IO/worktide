@@ -6,6 +6,7 @@ namespace App\EventSubscriber;
 
 use App\Entity\Document;
 use App\Entity\DocumentRevision;
+use App\Entity\Enum\DocumentWorkflowState;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
 use Doctrine\ORM\Event\PreUpdateEventArgs;
@@ -75,5 +76,17 @@ final class DocumentRevisionListener
         $em->persist($revision);
         $meta = $em->getClassMetadata(DocumentRevision::class);
         $em->getUnitOfWork()->computeChangeSet($meta, $revision);
+
+        // Editing a published document silently sends it back to draft —
+        // a published page should always reflect the last approved
+        // state, so the next save needs to go through the review cycle
+        // again. The workflowState column isn't writable via PATCH, so
+        // the only way to leave `published` is through here or the
+        // workflow controller.
+        if ($doc->getWorkflowState() === DocumentWorkflowState::Published) {
+            $doc->setWorkflowState(DocumentWorkflowState::Draft);
+            $docMeta = $em->getClassMetadata(Document::class);
+            $em->getUnitOfWork()->recomputeSingleEntityChangeSet($docMeta, $doc);
+        }
     }
 }
