@@ -55,6 +55,7 @@ use Doctrine\ORM\Mapping as ORM;
     'status' => 'exact',
     'priority' => 'exact',
     'tracker' => 'exact',
+    'fixedVersion' => 'exact',
     'assignedPrincipals.principalId' => 'exact',
     'createdBy' => 'exact',
     'parent' => 'exact',
@@ -109,6 +110,18 @@ class Task
     #[ORM\ManyToOne(targetEntity: Tracker::class)]
     #[ORM\JoinColumn(nullable: true, onDelete: 'RESTRICT')]
     private ?Tracker $tracker = null;
+
+    /**
+     * The Release/ProjectVersion this task is targeted at. Nullable —
+     * tasks not yet scheduled into a release stay unset.
+     *
+     * onDelete=SET NULL — deleting a Release frees its tasks rather
+     * than cascading them away, so admins can clean up release lists
+     * without losing work.
+     */
+    #[ORM\ManyToOne(targetEntity: ProjectVersion::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?ProjectVersion $fixedVersion = null;
 
     #[ORM\Column(length: 12, enumType: TaskPriority::class)]
     private TaskPriority $priority = TaskPriority::Normal;
@@ -474,6 +487,9 @@ class Task
 
     public function getTracker(): ?Tracker { return $this->tracker; }
     public function setTracker(?Tracker $t): self { $this->tracker = $t; return $this; }
+
+    public function getFixedVersion(): ?ProjectVersion { return $this->fixedVersion; }
+    public function setFixedVersion(?ProjectVersion $v): self { $this->fixedVersion = $v; return $this; }
 
     public function isHiddenForConnectUsers(): bool { return $this->isHiddenForConnectUsers; }
     public function setIsHiddenForConnectUsers(bool $v): self { $this->isHiddenForConnectUsers = $v; return $this; }
