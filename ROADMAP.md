@@ -178,8 +178,12 @@ Stand 2026-06-15. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 - **SAML SSO + SCIM Provisioning** (Keycloak / Azure-AD), per-Workspace konfigurierbar, JIT-Provisioning
 - **TOTP-2FA + Backup-Codes** (`scheb/2fa-bundle`)
 - **Passkeys / WebAuthn** (`web-auth/webauthn-symfony-bundle`)
-- **Active-Sessions-Liste** + "Sign out all other devices"
+- ~~**Active-Sessions-Liste** + "Sign out all other devices"~~ — **erledigt** (siehe [SECURITY.md](SECURITY.md))
+- ~~**Per-Workspace Access-Token-TTL**~~ — **erledigt** (siehe [SECURITY.md](SECURITY.md))
+- ~~**Auto-Logout bei Inaktivität (pro User)**~~ — **erledigt** (siehe [SECURITY.md](SECURITY.md))
+- ~~**"Auf diesem Gerät angemeldet bleiben" Login-Checkbox**~~ — **erledigt** (siehe [SECURITY.md](SECURITY.md))
 - **Account-Lockout** nach N fehlgeschlagenen Versuchen
+- **Sofortige JWT-Revocation** (jti-Denylist) — bewusst nicht in V1, siehe Abwägung in [SECURITY.md](SECURITY.md)
 
 ### Permissions
 - **Permission Schemes + Issue Security Schemes**: Sichtbarkeit pro Projekt/Workspace, Per-Task-Sichtbarkeit
