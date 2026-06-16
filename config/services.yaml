@@ -96,3 +96,21 @@ services:
     App\Channels\SecretBox:
         arguments:
             $appSecret: '%env(APP_SECRET)%'
+
+    # OAuth2 plumbing for MS Graph + Gmail (Phase C.5). The credential
+    # resolver walks per-channel → per-workspace → global env vars.
+    App\Channels\OAuth\OAuth2AppCredentialsResolver:
+        arguments:
+            $baseRedirectUri: '%env(OAUTH_REDIRECT_BASE)%'
+            $graphClientId: '%env(default::OAUTH_GRAPH_CLIENT_ID)%'
+            $graphClientSecret: '%env(default::OAUTH_GRAPH_CLIENT_SECRET)%'
+            $gmailClientId: '%env(default::OAUTH_GMAIL_CLIENT_ID)%'
+            $gmailClientSecret: '%env(default::OAUTH_GMAIL_CLIENT_SECRET)%'
+
+    App\Channels\OAuth\OAuth2Client:
+        arguments:
+            $stateSecret: '%env(APP_SECRET)%'
+
+    App\Controller\Api\ChannelOAuthController:
+        arguments:
+            $spaRedirectBase: '%env(SPA_BASE_URL)%'
