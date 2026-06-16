@@ -81,7 +81,15 @@ services:
             $inbound: !tagged_iterator 'worktide.channel.inbound'
             $outbound: !tagged_iterator 'worktide.channel.outbound'
             $threaders: !tagged_iterator 'worktide.channel.threader'
-            $threaderCodeMap: {}
+            # Map adapterCode → index in the threaders iterator. Order
+            # follows the alphabetical service-id sort that
+            # tagged_iterator uses by default. MailThreader is the only
+            # threader so far → index 0 covers both email_imap and the
+            # OAuth-based email adapters (Phase C.5) which reuse it.
+            $threaderCodeMap:
+                email_imap: 0
+                email_graph: 0
+                email_gmail: 0
 
     # libsodium SecretBox for Channel.authConfig at-rest encryption.
     # APP_SECRET acts as the key seed (BLAKE2b-derived).

@@ -23,18 +23,25 @@ class ChannelRepository extends ServiceEntityRepository
      * Every enabled inbound channel in the workspace — what the
      * pull scheduler iterates over.
      *
+     * Capabilities filter is applied in PHP (DQL has no JSON_CONTAINS
+     * built-in; pulling the row-list and array-filtering keeps the
+     * code portable across MySQL/MariaDB/Postgres).
+     *
      * @return list<Channel>
      */
     public function findEnabledInbound(Workspace $workspace): array
     {
-        return $this->createQueryBuilder('c')
+        /** @var list<Channel> $candidates */
+        $candidates = $this->createQueryBuilder('c')
             ->where('c.workspace = :ws')
             ->andWhere('c.isEnabled = 1')
             ->andWhere('c.deletedAt IS NULL')
-            ->andWhere('JSON_CONTAINS(c.capabilities, :inbound) = 1')
             ->setParameter('ws', $workspace)
-            ->setParameter('inbound', '"inbound"')
             ->getQuery()
             ->getResult();
+        return array_values(array_filter(
+            $candidates,
+            fn (Channel $c) => \in_array('inbound', $c->getCapabilities(), true),
+        ));
     }
 }
