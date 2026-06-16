@@ -35,6 +35,13 @@ final class NoDependencyCycleValidator extends ConstraintValidator
             return;
         }
 
+        // Informational relations (relates / duplicates / follows) don't
+        // imply a hard ordering — a "duplicate-of" loop is harmless and
+        // sometimes how users cross-link tickets. Skip the cycle check.
+        if (!$value->getType()->requiresAcyclic()) {
+            return;
+        }
+
         if ($this->dependencies->wouldCreateCycle($pred, $succ)) {
             $this->context->buildViolation($constraint->message)
                 ->setParameter('{{ chain }}', sprintf('%s → %s', $pred->getIdentifier(), $succ->getIdentifier()))
