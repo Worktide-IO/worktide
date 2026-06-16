@@ -126,10 +126,18 @@ class Document
     #[ORM\OneToMany(targetEntity: DocumentContributor::class, mappedBy: 'document', cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $contributors;
 
+    /** @var Collection<int, DocumentRevision> */
+    #[ORM\OneToMany(targetEntity: DocumentRevision::class, mappedBy: 'document', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $revisions;
+
     public function __construct()
     {
         $this->contributors = new ArrayCollection();
+        $this->revisions = new ArrayCollection();
     }
+
+    /** @return Collection<int, DocumentRevision> */
+    public function getRevisions(): Collection { return $this->revisions; }
 
     public function getName(): string { return $this->name; }
     public function setName(string $name): self { $this->name = $name; return $this; }
