@@ -58,6 +58,7 @@ final class UserPreferencesController
         return new JsonResponse([
             'dashboardLayout' => $prefs?->getDashboardLayout(),
             'idleTimeoutMinutes' => $prefs?->getIdleTimeoutMinutes(),
+            'favoriteProjectIds' => $prefs?->getFavoriteProjectIds() ?? [],
             'updatedAt' => $prefs?->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
         ]);
     }
@@ -105,6 +106,29 @@ final class UserPreferencesController
                 );
             }
         }
+        if (array_key_exists('favoriteProjectIds', $body)) {
+            $raw = $body['favoriteProjectIds'];
+            if ($raw === null || $raw === []) {
+                $prefs->setFavoriteProjectIds(null);
+            } elseif (is_array($raw)) {
+                $clean = [];
+                foreach ($raw as $id) {
+                    if (!is_string($id) || !preg_match('/^[0-9a-f-]{36}$/i', $id)) {
+                        throw new BadRequestHttpException(
+                            'favoriteProjectIds must be a list of UUID strings.',
+                        );
+                    }
+                    if (!in_array($id, $clean, true)) {
+                        $clean[] = $id;
+                    }
+                }
+                // Hard cap to avoid runaway accumulation — 200 favourites
+                // is way more than any human realistically curates.
+                $prefs->setFavoriteProjectIds(array_slice($clean, 0, 200));
+            } else {
+                throw new BadRequestHttpException('favoriteProjectIds must be an array.');
+            }
+        }
         $this->em->flush();
 
         $userIri = '/v1/users/' . $user->getId()?->toRfc4122();
@@ -113,6 +137,7 @@ final class UserPreferencesController
             data: json_encode([
                 'dashboardLayout' => $prefs->getDashboardLayout(),
                 'idleTimeoutMinutes' => $prefs->getIdleTimeoutMinutes(),
+                'favoriteProjectIds' => $prefs->getFavoriteProjectIds() ?? [],
                 'updatedAt' => $prefs->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
             ]) ?: '{}',
             private: true,
@@ -121,6 +146,7 @@ final class UserPreferencesController
         return new JsonResponse([
             'dashboardLayout' => $prefs->getDashboardLayout(),
             'idleTimeoutMinutes' => $prefs->getIdleTimeoutMinutes(),
+            'favoriteProjectIds' => $prefs->getFavoriteProjectIds() ?? [],
             'updatedAt' => $prefs->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
         ]);
     }
