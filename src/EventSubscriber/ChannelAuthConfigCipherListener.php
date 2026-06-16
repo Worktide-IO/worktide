@@ -1,0 +1,142 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\EventSubscriber;
+
+use App\Channels\SecretBox;
+use App\Entity\Channel;
+use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
+use Doctrine\ORM\Event\PostLoadEventArgs;
+use Doctrine\ORM\Event\PrePersistEventArgs;
+use Doctrine\ORM\Event\PreUpdateEventArgs;
+use Doctrine\ORM\Events;
+
+/**
+ * Transparent at-rest encryption for {@see Channel::$authConfig}.
+ *
+ * The application code reads/writes `authConfig` as a plain
+ * associative array — passwords, OAuth refresh-tokens, API keys.
+ * This listener encrypts every leaf value with libsodium before
+ * the row hits the DB and decrypts on hydration, so:
+ *
+ *  - A DB dump never reveals the secrets in cleartext.
+ *  - Application code stays oblivious to the crypto.
+ *  - APP_SECRET is the symmetric key (BLAKE2b-derived).
+ *
+ * Each leaf value is wrapped as `["enc": "<base64-blob>"]` so we
+ * can tell encrypted-vs-plain at a glance and survive a single
+ * leaf being rotated independently.
+ *
+ * Idempotent on both sides — already-encrypted leaves on persist
+ * stay encrypted; non-encrypted leaves on load pass through
+ * untouched (smooths the migration when older rows exist).
+ */
+#[AsDoctrineListener(event: Events::prePersist, priority: 0)]
+#[AsDoctrineListener(event: Events::preUpdate, priority: 0)]
+#[AsDoctrineListener(event: Events::postLoad, priority: 0)]
+final class ChannelAuthConfigCipherListener
+{
+    public function __construct(
+        private readonly SecretBox $secretBox,
+    ) {}
+
+    public function prePersist(PrePersistEventArgs $event): void
+    {
+        $entity = $event->getObject();
+        if (!$entity instanceof Channel) {
+            return;
+        }
+        $entity->setAuthConfig($this->encryptTree($entity->getAuthConfig()));
+    }
+
+    public function preUpdate(PreUpdateEventArgs $event): void
+    {
+        $entity = $event->getObject();
+        if (!$entity instanceof Channel) {
+            return;
+        }
+        if (!$event->hasChangedField('authConfig')) {
+            return;
+        }
+        $new = $event->getNewValue('authConfig');
+        if (!is_array($new)) {
+            return;
+        }
+        $event->setNewValue('authConfig', $this->encryptTree($new));
+        // also reflect on the entity so subsequent reads in the same flush match
+        $entity->setAuthConfig($this->encryptTree($new));
+    }
+
+    public function postLoad(PostLoadEventArgs $event): void
+    {
+        $entity = $event->getObject();
+        if (!$entity instanceof Channel) {
+            return;
+        }
+        $entity->setAuthConfig($this->decryptTree($entity->getAuthConfig()));
+    }
+
+    /**
+     * @param array<string, mixed> $tree
+     * @return array<string, mixed>
+     */
+    private function encryptTree(array $tree): array
+    {
+        $out = [];
+        foreach ($tree as $k => $v) {
+            if (is_array($v) && !$this->isEncryptedWrapper($v)) {
+                // Nested structures are encrypted as JSON blobs so we
+                // don't try to interpret adapter-specific shapes.
+                $out[$k] = ['enc' => $this->secretBox->seal(json_encode($v, \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE))];
+                continue;
+            }
+            if ($this->isEncryptedWrapper($v)) {
+                // Already encrypted — leave as-is (idempotent).
+                $out[$k] = $v;
+                continue;
+            }
+            if ($v === null) {
+                $out[$k] = null;
+                continue;
+            }
+            $out[$k] = ['enc' => $this->secretBox->seal((string) $v)];
+        }
+        return $out;
+    }
+
+    /**
+     * @param array<string, mixed> $tree
+     * @return array<string, mixed>
+     */
+    private function decryptTree(array $tree): array
+    {
+        $out = [];
+        foreach ($tree as $k => $v) {
+            if (!$this->isEncryptedWrapper($v)) {
+                $out[$k] = $v;
+                continue;
+            }
+            $plain = $this->secretBox->open($v['enc']);
+            if ($plain === null) {
+                // Tamper / corruption — keep the row loadable but flag
+                // the missing secret so callers can surface a useful
+                // error rather than crash with a fatal.
+                $out[$k] = null;
+                continue;
+            }
+            // Try JSON-decode first (nested structures); fall back to
+            // string for the typical password / token leaf.
+            $decoded = json_decode($plain, true);
+            $out[$k] = json_last_error() === \JSON_ERROR_NONE && is_array($decoded)
+                ? $decoded
+                : $plain;
+        }
+        return $out;
+    }
+
+    private function isEncryptedWrapper(mixed $v): bool
+    {
+        return is_array($v) && \count($v) === 1 && isset($v['enc']) && is_string($v['enc']);
+    }
+}
