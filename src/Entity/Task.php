@@ -54,6 +54,7 @@ use Doctrine\ORM\Mapping as ORM;
     'project' => 'exact',
     'status' => 'exact',
     'priority' => 'exact',
+    'tracker' => 'exact',
     'assignedPrincipals.principalId' => 'exact',
     'createdBy' => 'exact',
     'parent' => 'exact',
@@ -95,6 +96,19 @@ class Task
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
     private TaskStatus $status;
+
+    /**
+     * Issue-type classification (Bug / Feature / Story / Support / …).
+     * Nullable because workspaces that don't care about issue typing
+     * can ignore the dimension entirely; the SPA just hides the chip.
+     *
+     * onDelete=RESTRICT — deleting a Tracker that's still in use must
+     * fail loudly so the admin reassigns first. The /workspace-settings
+     * UI surfaces the reassign flow before offering Delete.
+     */
+    #[ORM\ManyToOne(targetEntity: Tracker::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'RESTRICT')]
+    private ?Tracker $tracker = null;
 
     #[ORM\Column(length: 12, enumType: TaskPriority::class)]
     private TaskPriority $priority = TaskPriority::Normal;
@@ -457,6 +471,9 @@ class Task
 
     public function isPrio(): bool { return $this->isPrio; }
     public function setIsPrio(bool $v): self { $this->isPrio = $v; return $this; }
+
+    public function getTracker(): ?Tracker { return $this->tracker; }
+    public function setTracker(?Tracker $t): self { $this->tracker = $t; return $this; }
 
     public function isHiddenForConnectUsers(): bool { return $this->isHiddenForConnectUsers; }
     public function setIsHiddenForConnectUsers(bool $v): self { $this->isHiddenForConnectUsers = $v; return $this; }
