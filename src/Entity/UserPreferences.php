@@ -63,6 +63,17 @@ class UserPreferences
     #[ORM\Column(nullable: true)]
     private ?int $idleTimeoutMinutes = null;
 
+    /**
+     * UUIDs of starred projects. Order is preservation order ("most
+     * recently starred first" is up to the SPA — we just store the
+     * list). Soft-deleted projects stay in the list and get filtered
+     * client-side; the array gets a periodic cleanup on next save.
+     *
+     * @var list<string>|null
+     */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $favoriteProjectIds = null;
+
     public function __construct(User $user)
     {
         $this->user = $user;
@@ -99,6 +110,20 @@ class UserPreferences
     public function setIdleTimeoutMinutes(?int $minutes): self
     {
         $this->idleTimeoutMinutes = $minutes;
+
+        return $this;
+    }
+
+    /** @return list<string>|null */
+    public function getFavoriteProjectIds(): ?array
+    {
+        return $this->favoriteProjectIds;
+    }
+
+    /** @param list<string>|null $ids */
+    public function setFavoriteProjectIds(?array $ids): self
+    {
+        $this->favoriteProjectIds = $ids;
 
         return $this;
     }
