@@ -2,3 +2,9 @@ lexik_jwt_authentication:
     secret_key: '%env(resolve:JWT_SECRET_KEY)%'
     public_key: '%env(resolve:JWT_PUBLIC_KEY)%'
     pass_phrase: '%env(JWT_PASSPHRASE)%'
+    # Access-token lifetime (seconds). 1h is a deliberate trade-off:
+    # short enough that a leaked token can't be replayed for days, long
+    # enough that the refresh-loop doesn't dominate every workday.
+    # Per-workspace overrides arrive via JWTCreatedListener reading
+    # Workspace.settings.sessionTtl.access (see SECURITY.md).
+    token_ttl: 3600
