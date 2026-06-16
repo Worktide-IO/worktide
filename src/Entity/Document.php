@@ -16,6 +16,7 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use App\Entity\Enum\DocumentBodyFormat;
+use App\Entity\Enum\DocumentWorkflowState;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
@@ -70,6 +71,7 @@ use Doctrine\ORM\Mapping as ORM;
     'task' => 'exact',
     'name' => 'partial',
 ])]
+#[ApiFilter(SearchFilter::class, properties: ['workflowState' => 'exact'])]
 #[ApiFilter(BooleanFilter::class, properties: ['isPrivate', 'isHiddenForConnectUsers', 'isArchived'])]
 #[ApiFilter(ExistsFilter::class, properties: ['parent', 'space', 'project', 'task', 'deletedAt'])]
 #[ApiFilter(OrderFilter::class, properties: ['position', 'name', 'updatedAt'])]
@@ -130,10 +132,42 @@ class Document
     #[ORM\OneToMany(targetEntity: DocumentRevision::class, mappedBy: 'document', cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $revisions;
 
+    #[ORM\Column(length: 12, enumType: DocumentWorkflowState::class, options: ['default' => 'draft'])]
+    private DocumentWorkflowState $workflowState = DocumentWorkflowState::Draft;
+
+    /**
+     * Users assigned to review the document while it sits in the `review`
+     * state. Assignment is independent of contributors (reviewers may
+     * read-only) — when the state is `draft` or `published`, this list
+     * is informational only.
+     *
+     * @var Collection<int, User>
+     */
+    #[ORM\ManyToMany(targetEntity: User::class)]
+    #[ORM\JoinTable(name: 'document_reviewers')]
+    #[ORM\JoinColumn(name: 'document_id', referencedColumnName: 'id', onDelete: 'CASCADE')]
+    #[ORM\InverseJoinColumn(name: 'user_id', referencedColumnName: 'id', onDelete: 'CASCADE')]
+    private Collection $reviewers;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $submittedAt = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $submittedBy = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $publishedAt = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $publishedBy = null;
+
     public function __construct()
     {
         $this->contributors = new ArrayCollection();
         $this->revisions = new ArrayCollection();
+        $this->reviewers = new ArrayCollection();
     }
 
     /** @return Collection<int, DocumentRevision> */
@@ -177,4 +211,36 @@ class Document
 
     /** @return Collection<int, DocumentContributor> */
     public function getContributors(): Collection { return $this->contributors; }
+
+    public function getWorkflowState(): DocumentWorkflowState { return $this->workflowState; }
+    public function setWorkflowState(DocumentWorkflowState $s): self { $this->workflowState = $s; return $this; }
+
+    /** @return Collection<int, User> */
+    public function getReviewers(): Collection { return $this->reviewers; }
+
+    public function addReviewer(User $u): self
+    {
+        if (!$this->reviewers->contains($u)) {
+            $this->reviewers->add($u);
+        }
+        return $this;
+    }
+
+    public function removeReviewer(User $u): self
+    {
+        $this->reviewers->removeElement($u);
+        return $this;
+    }
+
+    public function getSubmittedAt(): ?\DateTimeImmutable { return $this->submittedAt; }
+    public function setSubmittedAt(?\DateTimeImmutable $t): self { $this->submittedAt = $t; return $this; }
+
+    public function getSubmittedBy(): ?User { return $this->submittedBy; }
+    public function setSubmittedBy(?User $u): self { $this->submittedBy = $u; return $this; }
+
+    public function getPublishedAt(): ?\DateTimeImmutable { return $this->publishedAt; }
+    public function setPublishedAt(?\DateTimeImmutable $t): self { $this->publishedAt = $t; return $this; }
+
+    public function getPublishedBy(): ?User { return $this->publishedBy; }
+    public function setPublishedBy(?User $u): self { $this->publishedBy = $u; return $this; }
 }
