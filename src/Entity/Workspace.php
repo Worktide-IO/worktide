@@ -60,6 +60,26 @@ class Workspace
     #[ORM\Column(length: 64)]
     private string $timezone = 'Europe/Berlin';
 
+    /**
+     * Free-form workspace settings as JSON. Currently holds:
+     *
+     *   {
+     *     "sessionTtl": {
+     *       "access":  3600,   // seconds, null = inherit Lexik default
+     *       "refresh": 2592000 // INFO-only here; gesdinet TTL is global
+     *     }
+     *   }
+     *
+     * Future settings (project-number pattern, billing prefs, …) extend
+     * this without a new migration each time. Validated client-side and
+     * — for the security-relevant keys — by the JWTCreatedListener which
+     * is the single authority on access-token TTL.
+     *
+     * @var array<string, mixed>|null
+     */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $settings = null;
+
     /** @var Collection<int, WorkspaceMember> */
     #[ORM\OneToMany(targetEntity: WorkspaceMember::class, mappedBy: 'workspace', orphanRemoval: true)]
     private Collection $members;
@@ -111,6 +131,30 @@ class Workspace
     {
         $this->timezone = $timezone;
         return $this;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function getSettings(): ?array
+    {
+        return $this->settings;
+    }
+
+    /** @param array<string, mixed>|null $settings */
+    public function setSettings(?array $settings): self
+    {
+        $this->settings = $settings;
+        return $this;
+    }
+
+    /**
+     * Access-token TTL in seconds, or null if this workspace inherits the
+     * Lexik default. Walks the JSON tree defensively because the JSON
+     * shape is free-form by design.
+     */
+    public function getSessionAccessTtl(): ?int
+    {
+        $raw = $this->settings['sessionTtl']['access'] ?? null;
+        return is_int($raw) && $raw > 0 ? $raw : null;
     }
 
     /** @return Collection<int, WorkspaceMember> */
