@@ -101,6 +101,25 @@ final class FileStorage
         return $this->filesystem->readStream($version->getStoragePath());
     }
 
+    /**
+     * Path-based read for callers that hold a raw storage path string
+     * (e.g. mail attachments stored under inbound_events.attachments[].storedAt
+     * — no File entity row).
+     *
+     * @return resource|null  null if the path is missing or unreadable
+     */
+    public function readStreamByPath(string $path)
+    {
+        try {
+            if (!$this->filesystem->fileExists($path)) {
+                return null;
+            }
+            return $this->filesystem->readStream($path);
+        } catch (FilesystemException) {
+            return null;
+        }
+    }
+
     public function exists(FileVersion $version): bool
     {
         try {
