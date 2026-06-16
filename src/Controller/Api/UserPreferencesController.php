@@ -57,6 +57,7 @@ final class UserPreferencesController
 
         return new JsonResponse([
             'dashboardLayout' => $prefs?->getDashboardLayout(),
+            'idleTimeoutMinutes' => $prefs?->getIdleTimeoutMinutes(),
             'updatedAt' => $prefs?->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
         ]);
     }
@@ -92,6 +93,18 @@ final class UserPreferencesController
         if (array_key_exists('dashboardLayout', $body)) {
             $prefs->setDashboardLayout($layout);
         }
+        if (array_key_exists('idleTimeoutMinutes', $body)) {
+            $raw = $body['idleTimeoutMinutes'];
+            if ($raw === null) {
+                $prefs->setIdleTimeoutMinutes(null);
+            } elseif (is_int($raw) && $raw >= 1 && $raw <= 480) {
+                $prefs->setIdleTimeoutMinutes($raw);
+            } else {
+                throw new BadRequestHttpException(
+                    'idleTimeoutMinutes must be null or an integer between 1 and 480.',
+                );
+            }
+        }
         $this->em->flush();
 
         $userIri = '/v1/users/' . $user->getId()?->toRfc4122();
@@ -99,6 +112,7 @@ final class UserPreferencesController
             topics: [$userIri . '/preferences'],
             data: json_encode([
                 'dashboardLayout' => $prefs->getDashboardLayout(),
+                'idleTimeoutMinutes' => $prefs->getIdleTimeoutMinutes(),
                 'updatedAt' => $prefs->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
             ]) ?: '{}',
             private: true,
@@ -106,6 +120,7 @@ final class UserPreferencesController
 
         return new JsonResponse([
             'dashboardLayout' => $prefs->getDashboardLayout(),
+            'idleTimeoutMinutes' => $prefs->getIdleTimeoutMinutes(),
             'updatedAt' => $prefs->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
         ]);
     }

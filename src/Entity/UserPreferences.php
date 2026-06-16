@@ -55,6 +55,14 @@ class UserPreferences
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $dashboardLayout = null;
 
+    /**
+     * Auto-logout after N minutes of UI inactivity. Null = disabled
+     * (default). Enforced client-side by the idle hook; the server has
+     * no equivalent kill switch beyond letting the JWT expire.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?int $idleTimeoutMinutes = null;
+
     public function __construct(User $user)
     {
         $this->user = $user;
@@ -79,6 +87,18 @@ class UserPreferences
     public function setDashboardLayout(?array $layout): self
     {
         $this->dashboardLayout = $layout;
+
+        return $this;
+    }
+
+    public function getIdleTimeoutMinutes(): ?int
+    {
+        return $this->idleTimeoutMinutes;
+    }
+
+    public function setIdleTimeoutMinutes(?int $minutes): self
+    {
+        $this->idleTimeoutMinutes = $minutes;
 
         return $this;
     }
