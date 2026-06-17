@@ -11,6 +11,8 @@ use App\Channels\OAuth\OAuth2Client;
 use App\Channels\OAuth\OAuth2TokenException;
 use App\Channels\OutboundAdapter;
 use App\Channels\OutboundResult;
+use App\Channels\Testable;
+use App\Channels\TestResult;
 use App\Channels\WebhookNotSupportedException;
 use App\Entity\Channel;
 use App\Entity\Contact;
@@ -44,7 +46,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * pre-fetch size, refuse big mails, truncate inline body, attachments
  * via FileStorage.
  */
-final class EmailGmailAdapter implements InboundAdapter, OutboundAdapter
+final class EmailGmailAdapter implements InboundAdapter, OutboundAdapter, Testable
 {
     public const CODE = 'email_gmail';
     private const GMAIL_BASE = 'https://gmail.googleapis.com/gmail/v1';
@@ -532,5 +534,24 @@ final class EmailGmailAdapter implements InboundAdapter, OutboundAdapter
             $lines[] = '--' . $boundary . '--';
         }
         return implode("\r\n", $lines);
+    }
+
+    public function selfTest(Channel $channel): TestResult
+    {
+        try {
+            $accessToken = $this->oauth->ensureAccessToken($channel);
+        } catch (\Throwable $e) {
+            return TestResult::failed('OAuth token unavailable: ' . $e->getMessage());
+        }
+        try {
+            $data = $this->getJson($accessToken, $this->gmailUrl('/users/me/profile'));
+        } catch (\Throwable $e) {
+            return TestResult::failed('Gmail /profile unreachable: ' . $e->getMessage());
+        }
+        $email = (string) ($data['emailAddress'] ?? '');
+        if ($email === '') {
+            return TestResult::warning('Gmail profile responded but no emailAddress field — scope incomplete?');
+        }
+        return TestResult::ok(sprintf('Verbunden als %s.', $email), ['emailAddress' => $email]);
     }
 }

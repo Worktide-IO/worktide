@@ -59,6 +59,8 @@ security:
         - { path: ^/v1/contexts,     roles: PUBLIC_ACCESS }
         - { path: ^/v1/_webhook-echo, roles: PUBLIC_ACCESS }   # dev sink for outbound webhooks
         - { path: ^/v1/workspace_invitations/[^/]+/accept, roles: PUBLIC_ACCESS }   # token IS the credential
+        - { path: ^/v1/channels/oauth/callback, roles: PUBLIC_ACCESS }   # provider redirect, signed-state CSRF guard
+        - { path: ^/v1/inbound/webhooks/, roles: PUBLIC_ACCESS }   # per-channel token IS the credential
         - { path: ^/v1/$,            roles: PUBLIC_ACCESS }
         - { path: ^/v1,              roles: ROLE_USER }
 

@@ -9,6 +9,8 @@ use App\Channels\InboundAdapter;
 use App\Channels\InboundResult;
 use App\Channels\OutboundAdapter;
 use App\Channels\OutboundResult;
+use App\Channels\Testable;
+use App\Channels\TestResult;
 use App\Entity\Channel;
 use App\Entity\Contact;
 use App\Entity\InboundEvent;
@@ -58,7 +60,7 @@ use Webklex\PHPIMAP\Message;
  *   { username, password }                  // can re-use the same for SMTP if not split
  *   { username, password, smtpUsername?, smtpPassword? }
  */
-final class EmailImapAdapter implements InboundAdapter, OutboundAdapter
+final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testable
 {
     public const CODE = 'email_imap';
 
@@ -537,6 +539,30 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter
             // as failed rather than retry so the worker doesn't loop
             // on a broken channel.
             return OutboundResult::failed($e->getMessage());
+        }
+    }
+
+    public function selfTest(Channel $channel): TestResult
+    {
+        $auth = $channel->getAuthConfig();
+        $cfg = $channel->getInboundConfig();
+        if (empty($cfg['host']) || empty($auth['username'])) {
+            return TestResult::failed('Host or username missing in channel config.');
+        }
+        try {
+            $client = $this->makeClient($channel);
+            $client->connect();
+            $folder = $client->getFolder((string) ($cfg['folder'] ?? 'INBOX'));
+            $client->disconnect();
+            if ($folder === null) {
+                return TestResult::warning(sprintf(
+                    'IMAP login OK, but folder "%s" was not found — events would be polled from a missing mailbox.',
+                    (string) ($cfg['folder'] ?? 'INBOX'),
+                ));
+            }
+            return TestResult::ok('IMAP login + folder access OK.');
+        } catch (\Throwable $e) {
+            return TestResult::failed(sprintf('IMAP connect failed: %s', $e->getMessage()));
         }
     }
 }

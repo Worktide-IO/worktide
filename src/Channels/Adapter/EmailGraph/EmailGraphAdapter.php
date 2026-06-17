@@ -11,6 +11,8 @@ use App\Channels\OAuth\OAuth2Client;
 use App\Channels\OAuth\OAuth2TokenException;
 use App\Channels\OutboundAdapter;
 use App\Channels\OutboundResult;
+use App\Channels\Testable;
+use App\Channels\TestResult;
 use App\Channels\WebhookNotSupportedException;
 use App\Entity\Channel;
 use App\Entity\Contact;
@@ -51,7 +53,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * Auth: bearer token from {@see OAuth2Client::ensureAccessToken()},
  * refreshed in-place when within 60 s of expiry.
  */
-final class EmailGraphAdapter implements InboundAdapter, OutboundAdapter
+final class EmailGraphAdapter implements InboundAdapter, OutboundAdapter, Testable
 {
     public const CODE = 'email_graph';
     private const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
@@ -451,5 +453,29 @@ final class EmailGraphAdapter implements InboundAdapter, OutboundAdapter
         $existing = (string) ($inReplyTo->getSourceMetadata()['headers']['References'] ?? '');
         $own = '<' . $inReplyTo->getExternalId() . '>';
         return trim($existing === '' ? $own : $existing . ' ' . $own);
+    }
+
+    public function selfTest(Channel $channel): TestResult
+    {
+        try {
+            $accessToken = $this->oauth->ensureAccessToken($channel);
+        } catch (\Throwable $e) {
+            return TestResult::failed('OAuth token unavailable: ' . $e->getMessage());
+        }
+        try {
+            $response = $this->httpClient->request('GET', $this->graphUrl('/me'), [
+                'headers' => ['Authorization' => 'Bearer ' . $accessToken],
+                'timeout' => 8,
+            ]);
+            $status = $response->getStatusCode();
+            $body = $response->toArray(false);
+        } catch (\Throwable $e) {
+            return TestResult::failed('Graph /me unreachable: ' . $e->getMessage());
+        }
+        if ($status >= 400) {
+            return TestResult::failed(sprintf('Graph /me returned %d: %s', $status, (string) ($body['error']['message'] ?? '')));
+        }
+        $upn = (string) ($body['userPrincipalName'] ?? $body['mail'] ?? 'unknown');
+        return TestResult::ok(sprintf('Verbunden als %s.', $upn), ['userPrincipalName' => $upn]);
     }
 }
