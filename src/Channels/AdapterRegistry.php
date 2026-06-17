@@ -37,16 +37,21 @@ final class AdapterRegistry
     /** @var array<string, ConversationThreader> */
     private array $threaderByCode = [];
 
+    /** @var array<string, SyncableAdapter> */
+    private array $syncByCode = [];
+
     /**
      * @param iterable<InboundAdapter>        $inbound
      * @param iterable<OutboundAdapter>       $outbound
      * @param iterable<ConversationThreader>  $threaders
+     * @param iterable<SyncableAdapter>       $sync
      * @param array<string, string>           $threaderCodeMap  adapterCode → threader-service-id (resolved via $threaders iterator)
      */
     public function __construct(
         iterable $inbound,
         iterable $outbound,
         iterable $threaders,
+        iterable $sync = [],
         array $threaderCodeMap = [],
     ) {
         foreach ($inbound as $a) {
@@ -54,6 +59,9 @@ final class AdapterRegistry
         }
         foreach ($outbound as $a) {
             $this->outboundByCode[$a->getCode()] = $a;
+        }
+        foreach ($sync as $a) {
+            $this->syncByCode[$a->getCode()] = $a;
         }
         // Threaders don't have a getCode() of their own (one threader can
         // serve multiple adapters); the map is configured in services.yaml.
@@ -93,6 +101,17 @@ final class AdapterRegistry
     public function getThreader(string $code): ?ConversationThreader
     {
         return $this->threaderByCode[$code] ?? null;
+    }
+
+    public function getSync(string $code): SyncableAdapter
+    {
+        return $this->syncByCode[$code]
+            ?? throw new UnknownAdapterException("No syncable adapter for code '$code'.");
+    }
+
+    public function trySync(string $code): ?SyncableAdapter
+    {
+        return $this->syncByCode[$code] ?? null;
     }
 
     /**
