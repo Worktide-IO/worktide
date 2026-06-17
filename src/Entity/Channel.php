@@ -108,6 +108,26 @@ class Channel
     private array $capabilities = [];
 
     /**
+     * Worktide entity-type slugs this channel can sync — empty
+     * array (the default) means the channel is event-stream-only.
+     * Non-empty marks the channel as also implementing the
+     * {@see \App\Channels\SyncableAdapter} interface for those
+     * types.
+     *
+     * Examples:
+     *   ['task', 'comment']           — Jira / Redmine
+     *   ['calendar_event', 'time_entry'] — CalDAV / Google Calendar
+     *
+     * The {@see AdapterRegistry} verifies that the adapter
+     * declared for `adapterCode` actually supports the listed
+     * types when the channel is saved.
+     *
+     * @var list<string>
+     */
+    #[ORM\Column(type: 'json')]
+    private array $entityTypes = [];
+
+    /**
      * Per-channel address used by the AI / threading code to
      * decide which Customer / Contact a message belongs to.
      * For mail: typically a recipient address ("support@firma.de").
@@ -185,6 +205,26 @@ class Channel
     public function supports(ChannelCapability $c): bool
     {
         return \in_array($c->value, $this->capabilities, true);
+    }
+
+    /** @return list<string> */
+    public function getEntityTypes(): array { return $this->entityTypes; }
+
+    /** @param list<string> $types */
+    public function setEntityTypes(array $types): self
+    {
+        $this->entityTypes = array_values(array_unique(array_filter($types, 'is_string')));
+        return $this;
+    }
+
+    public function supportsEntityType(string $type): bool
+    {
+        return \in_array($type, $this->entityTypes, true);
+    }
+
+    public function isEntitySyncEnabled(): bool
+    {
+        return $this->entityTypes !== [];
     }
 
     public function getAddress(): ?string { return $this->address; }
