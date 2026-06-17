@@ -6,11 +6,8 @@ namespace App\Channels;
 
 use App\Entity\Channel;
 use App\Entity\EntitySync;
-use App\Entity\Enum\SyncMode;
-use App\Entity\Task;
 use App\Repository\EntitySyncRepository;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\Uid\Uuid;
 
 /**
  * Applies one or more {@see EntitySnapshot}s onto Worktide-side
@@ -54,37 +51,43 @@ final class EntityApplier
      * existing one. Returns the EntitySync row (created or updated)
      * so the caller can stash it on the channel's sync log.
      */
-    public function apply(Channel $channel, EntitySnapshot $snapshot): EntitySync
+    /**
+     * Apply one snapshot. Returns the updated EntitySync row, OR
+     * null if there's no existing mapping and we deliberately skip
+     * auto-creation.
+     *
+     * V1 policy: never auto-create local entities from external
+     * snapshots. Worktide entities have context the external side
+     * doesn't know (Task needs a Project; Project needs a Customer
+     * etc.). The initial mapping is created from the SPA — the
+     * user picks "link THIS Worktide task to THAT Redmine issue"
+     * — and subsequent pulls update the already-mapped pair.
+     *
+     * Unmapped snapshots are NOT silently dropped: the caller
+     * receives `null` and can stash the snapshot in a "discovered,
+     * un-bound" inbox so the SPA can offer it for manual linkage.
+     * That UX lives in C.7.6.
+     */
+    public function apply(Channel $channel, EntitySnapshot $snapshot): ?EntitySync
     {
         return $this->guard->run(function () use ($channel, $snapshot) {
             $mapping = $this->mappings->findByChannelExternal($channel, $snapshot->externalId);
-
-            if ($mapping !== null) {
-                $entity = $this->loadEntity($mapping);
-                if ($entity === null) {
-                    // Local row was hard-deleted while we weren't looking.
-                    // Treat as new — adapter will create a fresh one.
-                    $mapping = null;
-                }
-            }
-
             if ($mapping === null) {
-                $entity = $this->createEntity($channel, $snapshot);
-                $mapping = (new EntitySync())
-                    ->setWorkspace($channel->getWorkspace())
-                    ->setChannel($channel)
-                    ->setEntityType($snapshot->entityType)
-                    ->setEntityId($entity->getId() ?? throw new \LogicException('Entity must have an ID after persist.'))
-                    ->setExternalId($snapshot->externalId)
-                    ->setSyncMode(SyncMode::Bidirectional);
-                $this->em->persist($mapping);
-            } else {
-                $entity = $this->loadEntity($mapping);
-                if ($entity !== null && !$snapshot->remoteDeleted) {
-                    $this->updateEntity($entity, $snapshot);
-                }
+                // Discovered an external record we don't know yet —
+                // skip without crashing. C.7.6 will surface these.
+                return null;
             }
-
+            $entity = $this->loadEntity($mapping);
+            if ($entity === null) {
+                // Local row vanished (hard delete) — mark the mapping
+                // stale so the SPA can show "unlinked" without
+                // re-creating the local entity from external data.
+                $mapping->setLastSyncError('Local entity no longer exists — mapping stale.');
+                return $mapping;
+            }
+            if (!$snapshot->remoteDeleted) {
+                $this->updateEntity($entity, $snapshot);
+            }
             $mapping
                 ->setExternalUpdatedAt($snapshot->externalUpdatedAt)
                 ->setExternalUrl($snapshot->externalUrl)
@@ -92,7 +95,6 @@ final class EntityApplier
                 ->setLastSyncedAt(new \DateTimeImmutable())
                 ->setLastSyncError(null)
                 ->setSourceMetadata($snapshot->sourceMetadata);
-
             return $mapping;
         });
     }
@@ -101,19 +103,6 @@ final class EntityApplier
     {
         $class = $this->typeResolver->classFor($mapping->getEntityType());
         return $this->em->find($class, $mapping->getEntityId());
-    }
-
-    private function createEntity(Channel $channel, EntitySnapshot $snapshot): object
-    {
-        $class = $this->typeResolver->classFor($snapshot->entityType);
-        $entity = new $class();
-        $this->applyFields($entity, $snapshot->fields);
-        if (method_exists($entity, 'setWorkspace')) {
-            $entity->setWorkspace($channel->getWorkspace());
-        }
-        $this->em->persist($entity);
-        $this->em->flush(); // need ID for the EntitySync row
-        return $entity;
     }
 
     private function updateEntity(object $entity, EntitySnapshot $snapshot): void

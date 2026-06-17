@@ -10,6 +10,7 @@ use App\Channels\InboundAdapter;
 use App\Channels\InboundResult;
 use App\Channels\PullNotSupportedException;
 use App\Channels\SyncableAdapter;
+use App\Channels\SyncReentryGuard;
 use App\Channels\SyncResult;
 use App\Channels\WebhookNotSupportedException;
 use App\Entity\Channel;
@@ -59,6 +60,7 @@ abstract class BaseTicketSyncAdapter implements InboundAdapter, SyncableAdapter
     public function __construct(
         protected readonly HttpClientInterface $httpClient,
         protected readonly EntityManagerInterface $em,
+        protected readonly SyncReentryGuard $reentryGuard,
     ) {}
 
     /**
