@@ -61,8 +61,8 @@ use Doctrine\ORM\Mapping as ORM;
     'parent' => 'exact',
     'tags' => 'exact',
 ])]
-#[ApiFilter(DateFilter::class, properties: ['dueOn', 'startedOn', 'closedOn', 'createdAt', 'updatedAt'])]
-#[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'dueOn', 'parent', 'closedOn'])]
+#[ApiFilter(DateFilter::class, properties: ['dueOn', 'startOn', 'scheduledEnd', 'startedOn', 'closedOn', 'createdAt', 'updatedAt'])]
+#[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'dueOn', 'startOn', 'scheduledEnd', 'parent', 'closedOn'])]
 #[ApiFilter(\ApiPlatform\Doctrine\Orm\Filter\BooleanFilter::class, properties: ['isPrio', 'isHiddenForConnectUsers'])]
 #[ApiFilter(OrderFilter::class, properties: ['identifier', 'title', 'priority', 'position', 'dueOn', 'createdAt', 'updatedAt'])]
 class Task
@@ -148,9 +148,23 @@ class Task
     /**
      * Planned start (Soll). Used by Gantt and the AI auto-scheduler in
      * Phase D — separate from `startedOn` (Ist, set when work begins).
+     *
+     * Also serves as the scheduled-start for the Team-Planner view
+     * (Phase B.4): when both `startOn` and `scheduledEnd` are set,
+     * the task renders as a draggable time-block on the planner grid.
+     * When only `startOn` is set, the planner falls back to a single
+     * "starts at" marker without an explicit end.
      */
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $startOn = null;
+
+    /**
+     * Planned end (Soll) — companion to `startOn` for the Team-Planner.
+     * If null, the planner derives a fallback end from
+     * `estimatedMinutes` (or treats the slot as 30 min wide).
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $scheduledEnd = null;
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $startedOn = null;
@@ -413,6 +427,17 @@ class Task
     public function setStartOn(?\DateTimeImmutable $startOn): self
     {
         $this->startOn = $startOn;
+        return $this;
+    }
+
+    public function getScheduledEnd(): ?\DateTimeImmutable
+    {
+        return $this->scheduledEnd;
+    }
+
+    public function setScheduledEnd(?\DateTimeImmutable $scheduledEnd): self
+    {
+        $this->scheduledEnd = $scheduledEnd;
         return $this;
     }
 
