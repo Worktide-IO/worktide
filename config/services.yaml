@@ -24,6 +24,8 @@ services:
             tags: ['worktide.channel.outbound']
         App\Channels\ConversationThreader:
             tags: ['worktide.channel.threader']
+        App\Channels\SyncableAdapter:
+            tags: ['worktide.channel.sync']
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name
@@ -81,6 +83,7 @@ services:
             $inbound: !tagged_iterator 'worktide.channel.inbound'
             $outbound: !tagged_iterator 'worktide.channel.outbound'
             $threaders: !tagged_iterator 'worktide.channel.threader'
+            $sync: !tagged_iterator 'worktide.channel.sync'
             # Map adapterCode → index in the threaders iterator. Order
             # follows the alphabetical service-id sort that
             # tagged_iterator uses by default. MailThreader is the only
