@@ -283,7 +283,46 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
 
     public function consumeWebhook(Channel $channel, Request $request): InboundResult
     {
-        throw new PullNotSupportedException('Redmine webhook ingest requires the `redmine_webhook` plugin and is out of scope for V1.');
+        // Entity-sync webhooks go through the SyncableAdapter route,
+        // not InboundAdapter — that's wired in C.7.7 via
+        // EntityWebhookController calling receiveEntityWebhook().
+        throw new PullNotSupportedException('Redmine webhooks dispatch through /v1/inbound/entity-webhooks/, not /v1/inbound/webhooks/.');
+    }
+
+    /**
+     * Parse a payload from the `redmine_webhook` plugin.
+     *
+     * Plugin sends `{"payload": {"action": "opened"|"updated", "issue":
+     * {...}, "url": "...", "user": {...}}}` for create / update events.
+     * The `issue` sub-object matches the same shape we already handle
+     * in `snapshotFromPayload()` (subject, description, updated_on,
+     * project / status / priority / assigned_to nested objects), so we
+     * just unwrap and delegate.
+     *
+     * The plugin doesn't fire on issue deletions, so `remoteDeleted`
+     * stays false — staleness is detected later by the reconciliation
+     * worker (planned C.7.x).
+     *
+     * @return list<\App\Channels\EntitySnapshot>
+     */
+    protected function parseEntityWebhook(Channel $channel, Request $request): array
+    {
+        $raw = (string) ($request->getContent() ?? '');
+        if ($raw === '') {
+            return [];
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+        // The plugin wraps everything in `payload`; some configs strip
+        // the wrapper. Accept both shapes.
+        $envelope = $decoded['payload'] ?? $decoded;
+        $issue = $envelope['issue'] ?? null;
+        if (!is_array($issue)) {
+            return [];
+        }
+        return [$this->snapshotFromPayload($channel, $issue)];
     }
 
     public function selfTest(Channel $channel): TestResult
