@@ -333,7 +333,67 @@ final class JiraAdapter extends BaseTicketSyncAdapter implements Testable
 
     public function consumeWebhook(Channel $channel, Request $request): InboundResult
     {
-        throw new PullNotSupportedException('Jira webhook ingest is out of scope for V1 — admin-configured push subscriptions are wired separately.');
+        // Entity-sync webhooks → SyncableAdapter::receiveEntityWebhook
+        // (the EntityWebhookController calls into that, not here).
+        throw new PullNotSupportedException('Jira webhooks dispatch through /v1/inbound/entity-webhooks/, not /v1/inbound/webhooks/.');
+    }
+
+    /**
+     * Parse a Jira "issue updated" / "issue created" webhook payload.
+     *
+     * Jira webhook config (Admin → System → WebHooks) lets the
+     * operator pick which events fire — we handle the issue-shaped
+     * ones (`jira:issue_created`, `jira:issue_updated`,
+     * `jira:issue_deleted`). Each carries:
+     *
+     *   {
+     *     "webhookEvent": "jira:issue_updated",
+     *     "issue": { "key": "LW-403", "fields": {...} },
+     *     "changelog": {...},  // present on updates
+     *     "user": {...},
+     *     "timestamp": 1234567890
+     *   }
+     *
+     * The `issue.fields` block has the same shape as `/search` results,
+     * so we delegate to `snapshotFromPayload()`. For delete events the
+     * `issue` still arrives but we set `remoteDeleted=true` so the
+     * EntityApplier marks the mapping stale instead of touching the
+     * local entity.
+     *
+     * @return list<\App\Channels\EntitySnapshot>
+     */
+    protected function parseEntityWebhook(Channel $channel, Request $request): array
+    {
+        $raw = (string) ($request->getContent() ?? '');
+        if ($raw === '') {
+            return [];
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+        $issue = $decoded['issue'] ?? null;
+        if (!is_array($issue)) {
+            return [];
+        }
+        $snapshot = $this->snapshotFromPayload($channel, $issue);
+        $event = (string) ($decoded['webhookEvent'] ?? '');
+        if ($event === 'jira:issue_deleted') {
+            // Re-emit with remoteDeleted=true; EntityApplier flips the
+            // mapping into stale state without re-creating the local
+            // record.
+            return [new \App\Channels\EntitySnapshot(
+                entityType: $snapshot->entityType,
+                externalId: $snapshot->externalId,
+                fields: $snapshot->fields,
+                externalUpdatedAt: $snapshot->externalUpdatedAt,
+                externalUrl: $snapshot->externalUrl,
+                etag: $snapshot->etag,
+                sourceMetadata: $snapshot->sourceMetadata,
+                remoteDeleted: true,
+            )];
+        }
+        return [$snapshot];
     }
 
     public function selfTest(Channel $channel): TestResult
