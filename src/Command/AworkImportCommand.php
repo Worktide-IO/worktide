@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\Entity\Customer;
+use App\Entity\Enum\AssigneePrincipalType;
 use App\Entity\Enum\CustomerStatus;
 use App\Entity\Enum\ProjectMemberRole;
 use App\Entity\Enum\TaskPriority;
@@ -14,6 +15,7 @@ use App\Entity\ProjectMember;
 use App\Entity\ProjectStatus;
 use App\Entity\ProjectType;
 use App\Entity\Task;
+use App\Entity\TaskAssignee;
 use App\Entity\TaskStatus;
 use App\Entity\TimeEntry;
 use App\Entity\TypeOfWork;
@@ -683,11 +685,21 @@ final class AworkImportCommand extends Command
             ->setStatus($status)
             ->setPriority($priority)
             ->setEstimatedMinutes($this->secondsToMinutes($t['plannedDuration'] ?? null))
-            ->setAssignees($assignees)
             ->setIsPrio((bool) ($t['isPrio'] ?? false))
             ->setIsHiddenForConnectUsers((bool) ($t['isHiddenForConnectUsers'] ?? false))
             ->setDueOn($this->parseDate($t['dueOn'] ?? null))
             ->setStartedOn($this->parseDate($t['startOn'] ?? null));
+
+        // Assignees are polymorphic (User|Team) since the TaskAssignee
+        // refactor; $assignees holds User objects, so add a User principal
+        // for each (replaces the removed setAssignees(User[]) shortcut).
+        foreach ($assignees as $assignee) {
+            $task->addAssignedPrincipal(
+                (new TaskAssignee())
+                    ->setPrincipalType(AssigneePrincipalType::User)
+                    ->setPrincipalId($assignee->getId())
+            );
+        }
 
         $closedOn = $this->parseDate($t['closedOn'] ?? null);
         $task->setClosedOn($closedOn);

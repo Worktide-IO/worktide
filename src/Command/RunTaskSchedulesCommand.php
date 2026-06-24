@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Entity\Enum\AssigneePrincipalType;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Task;
+use App\Entity\TaskAssignee;
 use App\Entity\TaskSchedule;
 use App\Entity\TaskStatus;
 use App\Repository\TaskScheduleRepository;
@@ -95,7 +97,13 @@ final class RunTaskSchedulesCommand extends Command
                 ->setPriority($priority)
                 ->setEstimatedMinutes($schedule->getTaskEstimatedMinutes());
             if ($schedule->getTaskAssignee() !== null) {
-                $task->addAssignee($schedule->getTaskAssignee());
+                // Assignees are polymorphic (User|Team) since the TaskAssignee
+                // refactor — the old addAssignee(User) shortcut is gone.
+                $task->addAssignedPrincipal(
+                    (new TaskAssignee())
+                        ->setPrincipalType(AssigneePrincipalType::User)
+                        ->setPrincipalId($schedule->getTaskAssignee()->getId())
+                );
             }
 
             if (!$dryRun) {

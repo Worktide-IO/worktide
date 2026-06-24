@@ -300,10 +300,12 @@ final class DomainEventEmitterSubscriber
     private function enrichPayload(object $entity, string $action, array $payload, array $changeSet): array
     {
         if ($entity instanceof Task && $action === GenericEntityChangedEvent::ACTION_CREATED) {
-            $assignees = [];
-            foreach ($entity->getAssignees() as $a) {
-                $assignees[] = $this->userBrief($a);
-            }
+            // getAssignees() returns user IRIs since the assignee model went
+            // polymorphic (User|Team) — userBrief() can't apply here, and a
+            // brief would need a DB lookup we must not do inside onFlush. The
+            // activity feed resolves these IRIs to names client-side, the same
+            // way every other user reference in the SPA is rendered.
+            $assignees = $entity->getAssignees();
             if ($assignees !== []) {
                 $payload['assignedUsers'] = $assignees;
             }
