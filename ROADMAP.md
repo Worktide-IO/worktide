@@ -1,6 +1,6 @@
 # Worktide Roadmap
 
-Stand 2026-06-15. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (via bluemine), Asana, Jira und FreeScout.
+Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (via bluemine), Asana, Jira und FreeScout.
 
 ## Bereits gebaut
 
@@ -66,11 +66,12 @@ Stand 2026-06-15. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 - **Visueller Workflow-Editor** (Drag-Drop, ähnlich Asana Workflow Builder).
 
 ### Schicht 3 — Reporting
-- **Custom Dashboards mit Charts** (Recharts: Burndown, Velocity, Cycle Time, Cumulative Flow, MRR-Verlauf). Pro Workspace persistiert.
-- **Reports SPA-UI** für die existierenden TimeReport / Workload-Endpoints.
+- ~~**Reports SPA-UI mit Charts** (Recharts)~~ — **erledigt** (Phase B.3b/B.3c): Tabs unter `/auswertungen` für Zeit, Burndown, Created-vs-Resolved, Cycle-Time, MRR und **Cumulative Flow** (Status-Bänder pro Tag via DomainEventLog-Replay). Workload als Overlay im Team-Planner.
+- **Velocity** (abgeschlossene Story-Points pro Sprint) — offen, gekoppelt an Sprints (Schicht 4).
+- **Konfigurierbare Custom-Dashboards** (Drag-Drop, pro Workspace persistiert) — offen, über die festen Report-Tabs hinaus.
 
 ### Schicht 4 — Erweiterte Views
-- **Workload-View** (Visualisierung pro User: gebuchte Stunden vs UserCapacity vs Absences)
+- ~~**Workload-View** (Visualisierung pro User: gebuchte Stunden vs UserCapacity vs Absences)~~ — **erledigt**: als WorkloadOverlay im Team-Planner (`/v1/reports/workload`)
 - **Sprints / Backlog**: TaskList mit `startDate` / `endDate` / `isSprint`-Flag, Velocity, Burndown
 - **Public Forms**: öffentliche `/forms/<slug>` Endpunkte, generieren Tasks aus Submissions mit Custom-Fields-Mapping
 
