@@ -6,6 +6,7 @@ namespace App\Controller\Api;
 
 use App\Entity\Project;
 use App\Entity\ProjectVersion;
+use App\Entity\Sprint;
 use App\Entity\Task;
 use App\Entity\TaskStatus;
 use App\Entity\User;
@@ -78,14 +79,16 @@ final class ProjectReportsController
 
         $projectId = $request->query->get('project');
         $versionId = $request->query->get('version');
-        if (!$projectId && !$versionId) {
-            throw new BadRequestHttpException('Either `project` or `version` query parameter is required.');
+        $sprintId = $request->query->get('sprint');
+        if (!$projectId && !$versionId && !$sprintId) {
+            throw new BadRequestHttpException('Either `project`, `version` or `sprint` query parameter is required.');
         }
 
         // Voter-check the scoping entity so a tenant boundary leak is
         // impossible regardless of the workspace header value.
         $projectBin = null;
         $versionBin = null;
+        $sprintBin = null;
         if ($projectId) {
             $project = $this->loadEntity(Project::class, $projectId);
             if ($project->getWorkspace()->getId()?->toRfc4122() !== $workspace->getId()?->toRfc4122()
@@ -101,6 +104,14 @@ final class ProjectReportsController
                 throw new AccessDeniedHttpException();
             }
             $versionBin = $version->getId()?->toBinary();
+        }
+        if ($sprintId) {
+            $sprint = $this->loadEntity(Sprint::class, $sprintId);
+            if ($sprint->getWorkspace()->getId()?->toRfc4122() !== $workspace->getId()?->toRfc4122()
+                || !$this->security->isGranted(WorktidePermission::VIEW, $sprint)) {
+                throw new AccessDeniedHttpException();
+            }
+            $sprintBin = $sprint->getId()?->toBinary();
         }
 
         // Pull every Task that's in the scope, with createdAt + closedOn,
@@ -123,6 +134,11 @@ final class ProjectReportsController
             $sql .= ' AND t.fixed_version_id = :version';
             $params['version'] = $versionBin;
             $types['version'] = ParameterType::BINARY;
+        }
+        if ($sprintBin !== null) {
+            $sql .= ' AND t.sprint_id = :sprint';
+            $params['sprint'] = $sprintBin;
+            $types['sprint'] = ParameterType::BINARY;
         }
         $rows = $this->db->fetchAllAssociative($sql, $params, $types);
 
@@ -154,6 +170,7 @@ final class ProjectReportsController
             'to' => $to->format('Y-m-d'),
             'project' => $projectId,
             'version' => $versionId,
+            'sprint' => $sprintId,
             'totalTasks' => count($rows),
             'series' => $series,
         ]);
@@ -290,6 +307,69 @@ final class ProjectReportsController
             'statuses' => $statuses,
             'series' => $this->cumulativeFlow->build($tasks, $events, $from, $to),
         ]);
+    }
+
+    /**
+     * Velocity per sprint for a project: how much work each sprint committed
+     * vs completed. Size is {@see Task::$estimatedMinutes} (returned as
+     * minutes; the SPA shows hours); a task counts as completed once it is
+     * closed (`closed_on` set). Task counts are reported alongside so a team
+     * tracking by count rather than estimate still gets a signal.
+     */
+    #[Route(
+        path: '/v1/reports/velocity',
+        name: 'api_report_velocity',
+        host: 'api.worktide.ddev.site',
+        methods: ['GET'],
+    )]
+    public function velocity(Request $request): JsonResponse
+    {
+        $user = $this->requireUser();
+        $workspace = $this->resolveWorkspace($request, $user)
+            ?? throw new BadRequestHttpException('Workspace could not be determined.');
+
+        $projectId = $request->query->get('project');
+        if (!$projectId) {
+            throw new BadRequestHttpException('`project` query parameter is required.');
+        }
+        $project = $this->loadEntity(Project::class, $projectId);
+        if ($project->getWorkspace()->getId()?->toRfc4122() !== $workspace->getId()?->toRfc4122()
+            || !$this->security->isGranted(WorktidePermission::VIEW, $project)) {
+            throw new AccessDeniedHttpException();
+        }
+
+        // One pass: per sprint, committed = all assigned tasks, completed =
+        // the closed subset. Sprints with no tasks still appear (LEFT JOIN).
+        $sql = 'SELECT s.id AS id, s.name AS name, s.start_date AS startDate,
+                       s.end_date AS endDate, s.state AS state,
+                       COUNT(t.id) AS committedCount,
+                       COALESCE(SUM(t.estimated_minutes), 0) AS committedMinutes,
+                       COALESCE(SUM(CASE WHEN t.closed_on IS NOT NULL THEN 1 ELSE 0 END), 0) AS completedCount,
+                       COALESCE(SUM(CASE WHEN t.closed_on IS NOT NULL THEN t.estimated_minutes ELSE 0 END), 0) AS completedMinutes
+                FROM sprints s
+                LEFT JOIN tasks t ON t.sprint_id = s.id AND t.deleted_at IS NULL
+                WHERE s.project_id = :project AND s.deleted_at IS NULL
+                GROUP BY s.id
+                ORDER BY (s.start_date IS NULL), s.start_date ASC, s.position ASC';
+        $rows = $this->db->fetchAllAssociative(
+            $sql,
+            ['project' => $project->getId()?->toBinary()],
+            ['project' => ParameterType::BINARY],
+        );
+
+        $sprints = array_map(static fn (array $r): array => [
+            'id' => Uuid::fromBinary($r['id'])->toRfc4122(),
+            'name' => $r['name'],
+            'startDate' => $r['startDate'],
+            'endDate' => $r['endDate'],
+            'state' => $r['state'],
+            'committedCount' => (int) $r['committedCount'],
+            'committedMinutes' => (int) $r['committedMinutes'],
+            'completedCount' => (int) $r['completedCount'],
+            'completedMinutes' => (int) $r['completedMinutes'],
+        ], $rows);
+
+        return new JsonResponse(['project' => $projectId, 'sprints' => $sprints]);
     }
 
     #[Route(
