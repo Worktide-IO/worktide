@@ -56,6 +56,7 @@ use Doctrine\ORM\Mapping as ORM;
     'priority' => 'exact',
     'tracker' => 'exact',
     'fixedVersion' => 'exact',
+    'sprint' => 'exact',
     'assignedPrincipals.principalId' => 'exact',
     'createdBy' => 'exact',
     'parent' => 'exact',
@@ -122,6 +123,15 @@ class Task
     #[ORM\ManyToOne(targetEntity: ProjectVersion::class)]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?ProjectVersion $fixedVersion = null;
+
+    /**
+     * The Sprint this task is committed to, or null = backlog. Deleting a
+     * sprint frees its tasks back to the backlog (SET NULL) rather than
+     * cascading them away — same rationale as fixedVersion above.
+     */
+    #[ORM\ManyToOne(targetEntity: Sprint::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Sprint $sprint = null;
 
     #[ORM\Column(length: 12, enumType: TaskPriority::class)]
     private TaskPriority $priority = TaskPriority::Normal;
@@ -512,6 +522,9 @@ class Task
 
     public function getTracker(): ?Tracker { return $this->tracker; }
     public function setTracker(?Tracker $t): self { $this->tracker = $t; return $this; }
+
+    public function getSprint(): ?Sprint { return $this->sprint; }
+    public function setSprint(?Sprint $sprint): self { $this->sprint = $sprint; return $this; }
 
     public function getFixedVersion(): ?ProjectVersion { return $this->fixedVersion; }
     public function setFixedVersion(?ProjectVersion $v): self { $this->fixedVersion = $v; return $this; }
