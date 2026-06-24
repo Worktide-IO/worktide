@@ -28,6 +28,14 @@ framework:
             policy: 'fixed_window'
             limit: 5
             interval: '15 minutes'
+        auth_forgot_password:
+            policy: 'fixed_window'
+            limit: 3
+            interval: '1 hour'
+        auth_reset_password:
+            policy: 'fixed_window'
+            limit: 5
+            interval: '15 minutes'
 
     #esi: true
     #fragments: true

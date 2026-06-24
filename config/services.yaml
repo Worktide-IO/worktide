@@ -73,6 +73,15 @@ services:
         arguments:
             $authRefreshLimiter: '@limiter.auth_refresh'
             $authPasswordChangeLimiter: '@limiter.auth_password_change'
+            $authForgotPasswordLimiter: '@limiter.auth_forgot_password'
+            $authResetPasswordLimiter: '@limiter.auth_reset_password'
+
+    # Password-reset service needs the SPA base (to build the reset link)
+    # and a system from-address. Both come from env.
+    App\Service\PasswordResetService:
+        arguments:
+            $spaBaseUrl: '%env(SPA_BASE_URL)%'
+            $mailFrom: '%env(MAILER_FROM)%'
 
     # Channel adapter registry (Phase C.2). Tags are produced by
     # _instanceof above; the threader map stays empty until concrete
