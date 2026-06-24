@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Entity\Enum\AssigneePrincipalType;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Task;
+use App\Entity\TaskAssignee;
 use App\Entity\TaskStatus;
 use App\Entity\User;
 use App\Repository\TaskRepository;
@@ -136,7 +138,41 @@ final class TaskActionsController
             $users[] = $u;
         }
 
-        $task->setAssignees($users);
+        // Assignees went polymorphic (User|Team); the old setAssignees(User[])
+        // replace-all is gone. This endpoint only manages USER assignment
+        // (it takes userIds), so we sync the user-principals and leave any
+        // team-principals untouched — wiping team assignments as a side effect
+        // of setting users would be surprising data loss.
+        //
+        // We diff rather than remove-all-then-add: the unique key is
+        // (task, principal_type, principal_id), and Doctrine orders INSERTs
+        // before DELETEs within one flush — so re-adding an already-present
+        // user would collide with its own not-yet-deleted row. Only touch
+        // what actually changed.
+        $desiredUserIds = array_map(static fn (User $u) => $u->getId()?->toRfc4122(), $users);
+        $existingUserIds = [];
+        foreach ($task->getAssignedPrincipals()->toArray() as $existing) {
+            \assert($existing instanceof TaskAssignee);
+            if ($existing->getPrincipalType() !== AssigneePrincipalType::User) {
+                continue;
+            }
+            $pid = $existing->getPrincipalId()->toRfc4122();
+            if (\in_array($pid, $desiredUserIds, true)) {
+                $existingUserIds[] = $pid;       // keep
+            } else {
+                $task->removeAssignedPrincipal($existing); // no longer wanted
+            }
+        }
+        foreach ($users as $u) {
+            if (\in_array($u->getId()?->toRfc4122(), $existingUserIds, true)) {
+                continue; // already assigned
+            }
+            $task->addAssignedPrincipal(
+                (new TaskAssignee())
+                    ->setPrincipalType(AssigneePrincipalType::User)
+                    ->setPrincipalId($u->getId())
+            );
+        }
         $this->em->flush();
 
         return new JsonResponse([
@@ -172,8 +208,16 @@ final class TaskActionsController
         foreach ($source->getTags() as $tag) {
             $copy->addTag($tag);
         }
-        foreach ($source->getAssignees() as $a) {
-            $copy->addAssignee($a);
+        // Clone every assignment (User AND Team). getAssignees() now returns
+        // bare user-IRIs, so we copy the principals directly to preserve both
+        // kinds.
+        foreach ($source->getAssignedPrincipals() as $p) {
+            \assert($p instanceof TaskAssignee);
+            $copy->addAssignedPrincipal(
+                (new TaskAssignee())
+                    ->setPrincipalType($p->getPrincipalType())
+                    ->setPrincipalId($p->getPrincipalId())
+            );
         }
         $user = $this->security->getUser();
         if ($user instanceof User) {

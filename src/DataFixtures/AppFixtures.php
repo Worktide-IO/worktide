@@ -63,6 +63,8 @@ use App\Entity\ProjectMember;
 use App\Entity\ProjectStatus;
 use App\Entity\Tag;
 use App\Entity\Task;
+use App\Entity\TaskAssignee;
+use App\Entity\Enum\AssigneePrincipalType;
 use App\Entity\TaskStatus;
 use App\Entity\TimeEntry;
 use App\Entity\User;
@@ -288,7 +290,17 @@ class AppFixtures extends Fixture
                     ->setTitle($title)
                     ->setStatus($taskStatuses[$statusIdx])
                     ->setPriority($priority)
-                    ->setAssignees([$users[$assigneeIdx]])
+                    // Assignees are polymorphic (User|Team) since the
+                    // TaskAssignee refactor; the old setAssignees([User])
+                    // shortcut is gone. Build a User principal directly —
+                    // $users are already persisted above, so getId() holds
+                    // a UUID (Symfony's generator is pre-insert), and the
+                    // cascade:['persist'] on assignedPrincipals saves it.
+                    ->addAssignedPrincipal(
+                        (new TaskAssignee())
+                            ->setPrincipalType(AssigneePrincipalType::User)
+                            ->setPrincipalId($users[$assigneeIdx]->getId())
+                    )
                     ->setCreatedBy($users[$p['owner']])
                     ->setDueOn($now->modify('+' . (7 + $idx * 4) . ' days'))
                     ->setEstimatedMinutes(($idx + 1) * 60)

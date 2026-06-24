@@ -7,11 +7,13 @@ namespace App\Service\Automation;
 use App\Entity\Automation;
 use App\Entity\AutomationAction;
 use App\Entity\Comment;
+use App\Entity\Enum\AssigneePrincipalType;
 use App\Entity\Enum\AutomationActionType;
 use App\Entity\Enum\CommentTarget;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Tag;
 use App\Entity\Task;
+use App\Entity\TaskAssignee;
 use App\Entity\TaskStatus;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
@@ -99,7 +101,13 @@ final class ActionRunner
         if (!$user instanceof User) {
             return;
         }
-        $task->addAssignee($user);
+        // Assignees are polymorphic (User|Team) since the TaskAssignee
+        // refactor — the old addAssignee(User) shortcut is gone.
+        $task->addAssignedPrincipal(
+            (new TaskAssignee())
+                ->setPrincipalType(AssigneePrincipalType::User)
+                ->setPrincipalId($user->getId())
+        );
     }
 
     /** @param array<string, mixed> $config */
