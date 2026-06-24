@@ -35,6 +35,8 @@ final class AuthRateLimitSubscriber implements EventSubscriberInterface
     public function __construct(
         private readonly RateLimiterFactory $authRefreshLimiter,
         private readonly RateLimiterFactory $authPasswordChangeLimiter,
+        private readonly RateLimiterFactory $authForgotPasswordLimiter,
+        private readonly RateLimiterFactory $authResetPasswordLimiter,
     ) {}
 
     public static function getSubscribedEvents(): array
@@ -56,6 +58,10 @@ final class AuthRateLimitSubscriber implements EventSubscriberInterface
                 => $this->authRefreshLimiter,
             $path === '/v1/me/password' && $request->isMethod('POST')
                 => $this->authPasswordChangeLimiter,
+            $path === '/v1/auth/forgot-password' && $request->isMethod('POST')
+                => $this->authForgotPasswordLimiter,
+            $path === '/v1/auth/reset-password' && $request->isMethod('POST')
+                => $this->authResetPasswordLimiter,
             default => null,
         };
         if ($factory === null) {

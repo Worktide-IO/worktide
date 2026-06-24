@@ -55,6 +55,8 @@ security:
     access_control:
         - { path: ^/v1/auth/login,   roles: PUBLIC_ACCESS }
         - { path: ^/v1/auth/refresh, roles: PUBLIC_ACCESS }
+        - { path: ^/v1/auth/forgot-password, roles: PUBLIC_ACCESS }   # email is mailed a token; no auth
+        - { path: ^/v1/auth/reset-password,  roles: PUBLIC_ACCESS }   # token IS the credential
         - { path: ^/v1/docs,         roles: PUBLIC_ACCESS }
         - { path: ^/v1/contexts,     roles: PUBLIC_ACCESS }
         - { path: ^/v1/_webhook-echo, roles: PUBLIC_ACCESS }   # dev sink for outbound webhooks
