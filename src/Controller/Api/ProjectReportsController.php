@@ -12,6 +12,7 @@ use App\Entity\User;
 use App\Entity\Workspace;
 use App\Entity\WorkspaceMember;
 use App\Security\Voter\WorktidePermission;
+use App\Service\Reports\CumulativeFlowReconstructor;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
@@ -56,6 +57,7 @@ final class ProjectReportsController
         private readonly Security $security,
         private readonly EntityManagerInterface $em,
         private readonly Connection $db,
+        private readonly CumulativeFlowReconstructor $cumulativeFlow,
     ) {}
 
     #[Route(
@@ -154,6 +156,139 @@ final class ProjectReportsController
             'version' => $versionId,
             'totalTasks' => count($rows),
             'series' => $series,
+        ]);
+    }
+
+    /**
+     * Cumulative Flow Diagram: per-day count of tasks in each status.
+     *
+     * Current task rows only reveal the status *now*; the historical bands are
+     * reconstructed by replaying `status` change events (recorded by
+     * {@see \App\EventSubscriber\DomainEventEmitterSubscriber} as
+     * `payload.status = {from, to}`) in {@see CumulativeFlowReconstructor}.
+     *
+     * Caveats: tasks deleted before now are absent (same as burndown), and a
+     * status change that predates the event log is invisible — such a task
+     * shows its earliest known status. Statuses removed from the workspace are
+     * not rendered as bands.
+     */
+    #[Route(
+        path: '/v1/reports/cumulative-flow',
+        name: 'api_report_cumulative_flow',
+        host: 'api.worktide.ddev.site',
+        methods: ['GET'],
+    )]
+    public function cumulativeFlow(Request $request): JsonResponse
+    {
+        $user = $this->requireUser();
+        $workspace = $this->resolveWorkspace($request, $user)
+            ?? throw new BadRequestHttpException('Workspace could not be determined.');
+
+        $from = $this->parseRequiredDate($request, 'from');
+        $to = $this->parseRequiredDate($request, 'to');
+        $this->assertRange($from, $to);
+
+        $projectId = $request->query->get('project');
+        $versionId = $request->query->get('version');
+        if (!$projectId && !$versionId) {
+            throw new BadRequestHttpException('Either `project` or `version` query parameter is required.');
+        }
+
+        // Voter-check the scoping entity — identical guard to burndown.
+        $projectBin = null;
+        $versionBin = null;
+        if ($projectId) {
+            $project = $this->loadEntity(Project::class, $projectId);
+            if ($project->getWorkspace()->getId()?->toRfc4122() !== $workspace->getId()?->toRfc4122()
+                || !$this->security->isGranted(WorktidePermission::VIEW, $project)) {
+                throw new AccessDeniedHttpException();
+            }
+            $projectBin = $project->getId()?->toBinary();
+        }
+        if ($versionId) {
+            $version = $this->loadEntity(ProjectVersion::class, $versionId);
+            if ($version->getWorkspace()->getId()?->toRfc4122() !== $workspace->getId()?->toRfc4122()
+                || !$this->security->isGranted(WorktidePermission::VIEW, $version)) {
+                throw new AccessDeniedHttpException();
+            }
+            $versionBin = $version->getId()?->toBinary();
+        }
+
+        // In-scope tasks with their current status, for the replay.
+        $sql = 'SELECT t.id AS id, t.created_at AS createdAt, t.status_id AS statusId
+                FROM tasks t
+                WHERE t.workspace_id = :ws
+                  AND t.deleted_at IS NULL
+                  AND t.created_at < :to';
+        $params = ['ws' => $workspace->getId()?->toBinary(), 'to' => $to->format('Y-m-d 23:59:59')];
+        $types = ['ws' => ParameterType::BINARY, 'to' => ParameterType::STRING];
+        if ($projectBin !== null) {
+            $sql .= ' AND t.project_id = :project';
+            $params['project'] = $projectBin;
+            $types['project'] = ParameterType::BINARY;
+        }
+        if ($versionBin !== null) {
+            $sql .= ' AND t.fixed_version_id = :version';
+            $params['version'] = $versionBin;
+            $types['version'] = ParameterType::BINARY;
+        }
+        $tasks = [];
+        foreach ($this->db->fetchAllAssociative($sql, $params, $types) as $r) {
+            $tasks[] = [
+                'id' => Uuid::fromBinary($r['id'])->toRfc4122(),
+                'createdAt' => new \DateTimeImmutable($r['createdAt']),
+                'currentStatusId' => Uuid::fromBinary($r['statusId'])->toRfc4122(),
+            ];
+        }
+
+        // Status-change events for this workspace's tasks. The flat-string
+        // `status` of a task.created snapshot is skipped via `$.status.to`,
+        // leaving only the {from,to} changesets. The reconstructor ignores
+        // events for tasks outside the project/version scope.
+        $events = [];
+        if ($tasks !== []) {
+            $eventSql = "SELECT aggregate_id AS taskId, occurred_at AS occurredAt, payload
+                         FROM domain_events
+                         WHERE aggregate_type = 'Task'
+                           AND workspace_id = :ws
+                           AND JSON_EXTRACT(payload, '$.status.to') IS NOT NULL";
+            foreach ($this->db->fetchAllAssociative($eventSql, ['ws' => $workspace->getId()?->toBinary()], ['ws' => ParameterType::BINARY]) as $r) {
+                $payload = json_decode((string) $r['payload'], true);
+                $status = \is_array($payload) ? ($payload['status'] ?? null) : null;
+                if (!\is_array($status) || !\is_string($status['from'] ?? null) || !\is_string($status['to'] ?? null)) {
+                    continue;
+                }
+                $events[] = [
+                    'taskId' => Uuid::fromBinary($r['taskId'])->toRfc4122(),
+                    'from' => $status['from'],
+                    'to' => $status['to'],
+                    'occurredAt' => new \DateTimeImmutable($r['occurredAt']),
+                ];
+            }
+        }
+
+        // Band metadata — workspace statuses ordered for stacking (completed
+        // last so the frontend can render them at the bottom).
+        $statuses = [];
+        $statusEntities = $this->em->getRepository(TaskStatus::class)
+            ->findBy(['workspace' => $workspace], ['position' => 'ASC']);
+        foreach ($statusEntities as $s) {
+            $statuses[] = [
+                'id' => $s->getId()?->toRfc4122(),
+                'name' => $s->getName(),
+                'color' => $s->getColor(),
+                'position' => $s->getPosition(),
+                'isCompleted' => $s->isCompleted(),
+            ];
+        }
+
+        return new JsonResponse([
+            'from' => $from->format('Y-m-d'),
+            'to' => $to->format('Y-m-d'),
+            'project' => $projectId,
+            'version' => $versionId,
+            'statuses' => $statuses,
+            'series' => $this->cumulativeFlow->build($tasks, $events, $from, $to),
         ]);
     }
 
