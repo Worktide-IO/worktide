@@ -42,6 +42,10 @@ enum Capability: string
     case TimeEntryUpdateOthers = 'time_entry.update_others';
     case TimeEntryDeleteOwn = 'time_entry.delete_own';
     case TimeEntryDeleteOthers = 'time_entry.delete_others';
+    // Toggling the "billed" flag on one's OWN entries is split out from
+    // update_own so a workspace can keep self-service time editing while
+    // reserving the accounting-relevant billed status for finance/admins.
+    case TimeEntryToggleBilledOwn = 'time_entry.toggle_billed_own';
 
     // --- Files & comments --------------------------------------------
     case FileUpload = 'file.upload';

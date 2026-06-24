@@ -46,6 +46,7 @@ final class DefaultPermissions
                 Capability::TaskDeleteOwn,
                 Capability::TimeEntryCreate,
                 Capability::TimeEntryUpdateOwn,
+                Capability::TimeEntryToggleBilledOwn,
                 Capability::TimeEntryDeleteOwn,
                 Capability::FileUpload,
                 Capability::CommentCreate,
