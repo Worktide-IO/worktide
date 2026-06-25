@@ -9,6 +9,7 @@ enum TaskCreatedVia: string
     case Created = 'created';
     case Import = 'import';
     case Email = 'email';
+    case Form = 'form';
     case Automation = 'automation';
     case Api = 'api';
     case Recurring = 'recurring';

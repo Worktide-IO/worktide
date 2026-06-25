@@ -64,6 +64,7 @@ security:
         - { path: ^/v1/channels/oauth/callback, roles: PUBLIC_ACCESS }   # provider redirect, signed-state CSRF guard
         - { path: ^/v1/inbound/webhooks/, roles: PUBLIC_ACCESS }   # per-channel token IS the credential
         - { path: ^/v1/inbound/entity-webhooks/, roles: PUBLIC_ACCESS }   # per-channel token IS the credential (entity-sync)
+        - { path: ^/v1/forms/,       roles: PUBLIC_ACCESS }   # public form schema + submission; slug IS the credential
         - { path: ^/v1/$,            roles: PUBLIC_ACCESS }
         - { path: ^/v1,              roles: ROLE_USER }
 

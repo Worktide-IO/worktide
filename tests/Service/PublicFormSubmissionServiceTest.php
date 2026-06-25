@@ -1,0 +1,202 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Service;
+
+use App\Entity\CustomFieldDefinition;
+use App\Entity\CustomFieldValue;
+use App\Entity\Enum\TaskCreatedVia;
+use App\Entity\Enum\TaskPriority;
+use App\Entity\Project;
+use App\Entity\PublicForm;
+use App\Entity\Task;
+use App\Entity\TaskStatus;
+use App\Entity\Workspace;
+use App\Repository\CustomFieldDefinitionRepository;
+use App\Repository\TaskStatusRepository;
+use App\Service\PublicFormSubmissionService;
+use App\Service\PublicFormValidationException;
+use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Uid\Uuid;
+
+/**
+ * Unit coverage for public-form submission → task materialization.
+ *
+ * No database — repositories are stubbed and the EntityManager is a mock that
+ * captures persisted entities and stamps a UUID on the Task (standing in for
+ * the CUSTOM UuidGenerator), mirroring {@see PasswordResetServiceTest}.
+ */
+final class PublicFormSubmissionServiceTest extends TestCase
+{
+    /** @var list<object> */
+    private array $persisted = [];
+
+    public function testValidSubmissionCreatesTaskWithMappedFieldsAndCustomFieldValue(): void
+    {
+        $cfDef = new CustomFieldDefinition();
+        $customFields = $this->createStub(CustomFieldDefinitionRepository::class);
+        $customFields->method('findOneBy')->willReturn($cfDef);
+
+        $form = $this->form([
+            ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'mapsTo' => 'title'],
+            ['key' => 'msg', 'label' => 'Message', 'type' => 'long_text', 'mapsTo' => 'description'],
+            ['key' => 'urgency', 'label' => 'Urgency', 'type' => 'select', 'options' => ['low', 'high'], 'mapsTo' => 'priority'],
+            ['key' => 'budget', 'label' => 'Budget', 'type' => 'number', 'mapsTo' => 'cf:budget'],
+        ]);
+
+        $submission = $this->service($customFields)->submit($form, [
+            'name' => 'Ada Lovelace',
+            'msg' => 'Please help',
+            'urgency' => 'high',
+            'budget' => '1500',
+            '_hp' => '', // honeypot empty — handled by controller, ignored here
+        ], '203.0.113.9', 'curl/8.0');
+
+        $task = $this->firstOf(Task::class);
+        self::assertInstanceOf(Task::class, $task);
+        self::assertSame('Ada Lovelace', $task->getTitle());
+        self::assertSame('Please help', $task->getDescription());
+        self::assertSame(TaskPriority::High, $task->getPriority());
+        self::assertSame(TaskCreatedVia::Form, $task->getCreatedVia());
+        self::assertStringStartsWith('PUB-', $task->getIdentifier());
+        self::assertNull($task->getCreatedByUser(), 'public submissions have no authenticated author');
+
+        $cfv = $this->firstOf(CustomFieldValue::class);
+        self::assertInstanceOf(CustomFieldValue::class, $cfv);
+        self::assertSame(1500, $cfv->getValue());
+        self::assertSame($cfDef, $cfv->getDefinition());
+
+        self::assertSame($task, $submission->getCreatedTask());
+        self::assertSame('203.0.113.9', $submission->getRemoteIp());
+        self::assertSame(1, $form->getSubmissionCount());
+        // Reserved honeypot key must not leak into the audit payload.
+        self::assertArrayNotHasKey('_hp', $submission->getPayload());
+        self::assertSame('Ada Lovelace', $submission->getPayload()['name']);
+    }
+
+    public function testMissingRequiredFieldThrowsValidationException(): void
+    {
+        $form = $this->form([
+            ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'mapsTo' => 'title'],
+        ]);
+
+        try {
+            $this->service()->submit($form, []);
+            self::fail('expected PublicFormValidationException');
+        } catch (PublicFormValidationException $e) {
+            self::assertArrayHasKey('name', $e->getErrors());
+        }
+
+        self::assertSame([], $this->persisted, 'nothing persisted on validation failure');
+        self::assertSame(0, $form->getSubmissionCount());
+    }
+
+    public function testInvalidSelectValueIsRejected(): void
+    {
+        $form = $this->form([
+            ['key' => 'urgency', 'label' => 'Urgency', 'type' => 'select', 'options' => ['low', 'high'], 'required' => true, 'mapsTo' => 'priority'],
+        ]);
+
+        $this->expectException(PublicFormValidationException::class);
+        $this->service()->submit($form, ['urgency' => 'nope']);
+    }
+
+    public function testUnknownCustomFieldKeyIsSkippedButTaskStillCreated(): void
+    {
+        $customFields = $this->createStub(CustomFieldDefinitionRepository::class);
+        $customFields->method('findOneBy')->willReturn(null); // no such definition
+
+        $form = $this->form([
+            ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'mapsTo' => 'title'],
+            ['key' => 'ghost', 'label' => 'Ghost', 'type' => 'text', 'mapsTo' => 'cf:ghost'],
+        ]);
+
+        $this->service($customFields)->submit($form, ['name' => 'X', 'ghost' => 'unmapped']);
+
+        self::assertInstanceOf(Task::class, $this->firstOf(Task::class));
+        self::assertNull($this->firstOf(CustomFieldValue::class), 'no CFV for an unknown key');
+    }
+
+    public function testStatusFallsBackToWorkspaceDefaultWhenFormHasNone(): void
+    {
+        $defaultStatus = new TaskStatus();
+        $statuses = $this->createMock(TaskStatusRepository::class);
+        $statuses->expects(self::once())
+            ->method('findOneBy')
+            ->with(self::callback(static fn (array $c): bool => ($c['isDefault'] ?? null) === true))
+            ->willReturn($defaultStatus);
+
+        $form = $this->form([
+            ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'mapsTo' => 'title'],
+        ], withDefaultStatus: false);
+
+        $this->service(taskStatuses: $statuses)->submit($form, ['name' => 'X']);
+
+        $task = $this->firstOf(Task::class);
+        self::assertInstanceOf(Task::class, $task);
+        self::assertSame($defaultStatus, $task->getStatus());
+    }
+
+    // --- helpers -------------------------------------------------------
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     */
+    private function form(array $fields, bool $withDefaultStatus = true): PublicForm
+    {
+        $project = (new Project())->setKey('pub');
+        $form = (new PublicForm())
+            ->setWorkspace(new Workspace())
+            ->setProject($project)
+            ->setSlug('contact')
+            ->setTitle('Contact us')
+            ->setFields($fields);
+        if ($withDefaultStatus) {
+            $form->setDefaultStatus(new TaskStatus());
+        }
+
+        return $form;
+    }
+
+    private function service(
+        ?CustomFieldDefinitionRepository $customFields = null,
+        ?TaskStatusRepository $taskStatuses = null,
+    ): PublicFormSubmissionService {
+        $em = $this->createStub(EntityManagerInterface::class);
+        $em->method('persist')->willReturnCallback(function (object $entity): void {
+            // Stand in for the CUSTOM UuidGenerator: Task ids are available
+            // right after persist(), which the service relies on for the CFV.
+            if ($entity instanceof Task && $entity->getId() === null) {
+                $ref = new \ReflectionProperty($entity, 'id');
+                $ref->setValue($entity, Uuid::v7());
+            }
+            $this->persisted[] = $entity;
+        });
+
+        return new PublicFormSubmissionService(
+            $em,
+            $taskStatuses ?? $this->createStub(TaskStatusRepository::class),
+            $customFields ?? $this->createStub(CustomFieldDefinitionRepository::class),
+        );
+    }
+
+    /**
+     * @template T of object
+     *
+     * @param class-string<T> $class
+     *
+     * @return T|null
+     */
+    private function firstOf(string $class): ?object
+    {
+        foreach ($this->persisted as $entity) {
+            if ($entity instanceof $class) {
+                return $entity;
+            }
+        }
+
+        return null;
+    }
+}
