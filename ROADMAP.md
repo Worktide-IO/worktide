@@ -57,22 +57,22 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 **Ziel:** Worktide vom Task-Manager zum Issue-Tracker upgraden — Jira-Pendant.
 
 ### Schicht 1 — Datenmodell
-- **Trackers** (Bug / Feature / Story / Support) als eigene Entity, Task bekommt FK zu Tracker. M:N zu CustomFields.
-- **Versions / Releases** mit `sharing`-Enum (none/descendants/hierarchy/tree/system), `effectiveDate`, Status open/locked/closed, optional Wiki-Page pro Version. Tasks bekommen `fixedVersion`.
-- **IssueRelation-Typen** erweitern: aktuell 1 Typ, ausbauen auf `blocks`, `duplicates`, `relates`, `follows`, `precedes` + `delay`-Spalte für Scheduling.
+- ~~**Trackers** (Bug / Feature / Story / Support) als eigene Entity, Task bekommt FK zu Tracker. M:N zu CustomFields.~~ — **erledigt** (Backend, B-Sweep)
+- ~~**Versions / Releases** mit `sharing`-Enum (none/descendants/hierarchy/tree/system), `effectiveDate`, Status open/locked/closed, optional Wiki-Page pro Version. Tasks bekommen `fixedVersion`.~~ — **erledigt** (ProjectVersion)
+- ~~**IssueRelation-Typen** erweitern: aktuell 1 Typ, ausbauen auf `blocks`, `duplicates`, `relates`, `follows`, `precedes` + `delay`-Spalte für Scheduling.~~ — **erledigt** (TaskDependency-Typen)
 
 ### Schicht 2 — Workflow-Engine
-- **Workflow-per-Tracker × Status × Role**: WorkflowTransition + WorkflowPermission. Wer darf welchen Status-Wechsel auslösen, welche Felder sind in welchem Status editierbar.
-- **Visueller Workflow-Editor** (Drag-Drop, ähnlich Asana Workflow Builder).
+- ~~**Workflow-per-Tracker × Status × Role**: WorkflowTransition + WorkflowPermission. Wer darf welchen Status-Wechsel auslösen, welche Felder sind in welchem Status editierbar.~~ — **erledigt** (Backend; SPA prüft Transitions im Board client-seitig vor)
+- **Visueller Workflow-Editor** (Drag-Drop, ähnlich Asana Workflow Builder). — offen (Frontend)
 
 ### Schicht 3 — Reporting
 - ~~**Reports SPA-UI mit Charts** (Recharts)~~ — **erledigt** (Phase B.3b/B.3c): Tabs unter `/auswertungen` für Zeit, Burndown, Created-vs-Resolved, Cycle-Time, MRR und **Cumulative Flow** (Status-Bänder pro Tag via DomainEventLog-Replay). Workload als Overlay im Team-Planner.
-- **Velocity** (abgeschlossene Story-Points pro Sprint) — offen, gekoppelt an Sprints (Schicht 4).
+- ~~**Velocity** (abgeschlossene Arbeit pro Sprint)~~ — **erledigt** (Phase B.4.2): `GET /v1/reports/velocity` + Velocity-Chart auf `/sprints`, Größe via `estimatedMinutes`. Story-Points als optionales Maß später möglich.
 - **Konfigurierbare Custom-Dashboards** (Drag-Drop, pro Workspace persistiert) — offen, über die festen Report-Tabs hinaus.
 
 ### Schicht 4 — Erweiterte Views
 - ~~**Workload-View** (Visualisierung pro User: gebuchte Stunden vs UserCapacity vs Absences)~~ — **erledigt**: als WorkloadOverlay im Team-Planner (`/v1/reports/workload`)
-- **Sprints / Backlog**: TaskList mit `startDate` / `endDate` / `isSprint`-Flag, Velocity, Burndown
+- ~~**Sprints / Backlog**: startDate / endDate / Sprint-State, Velocity, Burndown~~ — **erledigt** (Phase B.4.2): `Sprint`-Entity (projekt-scoped) + `Task.sprint`, `/sprints`-Board mit Backlog + Sprint-Spalten (DnD), Sprint-Burndown (`?sprint=`) + Velocity-Chart
 - **Public Forms**: öffentliche `/forms/<slug>` Endpunkte, generieren Tasks aus Submissions mit Custom-Fields-Mapping
 
 ---
