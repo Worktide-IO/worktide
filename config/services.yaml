@@ -76,6 +76,11 @@ services:
             $authForgotPasswordLimiter: '@limiter.auth_forgot_password'
             $authResetPasswordLimiter: '@limiter.auth_reset_password'
 
+    # Same explicit binding for the public-form submission limiter.
+    App\Controller\Api\PublicFormController:
+        arguments:
+            $publicFormSubmitLimiter: '@limiter.public_form_submit'
+
     # Password-reset service needs the SPA base (to build the reset link)
     # and a system from-address. Both come from env.
     App\Service\PasswordResetService:

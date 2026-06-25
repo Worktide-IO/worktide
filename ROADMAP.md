@@ -73,7 +73,7 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 ### Schicht 4 — Erweiterte Views
 - ~~**Workload-View** (Visualisierung pro User: gebuchte Stunden vs UserCapacity vs Absences)~~ — **erledigt**: als WorkloadOverlay im Team-Planner (`/v1/reports/workload`)
 - ~~**Sprints / Backlog**: startDate / endDate / Sprint-State, Velocity, Burndown~~ — **erledigt** (Phase B.4.2): `Sprint`-Entity (projekt-scoped) + `Task.sprint`, `/sprints`-Board mit Backlog + Sprint-Spalten (DnD), Sprint-Burndown (`?sprint=`) + Velocity-Chart
-- **Public Forms**: öffentliche `/forms/<slug>` Endpunkte, generieren Tasks aus Submissions mit Custom-Fields-Mapping
+- ~~**Public Forms**: öffentliche `/forms/<slug>` Endpunkte, generieren Tasks aus Submissions mit Custom-Fields-Mapping~~ — **erledigt** (Backend): `PublicForm` + `PublicFormSubmission`-Entities (Admin-CRUD unter `/v1/public_forms`), öffentliche `GET/POST /v1/forms/{slug}` (PUBLIC_ACCESS), Submission → Task im Ziel-Projekt mit nativem (title/description/priority) + `cf:<key>`-Custom-Field-Mapping, Honeypot + Per-IP-Rate-Limit, Audit-Record. Form-Builder-UI + Public-Renderer offen (SPA-Repo)
 
 ---
 
