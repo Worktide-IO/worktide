@@ -110,7 +110,9 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 
 ### Schicht 5 — Externe Ticket-System-Sync (Jira / Redmine)
 - ~~Bidirektionale Entity-Sync-Foundation: `EntitySync` + `SyncableAdapter`, `EntityChangeOutbox` + Worker, `RedmineAdapter` + `JiraAdapter` (live verifiziert), Webhook-Push ohne Polling~~ — **erledigt** (Phase C.7.1–C.7.7)
-- **Import-Filter pro Verbindung**: Beim Einbinden eines externen Ticket-Systems konfigurierbare Filter, die **nur Tickets importieren, die einer Person im Workspace zugeordnet sind** — direkt als Assignee **oder** als Mitleser/Watcher (Jira `watcher`, Redmine `watcher_id` / `assigned_to_id`). Verhindert das Einsaugen ganzer fremder Projekte. Setzt ein Mapping externer User → Workspace-Member voraus; Filter greift sowohl beim initialen Backfill als auch bei eingehenden Webhook-Events.
+- **Import-Filter pro Verbindung**: Beim Einbinden eines externen Ticket-Systems konfigurierbare Filter, die **nur Tickets importieren, die einer Person im Workspace zugeordnet sind** — direkt als Assignee **oder** als Mitleser/Watcher (Jira `watcher`, Redmine `watcher_id` / `assigned_to_id`). Verhindert das Einsaugen ganzer fremder Projekte. Filter greift sowohl beim initialen Backfill als auch bei eingehenden Webhook-Events.
+  - **Fundament — erledigt**: `ExternalIdentity`-Entity (External-User→Worktide-User-Mapping pro Channel, CRUD unter `/v1/external_identities`) + `InboundImportFilter`-Service (`ExternalParticipant`-DTO; Relevanz = Assignee/Watcher löst über explizites Mapping *oder* Email-Match auf einen Workspace-Member auf). Side-effect-frei, von Backfill und Webhook gemeinsam nutzbar.
+  - **Offen**: Discovered-Import-Pfad (**C.7.6**), der den Filter konsumiert — externe, noch nicht gemappte Tickets entdecken, filtern und zum Verlinken/Import anbieten; Adapter müssen dafür Assignee/Watcher als `ExternalParticipant` liefern. (`EntityApplier` V1 legt aktuell *nie* lokale Entities aus externen Daten an.)
 
 ---
 

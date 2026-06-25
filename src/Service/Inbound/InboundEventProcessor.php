@@ -24,7 +24,9 @@ use Psr\Log\LoggerInterface;
  *   1. Import-filter   — only events addressed to a workspace person (direct
  *                        assignee or watcher/Mitleser). Irrelevant → Dismissed.
  *                        Shared with the adapter-side pre-filter so backfill and
- *                        webhook filter identically. (ROADMAP: Phase C Schicht 5)
+ *                        webhook filter identically via {@see InboundImportFilter}.
+ *                        (ROADMAP: Phase C Schicht 5; the discovered-import
+ *                        consumer is C.7.6, still open.)
  *   2. Sender resolve  — from-address → Contact → Customer / project context.
  *   3. Rule engine     — the workspace's inbound automations ("inbound.received"
  *                        trigger): create Task, assign Conversation, tag, etc.
