@@ -108,6 +108,10 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 - 1-Klick "Aus Konversation Task anlegen"
 - Inbound-Webhook für Mail-Provider mit Webhook-API (SendGrid, Mailgun, Resend)
 
+### Schicht 5 — Externe Ticket-System-Sync (Jira / Redmine)
+- ~~Bidirektionale Entity-Sync-Foundation: `EntitySync` + `SyncableAdapter`, `EntityChangeOutbox` + Worker, `RedmineAdapter` + `JiraAdapter` (live verifiziert), Webhook-Push ohne Polling~~ — **erledigt** (Phase C.7.1–C.7.7)
+- **Import-Filter pro Verbindung**: Beim Einbinden eines externen Ticket-Systems konfigurierbare Filter, die **nur Tickets importieren, die einer Person im Workspace zugeordnet sind** — direkt als Assignee **oder** als Mitleser/Watcher (Jira `watcher`, Redmine `watcher_id` / `assigned_to_id`). Verhindert das Einsaugen ganzer fremder Projekte. Setzt ein Mapping externer User → Workspace-Member voraus; Filter greift sowohl beim initialen Backfill als auch bei eingehenden Webhook-Events.
+
 ---
 
 ## Phase D — KI-Integration / Digitaler Projektmanager

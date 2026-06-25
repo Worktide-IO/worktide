@@ -26,5 +26,9 @@ framework:
             # don't block API mutations.
             App\Message\SendWebhookMessage: async
 
+            # Inbound event processing — off the ingest request thread so a
+            # slow pipeline (rules, AI) doesn't hold up the webhook 2xx / pull.
+            App\Message\ProcessInboundEventMessage: async
+
             # Route your messages to the transports
             # 'App\Message\YourMessage': async

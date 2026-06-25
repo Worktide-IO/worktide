@@ -9,8 +9,10 @@ use App\Channels\PullNotSupportedException;
 use App\Channels\UnknownAdapterException;
 use App\Entity\Channel;
 use App\Entity\Enum\ChannelCapability;
+use App\Message\ProcessInboundEventMessage;
 use App\Repository\ChannelRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -41,6 +43,7 @@ final class ChannelPullCommand extends Command
         private readonly AdapterRegistry $registry,
         private readonly ChannelRepository $channels,
         private readonly EntityManagerInterface $em,
+        private readonly MessageBusInterface $bus,
     ) {
         parent::__construct();
     }
@@ -73,9 +76,11 @@ final class ChannelPullCommand extends Command
                 $io->error($e->getMessage());
                 continue;
             }
+            $pulledEvents = [];
             try {
                 $result = $adapter->pull($channel);
-                $count = \count($result->events);
+                $pulledEvents = $result->events;
+                $count = \count($pulledEvents);
                 $totalEvents += $count;
                 $io->writeln(sprintf(' → %d new event(s); cursor=%s', $count, $result->cursor ?? '(unchanged)'));
 
@@ -96,6 +101,13 @@ final class ChannelPullCommand extends Command
                 $io->error(sprintf('Pull failed: %s', $e->getMessage()));
             }
             $this->em->flush();
+
+            // Dispatch after flush (same as the webhook path): the worker is
+            // guaranteed to find each row committed. Only reached on a
+            // successful pull — failures left $pulledEvents empty.
+            foreach ($pulledEvents as $event) {
+                $this->bus->dispatch(new ProcessInboundEventMessage($event->getId()));
+            }
         }
 
         $io->success(sprintf('Pulled %d new event(s) across %d channel(s).', $totalEvents, \count($channels)));
