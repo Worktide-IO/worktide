@@ -22,6 +22,7 @@ use App\Entity\Project;
 use App\Entity\ProjectMember;
 use App\Entity\ProjectMilestone;
 use App\Entity\ProjectStatus;
+use App\Entity\ProjectStatusUpdate;
 use App\Entity\PersonalAccessToken;
 use App\Entity\ProjectTemplate;
 use App\Entity\ProjectType;
@@ -103,6 +104,7 @@ final class DomainEventEmitterSubscriber
         ChecklistItem::class => 'ChecklistItem',
         TaskDependency::class => 'TaskDependency',
         ProjectMilestone::class => 'ProjectMilestone',
+        ProjectStatusUpdate::class => 'ProjectStatusUpdate',
         File::class => 'File',
         FileVersion::class => 'FileVersion',
         ProjectTemplate::class => 'ProjectTemplate',

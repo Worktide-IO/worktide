@@ -47,7 +47,7 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 - ~~**Calendar-View** — FullCalendar-React, Tasks mit dueOn als Events~~ — **erledigt** (`/calendar`)
 - ~~**Globale Suche** — cross-resource Suche (Tasks, Projects, Customers, Contacts, Documents)~~ — **erledigt** (GlobalSearchDialog, Cmd+/)
 - **Smart-Links** — externe URLs als Rich-Cards (oEmbed: YouTube, Figma, Confluence, …)
-- **Status-Updates** — strukturierte Projekt-Berichte (was läuft, Risiken, nächste Schritte)
+- ~~**Status-Updates** — strukturierte Projekt-Berichte (was läuft, Risiken, nächste Schritte)~~ — **erledigt** (Backend): `ProjectStatusUpdate`-Entity (CRUD unter `/v1/project_status_updates`), `ProjectHealth`-RAG (on_track/at_risk/off_track/on_hold/complete), drei Sektionen summary/risks/nextSteps, Autor via `createdByUser`, pro-Projekt-Feed (`?project=`), Domain-Events + Webhooks via `DomainEventEmitterSubscriber`. Report-Editor-UI offen (SPA-Repo)
 - ~~**Top-Level-Routes** ausbauen: Kalender, Planer, Personen, Auswertungen~~ — **erledigt** (alle vier als Routen vorhanden)
 
 ---
