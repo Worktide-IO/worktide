@@ -41,14 +41,14 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
   - **"Alle offenen Kunden-Aufgaben"** (cross-project Liste)
   - **"Meine Aufgaben"** mit Tabs Heute / Diese Woche / Überfällig
 - Sidebar-Polish:
-  - Pinned / Recent Projects unter "Meine Projekte"
+  - ~~Pinned / Recent Projects unter "Meine Projekte"~~ — **erledigt** (Sidebar-Favoriten)
   - Sammelprojekte vs Kunden-Projekte Gruppierung
-- **Quick-Add Cmd+K Popover** — globaler Shortcut, Task in Sekunden anlegen
-- **Calendar-View** — FullCalendar-React, Tasks mit dueOn als Events
-- **Globale Suche** — cross-resource Cmd+K-Variante (Tasks, Projects, Customers, Contacts, Documents)
+- ~~**Quick-Add Cmd+K Popover** — globaler Shortcut, Task in Sekunden anlegen~~ — **erledigt** (QuickAddDialog: Cmd+K, Task + Projekt)
+- ~~**Calendar-View** — FullCalendar-React, Tasks mit dueOn als Events~~ — **erledigt** (`/calendar`)
+- ~~**Globale Suche** — cross-resource Suche (Tasks, Projects, Customers, Contacts, Documents)~~ — **erledigt** (GlobalSearchDialog, Cmd+/)
 - **Smart-Links** — externe URLs als Rich-Cards (oEmbed: YouTube, Figma, Confluence, …)
 - **Status-Updates** — strukturierte Projekt-Berichte (was läuft, Risiken, nächste Schritte)
-- **Top-Level-Routes** ausbauen: Kalender, Planer, Personen, Auswertungen
+- ~~**Top-Level-Routes** ausbauen: Kalender, Planer, Personen, Auswertungen~~ — **erledigt** (alle vier als Routen vorhanden)
 
 ---
 
