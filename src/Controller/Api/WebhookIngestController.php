@@ -8,10 +8,12 @@ use App\Channels\AdapterRegistry;
 use App\Channels\WebhookNotSupportedException;
 use App\Entity\Channel;
 use App\Entity\Enum\ChannelCapability;
+use App\Message\ProcessInboundEventMessage;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -42,6 +44,7 @@ final class WebhookIngestController
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AdapterRegistry $registry,
+        private readonly MessageBusInterface $bus,
     ) {}
 
     #[Route(
@@ -77,6 +80,13 @@ final class WebhookIngestController
         $channel->setLastSyncedAt(new \DateTimeImmutable());
         $channel->setLastSyncError(null);
         $this->em->flush();
+
+        // Hand each freshly-persisted event to the async processing strecke.
+        // Dispatch AFTER flush so the worker is guaranteed to find the row
+        // committed; one message per event gives isolated retry/DLQ.
+        foreach ($result->events as $event) {
+            $this->bus->dispatch(new ProcessInboundEventMessage($event->getId()));
+        }
 
         // 204 keeps providers happy without leaking any state. Some
         // providers (Slack, Stripe) require a 2xx body — empty 204 is
