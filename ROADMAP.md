@@ -92,11 +92,11 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 - **Mehrfach-Email** pro User und pro Contact: `EmailAddress(owner, address, isPrimary, isVerified)`
 
 ### Schicht 2 — Threading
-- **Conversation-Entity**: subject, customer (auto-resolved via from-email), assignee, status (Active/Pending/Closed/Spam), mailbox
-- **Thread-Entity** mit `type: customer | message | note | forward`, body, attachments, `in-reply-to`, `message-id`, Headers-JSON
-- **Internal Notes** als Thread-Type `note` — privat, mit @-Mentions
-- **Forwarding** als Thread-Type `forward`
-- **Saved Replies** workspace-scoped, mit Variablen-Interpolation
+- ~~**Conversation-Entity**~~ — **erledigt** (subject, threadKey, customer, assignee, status Open/Pending/Closed/Spam, channel).
+- **Thread-Entity** mit `type: customer | message | note | forward` — **bewusst NICHT als eine Entity gebaut.** customer = bestehender `InboundEvent`, message/forward = bestehende `OutboundMessage` (neu: `kind` Reply/Forward), note = neue `ConversationNote`. Vereinheitlicht als Read-Merge: `GET /v1/conversations/{id}/timeline` (`ConversationTimeline`-Service) liefert alle drei Quellen chronologisch mit Typ. Vermeidet den Rewrite der tragenden Ingest/Outbound-Entities.
+- ~~**Internal Notes** als Thread-Type `note` — privat, mit @-Mentions~~ — **erledigt**: `ConversationNote`-Entity (CRUD unter `/v1/conversation_notes`, `isPinned`), `@/v1/users/<uuid>`-Mentions feuern `conversation.user_mentioned` (`ConversationNoteMentionNotifier`, geteilter `MentionExtractor` mit Document-Mentions).
+- ~~**Forwarding** als Thread-Type `forward`~~ — **erledigt** via `OutboundMessage.kind = Forward`.
+- ~~**Saved Replies** workspace-scoped, mit Variablen-Interpolation~~ — **erledigt**: `SavedReply`-Entity (CRUD unter `/v1/saved_replies`, `shortcut`) + `POST /v1/saved_replies/{id}/render` (`SavedReplyRenderer`: `{{customer.*}}`/`{{conversation.subject}}`/`{{agent.*}}`, unbekannte Platzhalter bleiben stehen).
 
 ### Schicht 3 — Collaboration
 - **Collision Detection** via Mercure-Presence — Hinweis wenn 2 User dieselbe Conversation öffnen

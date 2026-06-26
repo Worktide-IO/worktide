@@ -7,6 +7,7 @@ namespace App\EventSubscriber;
 use App\Entity\Document;
 use App\Entity\DomainEventLog;
 use App\Entity\User;
+use App\Service\MentionExtractor;
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
 use Doctrine\ORM\Event\PostPersistEventArgs;
 use Doctrine\ORM\Event\PreUpdateEventArgs;
@@ -38,6 +39,7 @@ final class DocumentMentionNotifier
 {
     public function __construct(
         private readonly Security $security,
+        private readonly MentionExtractor $mentions,
     ) {}
 
     public function preUpdate(PreUpdateEventArgs $event): void
@@ -52,8 +54,8 @@ final class DocumentMentionNotifier
         $oldBody = (string) ($event->getOldValue('body') ?? '');
         $newBody = (string) ($event->getNewValue('body') ?? '');
         $newMentions = array_values(array_diff(
-            $this->extractIris($newBody),
-            $this->extractIris($oldBody),
+            $this->mentions->iris($newBody),
+            $this->mentions->iris($oldBody),
         ));
         if (empty($newMentions)) {
             return;
@@ -67,30 +69,11 @@ final class DocumentMentionNotifier
         if (!$doc instanceof Document) {
             return;
         }
-        $newMentions = $this->extractIris((string) $doc->getBody());
+        $newMentions = $this->mentions->iris((string) $doc->getBody());
         if (empty($newMentions)) {
             return;
         }
         $this->emitFor($doc, $newMentions, $event->getObjectManager());
-    }
-
-    /**
-     * Crude but reliable IRI extraction: BlockNote stores userIri as a
-     * JSON-encoded string inside the mention block props. A simple
-     * regex over the document body finds every "/v1/users/<uuid>"
-     * occurrence — far cheaper than parsing the full block tree.
-     *
-     * @return list<string>
-     */
-    private function extractIris(string $body): array
-    {
-        if ($body === '') {
-            return [];
-        }
-        if (!preg_match_all('#/v1/users/[0-9a-f-]{36}#', $body, $m)) {
-            return [];
-        }
-        return array_values(array_unique($m[0]));
     }
 
     /**
