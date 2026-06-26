@@ -7,6 +7,7 @@ namespace App\EventSubscriber;
 use App\Entity\ChecklistItem;
 use App\Entity\Comment;
 use App\Entity\Contact;
+use App\Entity\ConversationNote;
 use App\Entity\Customer;
 use App\Entity\CustomerSystem;
 use App\Entity\CustomFieldDefinition;
@@ -23,6 +24,7 @@ use App\Entity\ProjectMember;
 use App\Entity\ProjectMilestone;
 use App\Entity\ProjectStatus;
 use App\Entity\ProjectStatusUpdate;
+use App\Entity\SavedReply;
 use App\Entity\PersonalAccessToken;
 use App\Entity\ProjectTemplate;
 use App\Entity\ProjectType;
@@ -105,6 +107,8 @@ final class DomainEventEmitterSubscriber
         TaskDependency::class => 'TaskDependency',
         ProjectMilestone::class => 'ProjectMilestone',
         ProjectStatusUpdate::class => 'ProjectStatusUpdate',
+        ConversationNote::class => 'ConversationNote',
+        SavedReply::class => 'SavedReply',
         File::class => 'File',
         FileVersion::class => 'FileVersion',
         ProjectTemplate::class => 'ProjectTemplate',

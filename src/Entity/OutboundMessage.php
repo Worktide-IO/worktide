@@ -13,6 +13,7 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
+use App\Entity\Enum\OutboundMessageKind;
 use App\Entity\Enum\OutboundMessageStatus;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
@@ -73,6 +74,7 @@ use Doctrine\ORM\Mapping as ORM;
     'channel' => 'exact',
     'conversation' => 'exact',
     'status' => 'exact',
+    'kind' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt', 'sentAt'])]
 class OutboundMessage
@@ -148,6 +150,9 @@ class OutboundMessage
     #[ORM\Column(length: 12, enumType: OutboundMessageStatus::class, options: ['default' => 'queued'])]
     private OutboundMessageStatus $status = OutboundMessageStatus::Queued;
 
+    #[ORM\Column(length: 8, enumType: OutboundMessageKind::class, options: ['default' => 'reply'])]
+    private OutboundMessageKind $kind = OutboundMessageKind::Reply;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $statusReason = null;
 
@@ -202,6 +207,9 @@ class OutboundMessage
 
     public function getCreatedByRecommendationId(): ?\Symfony\Component\Uid\Uuid { return $this->createdByRecommendationId; }
     public function setCreatedByRecommendationId(?\Symfony\Component\Uid\Uuid $id): self { $this->createdByRecommendationId = $id; return $this; }
+
+    public function getKind(): OutboundMessageKind { return $this->kind; }
+    public function setKind(OutboundMessageKind $kind): self { $this->kind = $kind; return $this; }
 
     public function getStatus(): OutboundMessageStatus { return $this->status; }
     public function setStatus(OutboundMessageStatus $s): self { $this->status = $s; return $this; }
