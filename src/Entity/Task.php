@@ -86,6 +86,11 @@ class Task
     #[ORM\JoinColumn(nullable: true, onDelete: 'CASCADE')]
     private ?Project $project = null;
 
+    /** Conversation this task was created from (Phase C Schicht 4), if any. */
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Conversation $sourceConversation = null;
+
     #[ORM\Column(length: 24)]
     private string $identifier;
 
@@ -277,6 +282,17 @@ class Task
     public function setProject(?Project $project): self
     {
         $this->project = $project;
+        return $this;
+    }
+
+    public function getSourceConversation(): ?Conversation
+    {
+        return $this->sourceConversation;
+    }
+
+    public function setSourceConversation(?Conversation $conversation): self
+    {
+        $this->sourceConversation = $conversation;
         return $this;
     }
 
