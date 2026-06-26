@@ -41,5 +41,14 @@ final class EntitySnapshot
          * or just mark the mapping as stale.
          */
         public readonly bool $remoteDeleted = false,
+        /**
+         * Assignee / watcher people on the external record. Consumed by
+         * {@see \App\Service\Inbound\InboundImportFilter} to decide whether an
+         * unmapped record involves a workspace person (discovered-import, C.7.6).
+         * Empty when the adapter exposes no people.
+         *
+         * @var list<ExternalParticipant>
+         */
+        public readonly array $participants = [],
     ) {}
 }
