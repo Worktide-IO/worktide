@@ -39,9 +39,9 @@ final class InboundEventProcessor
 {
     public function __construct(
         private readonly LoggerInterface $logger,
+        private readonly ContactResolver $contactResolver,
         // Seams (inject when implemented):
         // private readonly InboundImportFilter $importFilter,
-        // private readonly ContactResolver $contactResolver,
         // private readonly InboundRuleEngine $rules,
     ) {}
 
@@ -54,7 +54,10 @@ final class InboundEventProcessor
         //     return;
         // }
 
-        // 2. Sender resolution …
+        // 2. Sender resolution — match the from-email onto a known Contact and
+        //    propagate its Customer onto the conversation (auto-resolve).
+        $this->contactResolver->resolveForEvent($event);
+
         // 3. Apply inbound rules (may create a Task / assign the Conversation) …
         // 4. Optional AI classification (Phase D) …
 

@@ -9,6 +9,8 @@ use App\Entity\Enum\InboundEventState;
 use App\Entity\InboundEvent;
 use App\Message\ProcessInboundEventMessage;
 use App\MessageHandler\ProcessInboundEventHandler;
+use App\Repository\ContactRepository;
+use App\Service\Inbound\ContactResolver;
 use App\Service\Inbound\InboundEventProcessor;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -67,9 +69,12 @@ final class ProcessInboundEventHandlerTest extends TestCase
 
     private function handler(EntityManagerInterface $em): ProcessInboundEventHandler
     {
+        $contacts = $this->createStub(ContactRepository::class);
+        $contacts->method('findOneByWorkspaceAndEmail')->willReturn(null);
+
         return new ProcessInboundEventHandler(
             $em,
-            new InboundEventProcessor(new NullLogger()),
+            new InboundEventProcessor(new NullLogger(), new ContactResolver($contacts)),
             new NullLogger(),
         );
     }

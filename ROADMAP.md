@@ -104,9 +104,9 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 - **Phone-Conversation** (manuelles Ticket für Telefonate)
 
 ### Schicht 4 — Routing + Conversion
-- Auto-Resolve: Eingehende Mail → Contact via from-email → Customer + Projekt-Kontext
-- 1-Klick "Aus Konversation Task anlegen"
-- Inbound-Webhook für Mail-Provider mit Webhook-API (SendGrid, Mailgun, Resend)
+- ~~Auto-Resolve: Eingehende Mail → Contact via from-email → Customer + Projekt-Kontext~~ — **erledigt**: `ContactResolver` (im `InboundEventProcessor`-Seam) matcht die from-Email auf einen `Contact` im Workspace und setzt `event.senderContact` + `conversation.customer`. Lookup-only (kein Auto-Anlegen unbekannter Sender). `ContactRepository::findOneByWorkspaceAndEmail`.
+- ~~1-Klick "Aus Konversation Task anlegen"~~ — **erledigt**: `POST /v1/conversations/{id}/create-task` `{project, title?}` → `ConversationTaskConverter` (Titel=Subject, Description=erste Inbound-Nachricht, Status=Workspace-Default, `createdVia=Email`, `Task.sourceConversation` als Herkunfts-Link).
+- **Inbound-Webhook für Mail-Provider mit Webhook-API** (SendGrid, Mailgun, Resend) — offen.
 
 ### Schicht 5 — Externe Ticket-System-Sync (Jira / Redmine)
 - ~~Bidirektionale Entity-Sync-Foundation: `EntitySync` + `SyncableAdapter`, `EntityChangeOutbox` + Worker, `RedmineAdapter` + `JiraAdapter` (live verifiziert), Webhook-Push ohne Polling~~ — **erledigt** (Phase C.7.1–C.7.7)
