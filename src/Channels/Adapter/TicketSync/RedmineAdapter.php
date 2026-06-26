@@ -6,6 +6,7 @@ namespace App\Channels\Adapter\TicketSync;
 
 use App\Channels\EntityApplier;
 use App\Channels\EntitySnapshot;
+use App\Channels\ExternalParticipant;
 use App\Channels\InboundResult;
 use App\Channels\PullNotSupportedException;
 use App\Channels\SyncReentryGuard;
@@ -183,6 +184,19 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
         $title = (string) ($payload['subject'] ?? '');
         $description = (string) ($payload['description'] ?? '');
 
+        // Assignee as a participant for the import-filter (by external user id;
+        // explicit ExternalIdentity mapping resolves it — no extra API call).
+        // Redmine's default issue payload carries no email or watcher list;
+        // those are a follow-up.
+        $participants = [];
+        $assignedToId = $payload['assigned_to']['id'] ?? null;
+        if ($assignedToId !== null) {
+            $participants[] = new ExternalParticipant(
+                externalUserId: (string) $assignedToId,
+                role: ExternalParticipant::ROLE_ASSIGNEE,
+            );
+        }
+
         return new EntitySnapshot(
             entityType: 'task',
             externalId: $externalId,
@@ -201,6 +215,7 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
                 'lastCheckedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
             ],
             remoteDeleted: false,
+            participants: $participants,
         );
     }
 

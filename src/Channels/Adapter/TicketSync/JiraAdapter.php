@@ -6,6 +6,7 @@ namespace App\Channels\Adapter\TicketSync;
 
 use App\Channels\EntityApplier;
 use App\Channels\EntitySnapshot;
+use App\Channels\ExternalParticipant;
 use App\Channels\InboundResult;
 use App\Channels\PullNotSupportedException;
 use App\Channels\SyncReentryGuard;
@@ -195,6 +196,20 @@ final class JiraAdapter extends BaseTicketSyncAdapter implements Testable
         $description = $this->extractDescription($fields['description'] ?? null);
         $updatedAt = $this->parseTimestamp($fields['updated'] ?? null);
 
+        // Assignee as a participant for the import-filter. Jira often includes
+        // `emailAddress` (unless hidden by privacy settings) — pass both id and
+        // email so the filter can resolve via explicit mapping OR email match.
+        // Watcher list needs a separate API call; that's a follow-up.
+        $participants = [];
+        $assignee = $fields['assignee'] ?? null;
+        if (\is_array($assignee) && ($assignee['accountId'] ?? null) !== null) {
+            $participants[] = new ExternalParticipant(
+                externalUserId: (string) $assignee['accountId'],
+                email: isset($assignee['emailAddress']) ? (string) $assignee['emailAddress'] : null,
+                role: ExternalParticipant::ROLE_ASSIGNEE,
+            );
+        }
+
         return new EntitySnapshot(
             entityType: 'task',
             externalId: $externalId,
@@ -214,6 +229,7 @@ final class JiraAdapter extends BaseTicketSyncAdapter implements Testable
                 'lastCheckedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
             ],
             remoteDeleted: false,
+            participants: $participants,
         );
     }
 

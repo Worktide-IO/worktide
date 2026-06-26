@@ -43,6 +43,7 @@ final class EntityApplier
         private readonly EntitySyncRepository $mappings,
         private readonly EntityTypeResolver $typeResolver,
         private readonly SyncReentryGuard $guard,
+        private readonly \App\Service\Inbound\DiscoveredRecordCollector $discovered,
     ) {}
 
     /**
@@ -73,8 +74,11 @@ final class EntityApplier
         return $this->guard->run(function () use ($channel, $snapshot) {
             $mapping = $this->mappings->findByChannelExternal($channel, $snapshot->externalId);
             if ($mapping === null) {
-                // Discovered an external record we don't know yet —
-                // skip without crashing. C.7.6 will surface these.
+                // Discovered an external record we don't know yet. Don't
+                // auto-create the local entity (V1 policy) — instead park it as
+                // a DiscoveredExternalRecord when it involves a workspace person,
+                // for the operator to import/link/dismiss (C.7.6).
+                $this->discovered->capture($channel, $snapshot);
                 return null;
             }
             $entity = $this->loadEntity($mapping);
