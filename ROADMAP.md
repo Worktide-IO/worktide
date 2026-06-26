@@ -63,12 +63,12 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 
 ### Schicht 2 — Workflow-Engine
 - ~~**Workflow-per-Tracker × Status × Role**: WorkflowTransition + WorkflowPermission. Wer darf welchen Status-Wechsel auslösen, welche Felder sind in welchem Status editierbar.~~ — **erledigt** (Backend; SPA prüft Transitions im Board client-seitig vor)
-- **Visueller Workflow-Editor** (Drag-Drop, ähnlich Asana Workflow Builder). — offen (Frontend)
+- **Visueller Workflow-Editor** (Drag-Drop, ähnlich Asana Workflow Builder). — **Backend vollständig** (`Workflow` + `WorkflowTransition` mit voller CRUD-API); verbleibt reine SPA-Arbeit.
 
 ### Schicht 3 — Reporting
 - ~~**Reports SPA-UI mit Charts** (Recharts)~~ — **erledigt** (Phase B.3b/B.3c): Tabs unter `/auswertungen` für Zeit, Burndown, Created-vs-Resolved, Cycle-Time, MRR und **Cumulative Flow** (Status-Bänder pro Tag via DomainEventLog-Replay). Workload als Overlay im Team-Planner.
 - ~~**Velocity** (abgeschlossene Arbeit pro Sprint)~~ — **erledigt** (Phase B.4.2): `GET /v1/reports/velocity` + Velocity-Chart auf `/sprints`, Größe via `estimatedMinutes`. Story-Points als optionales Maß später möglich.
-- **Konfigurierbare Custom-Dashboards** (Drag-Drop, pro Workspace persistiert) — offen, über die festen Report-Tabs hinaus.
+- **Konfigurierbare Custom-Dashboards** (Drag-Drop, pro Workspace persistiert) — **Backend erledigt**: `Dashboard`-Entity (workspace-scoped, CRUD unter `/v1/dashboards`, benannt, `widgets`-JSON im react-grid-layout-Shape, `position`-Ordering, Icon/Color). Sichtbar für alle Workspace-Member (via `WorkspaceScopeExtension`); Ersteller/Workspace-Admin dürfen bearbeiten/löschen (`DashboardVoter`). Abgegrenzt vom per-User-Layout in `UserPreferences.dashboardLayout`. Drag-Drop-UI verbleibt SPA.
 
 ### Schicht 4 — Erweiterte Views
 - ~~**Workload-View** (Visualisierung pro User: gebuchte Stunden vs UserCapacity vs Absences)~~ — **erledigt**: als WorkloadOverlay im Team-Planner (`/v1/reports/workload`)
