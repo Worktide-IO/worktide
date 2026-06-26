@@ -16,6 +16,7 @@ use App\Entity\Channel;
 use App\Entity\EntitySync;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpClientException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
@@ -135,7 +136,7 @@ final class JiraAdapter extends BaseTicketSyncAdapter implements Testable
             'maxResults' => 100,
             // Restrict to the fields we actually map so the response
             // stays small; comments/worklog land when we extend.
-            'fields' => 'summary,description,updated,status,priority,assignee,project',
+            'fields' => 'summary,description,updated,status,priority,assignee,project,watches',
         ];
         return sprintf('/rest/api/%s/search?', $this->apiVersion($channel)) . http_build_query($params);
     }
@@ -196,19 +197,7 @@ final class JiraAdapter extends BaseTicketSyncAdapter implements Testable
         $description = $this->extractDescription($fields['description'] ?? null);
         $updatedAt = $this->parseTimestamp($fields['updated'] ?? null);
 
-        // Assignee as a participant for the import-filter. Jira often includes
-        // `emailAddress` (unless hidden by privacy settings) — pass both id and
-        // email so the filter can resolve via explicit mapping OR email match.
-        // Watcher list needs a separate API call; that's a follow-up.
-        $participants = [];
-        $assignee = $fields['assignee'] ?? null;
-        if (\is_array($assignee) && ($assignee['accountId'] ?? null) !== null) {
-            $participants[] = new ExternalParticipant(
-                externalUserId: (string) $assignee['accountId'],
-                email: isset($assignee['emailAddress']) ? (string) $assignee['emailAddress'] : null,
-                role: ExternalParticipant::ROLE_ASSIGNEE,
-            );
-        }
+        $participants = $this->extractParticipants($channel, $fields, $externalId);
 
         return new EntitySnapshot(
             entityType: 'task',
@@ -231,6 +220,74 @@ final class JiraAdapter extends BaseTicketSyncAdapter implements Testable
             remoteDeleted: false,
             participants: $participants,
         );
+    }
+
+    /**
+     * Assignee + watchers as participants for the import-filter. The assignee
+     * rides in the issue payload (id, often emailAddress); the watcher list is
+     * a separate endpoint, fetched only when `watches.watchCount > 0` so we
+     * don't add a round-trip per issue. The assignee wins if they also watch.
+     *
+     * @param array<string, mixed> $fields
+     *
+     * @return list<ExternalParticipant>
+     */
+    private function extractParticipants(Channel $channel, array $fields, string $externalId): array
+    {
+        $seen = [];
+        $participants = [];
+
+        $assignee = $fields['assignee'] ?? null;
+        if (\is_array($assignee) && ($assignee['accountId'] ?? null) !== null) {
+            $seen[(string) $assignee['accountId']] = true;
+            $participants[] = new ExternalParticipant(
+                externalUserId: (string) $assignee['accountId'],
+                email: isset($assignee['emailAddress']) ? (string) $assignee['emailAddress'] : null,
+                role: ExternalParticipant::ROLE_ASSIGNEE,
+            );
+        }
+
+        $watchCount = (int) ($fields['watches']['watchCount'] ?? 0);
+        if ($watchCount > 0 && $externalId !== '') {
+            foreach ($this->fetchWatchers($channel, $externalId) as $watcher) {
+                $accountId = (string) ($watcher['accountId'] ?? '');
+                if ($accountId === '' || isset($seen[$accountId])) {
+                    continue;
+                }
+                $seen[$accountId] = true;
+                $participants[] = new ExternalParticipant(
+                    externalUserId: $accountId,
+                    email: isset($watcher['emailAddress']) ? (string) $watcher['emailAddress'] : null,
+                    role: ExternalParticipant::ROLE_WATCHER,
+                );
+            }
+        }
+
+        return $participants;
+    }
+
+    /**
+     * Best-effort watcher fetch (`GET /issue/{key}/watchers`). Watchers are a
+     * relevance hint, never load-bearing — any failure yields an empty list so
+     * the snapshot still builds.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchWatchers(Channel $channel, string $externalId): array
+    {
+        try {
+            $url = $this->baseUrl($channel) . sprintf(
+                '/rest/api/%s/issue/%s/watchers',
+                $this->apiVersion($channel),
+                rawurlencode($externalId),
+            );
+            $body = $this->responseToArray($this->jsonGet($url, $this->authHeaders($channel)));
+            $watchers = $body['watchers'] ?? [];
+
+            return \is_array($watchers) ? array_values(array_filter($watchers, 'is_array')) : [];
+        } catch (HttpClientException) {
+            return [];
+        }
     }
 
     /**

@@ -103,6 +103,7 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
             'sort' => 'updated_on:desc',
             'limit' => 100,
             'offset' => 0,
+            'include' => 'watchers',        // for the import-filter; Redmine omits it without permission
         ];
         $projectId = $cfg['projectId'] ?? null;
         if ($projectId !== null && $projectId !== '') {
@@ -124,10 +125,9 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
 
     protected function entityPath(Channel $channel, string $externalId): string
     {
-        // include=journals,attachments lets us see comments + files
-        // without a second round-trip; subclass extension when those
-        // get wired.
-        return sprintf('/issues/%s.json', rawurlencode($externalId));
+        // include=watchers feeds the import-filter (assignee + watchers);
+        // journals,attachments (comments + files) get added when those wire.
+        return sprintf('/issues/%s.json?include=watchers', rawurlencode($externalId));
     }
 
     protected function entityWebUrl(Channel $channel, string $externalId): string
@@ -184,18 +184,7 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
         $title = (string) ($payload['subject'] ?? '');
         $description = (string) ($payload['description'] ?? '');
 
-        // Assignee as a participant for the import-filter (by external user id;
-        // explicit ExternalIdentity mapping resolves it — no extra API call).
-        // Redmine's default issue payload carries no email or watcher list;
-        // those are a follow-up.
-        $participants = [];
-        $assignedToId = $payload['assigned_to']['id'] ?? null;
-        if ($assignedToId !== null) {
-            $participants[] = new ExternalParticipant(
-                externalUserId: (string) $assignedToId,
-                role: ExternalParticipant::ROLE_ASSIGNEE,
-            );
-        }
+        $participants = $this->extractParticipants($payload);
 
         return new EntitySnapshot(
             entityType: 'task',
@@ -217,6 +206,41 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
             remoteDeleted: false,
             participants: $participants,
         );
+    }
+
+    /**
+     * Assignee + watchers as participants for the import-filter. Resolved by
+     * external user id (explicit ExternalIdentity mapping) — no extra API call:
+     * `include=watchers` (entity + list paths) already carries the list when the
+     * API user may see it. The assignee wins if they also watch (added first).
+     *
+     * @param array<string, mixed> $payload
+     *
+     * @return list<ExternalParticipant>
+     */
+    private function extractParticipants(array $payload): array
+    {
+        $seen = [];
+        $participants = [];
+
+        $add = static function (mixed $id, string $role) use (&$seen, &$participants): void {
+            if ($id === null || $id === '') {
+                return;
+            }
+            $key = (string) $id;
+            if (isset($seen[$key])) {
+                return;
+            }
+            $seen[$key] = true;
+            $participants[] = new ExternalParticipant(externalUserId: $key, role: $role);
+        };
+
+        $add($payload['assigned_to']['id'] ?? null, ExternalParticipant::ROLE_ASSIGNEE);
+        foreach ((array) ($payload['watchers'] ?? []) as $watcher) {
+            $add(\is_array($watcher) ? ($watcher['id'] ?? null) : null, ExternalParticipant::ROLE_WATCHER);
+        }
+
+        return $participants;
     }
 
     /**
