@@ -30,5 +30,8 @@ framework:
             # slow pipeline (rules, AI) doesn't hold up the webhook 2xx / pull.
             App\Message\ProcessInboundEventMessage: async
 
+            # Social post fan-out — network calls off the request thread.
+            App\Message\PublishSocialPostMessage: async
+
             # Route your messages to the transports
             # 'App\Message\YourMessage': async
