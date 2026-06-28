@@ -111,6 +111,12 @@ services:
                 email_graph: 0
                 email_gmail: 0
 
+    # Signed, short-lived public media URLs (Instagram pulls image_url itself).
+    App\Service\Social\SocialMediaUrlSigner:
+        arguments:
+            $appSecret: '%env(APP_SECRET)%'
+            $apiBaseUrl: '%env(OAUTH_REDIRECT_BASE)%'
+
     # libsodium SecretBox for Channel.authConfig at-rest encryption.
     # APP_SECRET acts as the key seed (BLAKE2b-derived).
     App\Channels\SecretBox:
