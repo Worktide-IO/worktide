@@ -49,6 +49,7 @@ final class SyncSeedImporter
         private readonly TaskStatusRepository $taskStatuses,
         private readonly SyncReentryGuard $guard,
         private readonly ProjectMappingService $projectMapping,
+        private readonly TaskEnricher $enricher,
     ) {}
 
     /**
@@ -166,6 +167,7 @@ final class SyncSeedImporter
     private function persistTask(EntitySnapshot $snapshot, Project $project, TaskStatus $status, Channel $channel): void
     {
         $task = $this->buildTask($snapshot, $project, $status);
+        $this->enricher->enrich($task, $snapshot, $channel); // status/priority/assignee/dueOn
         $this->em->persist($task);
         $this->em->persist($this->mapping($snapshot, $channel, $project, $task->getId()));
     }
@@ -195,7 +197,8 @@ final class SyncSeedImporter
             ->setEntityType($s->entityType)
             ->setEntityId($entityId)
             ->setExternalId($s->externalId)
-            ->setExternalUrl($s->externalUrl);
+            ->setExternalUrl($s->externalUrl)
+            ->setSourceMetadata($s->sourceMetadata); // retain redmine status/priority/assignee ids
         if ($s->externalUpdatedAt !== null) {
             $mapping->setExternalUpdatedAt($s->externalUpdatedAt);
         }

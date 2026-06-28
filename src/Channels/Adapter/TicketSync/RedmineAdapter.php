@@ -199,8 +199,13 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
             sourceMetadata: [
                 'redmineProjectId' => $payload['project']['id'] ?? null,
                 'redmineStatusId' => $payload['status']['id'] ?? null,
+                'redmineStatusName' => $payload['status']['name'] ?? null,
                 'redminePriorityId' => $payload['priority']['id'] ?? null,
+                'redminePriorityName' => $payload['priority']['name'] ?? null,
                 'redmineAssignedToId' => $payload['assigned_to']['id'] ?? null,
+                'redmineAssignedToName' => $payload['assigned_to']['name'] ?? null,
+                'redmineDueDate' => $payload['due_date'] ?? null,
+                'redmineDoneRatio' => $payload['done_ratio'] ?? null,
                 'lastCheckedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
             ],
             remoteDeleted: false,
