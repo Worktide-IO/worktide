@@ -217,6 +217,7 @@ final class ProjectMappingService
         }
         $value = $this->fieldValues->findOneBy(['definition' => $definition, 'targetId' => $project->getId()])
             ?? (new CustomFieldValue())
+                ->setWorkspace($project->getWorkspace())
                 ->setDefinition($definition)
                 ->setTarget(CustomFieldTarget::Project)
                 ->setTargetId($project->getId());
