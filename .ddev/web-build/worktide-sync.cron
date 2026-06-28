@@ -1,0 +1,8 @@
+# Inbound sync: pull external channel changes (Redmine/Jira) into worktide.
+# INBOUND ONLY — never pushes anything out. The EgressGuard withholds all
+# outbound until a module is approved via EGRESS_ALLOW, so this cron cannot
+# cause egress even if outbound work is queued.
+# Every 5 minutes; the first run does a full pull, later runs are incremental
+# via the per-channel cursor. Adjust to "* * * * *" for near-real-time.
+# The push worker (worktide:entity-sync:process) is deliberately NOT scheduled.
+*/5 * * * * cd /var/www/html && php bin/console worktide:channel:pull >> /var/www/html/var/log/cron-channel-pull.log 2>&1
