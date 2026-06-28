@@ -35,6 +35,23 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 )]
 final class SyncMapStatusesCommand extends Command
 {
+    /**
+     * Semantic pre-mapping for Redmine statuses whose name doesn't match a
+     * worktide status 1:1. Keys are normalized Redmine names, values are
+     * worktide status names. Edit channel.inboundConfig.statusMap to override.
+     */
+    private const SYNONYMS = [
+        'zur entwicklung ausgewählt' => 'To Do',
+        'rückfrage beantwortet' => 'To Do',
+        'fehler' => 'To Do',
+        'kostenvoranschlag' => 'Klärung notwendig',
+        'besprechung' => 'Klärung notwendig',
+        'enthält rückfrage' => 'Klärung notwendig',
+        'in anfrage' => 'Klärung notwendig',
+        'abnahme' => 'In Überprüfung',
+        'blocker' => 'Blockiert',
+    ];
+
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly HttpClientInterface $httpClient,
@@ -106,8 +123,21 @@ final class SyncMapStatusesCommand extends Command
             if ($id === '') {
                 continue;
             }
-            $target = $byName[mb_strtolower($name)] ?? ($closed ? $completed : $default);
-            $rule = isset($byName[mb_strtolower($name)]) ? 'name' : ($closed ? 'closed→completed' : 'default');
+            $lc = mb_strtolower($name);
+            $synonym = isset(self::SYNONYMS[$lc]) ? ($byName[mb_strtolower(self::SYNONYMS[$lc])] ?? null) : null;
+            if (isset($byName[$lc])) {
+                $target = $byName[$lc];
+                $rule = 'name';
+            } elseif ($synonym !== null) {
+                $target = $synonym;
+                $rule = 'synonym';
+            } elseif ($closed) {
+                $target = $completed;
+                $rule = 'closed→completed';
+            } else {
+                $target = $default;
+                $rule = 'default';
+            }
             $map[$id] = $target->getId()?->toRfc4122();
             $rows[] = [$name . ($closed ? ' (closed)' : ''), $target->getName(), $rule];
         }
