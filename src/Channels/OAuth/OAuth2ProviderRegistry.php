@@ -56,6 +56,18 @@ final class OAuth2ProviderRegistry
                 ],
                 offlineAccess: true,
             ),
+            'social_linkedin' => new OAuth2Provider(
+                code: 'social_linkedin',
+                label: 'LinkedIn',
+                authorizeUrl: 'https://www.linkedin.com/oauth/v2/authorization',
+                tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
+                defaultScopes: [
+                    'openid',
+                    'profile',
+                    'w_member_social',
+                ],
+                offlineAccess: true,
+            ),
         ];
     }
 

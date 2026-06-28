@@ -126,6 +126,8 @@ services:
             $graphClientSecret: '%env(default::OAUTH_GRAPH_CLIENT_SECRET)%'
             $gmailClientId: '%env(default::OAUTH_GMAIL_CLIENT_ID)%'
             $gmailClientSecret: '%env(default::OAUTH_GMAIL_CLIENT_SECRET)%'
+            $linkedinClientId: '%env(default::OAUTH_LINKEDIN_CLIENT_ID)%'
+            $linkedinClientSecret: '%env(default::OAUTH_LINKEDIN_CLIENT_SECRET)%'
 
     App\Channels\OAuth\OAuth2Client:
         arguments:

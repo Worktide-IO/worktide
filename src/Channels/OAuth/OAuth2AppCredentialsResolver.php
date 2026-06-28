@@ -33,6 +33,8 @@ final class OAuth2AppCredentialsResolver
         private readonly ?string $graphClientSecret,
         private readonly ?string $gmailClientId,
         private readonly ?string $gmailClientSecret,
+        private readonly ?string $linkedinClientId = null,
+        private readonly ?string $linkedinClientSecret = null,
     ) {}
 
     public function resolveForChannel(Channel $channel): OAuth2AppCredentials
@@ -53,19 +55,28 @@ final class OAuth2AppCredentialsResolver
         $clientId = match ($code) {
             'email_graph' => $this->graphClientId,
             'email_gmail' => $this->gmailClientId,
+            'social_linkedin' => $this->linkedinClientId,
             default => null,
         };
         $clientSecret = match ($code) {
             'email_graph' => $this->graphClientSecret,
             'email_gmail' => $this->gmailClientSecret,
+            'social_linkedin' => $this->linkedinClientSecret,
             default => null,
+        };
+        // Env var stem for the operator-facing hint (OAUTH_<STEM>_CLIENT_ID).
+        $envStem = match ($code) {
+            'email_graph' => 'GRAPH',
+            'email_gmail' => 'GMAIL',
+            'social_linkedin' => 'LINKEDIN',
+            default => strtoupper(str_replace(['email_', 'social_'], '', $code)),
         };
         if ($clientId === null || $clientId === '' || $clientSecret === null || $clientSecret === '') {
             throw new OAuth2ConfigurationException(sprintf(
                 'No OAuth2 app credentials configured for adapter "%s". Set OAUTH_%s_CLIENT_ID + OAUTH_%s_CLIENT_SECRET, or paste a per-channel override.',
                 $code,
-                strtoupper(str_replace('email_', '', $code)),
-                strtoupper(str_replace('email_', '', $code)),
+                $envStem,
+                $envStem,
             ));
         }
         return new OAuth2AppCredentials(
