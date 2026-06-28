@@ -111,6 +111,14 @@ services:
                 email_graph: 0
                 email_gmail: 0
 
+    # LLM provider (Anthropic) behind LlmProviderInterface. Model defaults to
+    # claude-opus-4-8 when ANTHROPIC_MODEL is unset.
+    App\Service\Llm\AnthropicLlmProvider:
+        arguments:
+            $apiKey: '%env(default::ANTHROPIC_API_KEY)%'
+            $model: '%env(default::ANTHROPIC_MODEL)%'
+    App\Service\Llm\LlmProviderInterface: '@App\Service\Llm\AnthropicLlmProvider'
+
     # Signed, short-lived public media URLs (Instagram pulls image_url itself).
     App\Service\Social\SocialMediaUrlSigner:
         arguments:
