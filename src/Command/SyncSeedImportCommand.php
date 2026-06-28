@@ -45,6 +45,7 @@ final class SyncSeedImportCommand extends Command
         $this
             ->addOption('channel', null, InputOption::VALUE_REQUIRED, 'Sync channel UUID (adapterCode redmine/jira)')
             ->addOption('project', null, InputOption::VALUE_REQUIRED, 'Target project UUID to import tasks into')
+            ->addOption('routed', null, InputOption::VALUE_NONE, 'Route each issue to the project its Redmine project maps to (EntitySync); requires apply-project-map first')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max records to import this run')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Pull and report counts without writing anything');
     }
@@ -54,29 +55,38 @@ final class SyncSeedImportCommand extends Command
         $io = new SymfonyStyle($input, $output);
 
         $channel = $this->resolve(Channel::class, $input->getOption('channel'), $io, 'channel');
-        $project = $this->resolve(Project::class, $input->getOption('project'), $io, 'project');
-        if ($channel === null || $project === null) {
+        if ($channel === null) {
             return Command::INVALID;
         }
 
         $limitOpt = $input->getOption('limit');
         $limit = $limitOpt !== null ? max(1, (int) $limitOpt) : null;
         $dryRun = (bool) $input->getOption('dry-run');
+        $routed = (bool) $input->getOption('routed');
 
         try {
-            $result = $this->importer->seed($channel, $project, $limit, $dryRun);
+            if ($routed) {
+                $result = $this->importer->seedRouted($channel, $limit, $dryRun);
+            } else {
+                $project = $this->resolve(Project::class, $input->getOption('project'), $io, 'project');
+                if ($project === null) {
+                    return Command::INVALID;
+                }
+                $result = $this->importer->seed($channel, $project, $limit, $dryRun);
+            }
         } catch (\Throwable $e) {
             $io->error($e->getMessage());
             return Command::FAILURE;
         }
 
         $io->success(sprintf(
-            '%s — pulled %d, %s %d, skipped (already mapped) %d.',
+            '%s — pulled %d, %s %d, skipped %d%s.',
             $dryRun ? 'Dry run' : 'Seed import done',
             $result['total'],
             $dryRun ? 'would import' : 'imported',
             $result['created'],
             $result['skipped'],
+            isset($result['unmapped']) ? sprintf(', unmapped %d', $result['unmapped']) : '',
         ));
 
         return Command::SUCCESS;
