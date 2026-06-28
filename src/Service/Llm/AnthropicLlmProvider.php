@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Service\Llm;
 
 use Anthropic\Client;
+use App\Egress\EgressGuard;
+use App\Egress\EgressModule;
 
 /**
  * {@see LlmProviderInterface} backed by Anthropic's official PHP SDK.
@@ -22,6 +24,7 @@ final class AnthropicLlmProvider implements LlmProviderInterface
     private readonly string $model;
 
     public function __construct(
+        private readonly EgressGuard $egress,
         ?string $apiKey = null,
         ?string $model = null,
     ) {
@@ -38,6 +41,11 @@ final class AnthropicLlmProvider implements LlmProviderInterface
     {
         if (!$this->isConfigured()) {
             throw new LlmException('ANTHROPIC_API_KEY is not configured.');
+        }
+        // Default-deny egress gate: prompt data only leaves for Anthropic when the
+        // llm module is approved (EGRESS_ALLOW).
+        if (!$this->egress->isAllowed(EgressModule::Llm)) {
+            throw new LlmException('LLM egress not approved (module "llm").');
         }
 
         $client = new Client(apiKey: $this->apiKey);

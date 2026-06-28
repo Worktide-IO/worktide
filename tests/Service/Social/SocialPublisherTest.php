@@ -8,6 +8,7 @@ use App\Channels\AdapterRegistry;
 use App\Channels\SocialMediaConstraints;
 use App\Channels\SocialPublishResult;
 use App\Channels\SocialPublisherAdapter;
+use App\Egress\EgressGuard;
 use App\Entity\Channel;
 use App\Entity\Enum\SocialPostStatus;
 use App\Entity\Enum\SocialPostTargetStatus;
@@ -88,14 +89,35 @@ final class SocialPublisherTest extends TestCase
         self::assertSame(SocialPostStatus::PartiallyFailed, $post->getStatus());
     }
 
+    public function testWithheldWhenEgressBlocked(): void
+    {
+        $adapter = $this->adapter('social_x', SocialPublishResult::published('1', null));
+        $publisher = $this->publisherWithEgress('', $adapter); // egress blocked
+
+        $post = $this->post('hello', ['social_x']);
+        $publisher->publishPost($post);
+
+        $target = $post->getTargets()->first();
+        self::assertSame(SocialPostTargetStatus::Queued, $target->getStatus()); // not published, not failed
+        self::assertSame(0, $target->getAttemptCount()); // no attempt consumed
+        self::assertNotNull($target->getErrorReason());
+        self::assertStringContainsString('Withheld', $target->getErrorReason());
+        self::assertSame(SocialPostStatus::Publishing, $post->getStatus()); // still pending → retries after approval
+    }
+
     // --- helpers ----------------------------------------------------
 
     private function publisher(SocialPublisherAdapter ...$adapters): SocialPublisher
     {
+        return $this->publisherWithEgress('social_publish', ...$adapters);
+    }
+
+    private function publisherWithEgress(string $allow, SocialPublisherAdapter ...$adapters): SocialPublisher
+    {
         $registry = new AdapterRegistry([], [], [], [], $adapters);
         $hub = $this->createStub(HubInterface::class); // never called: post id is null in unit tests
 
-        return new SocialPublisher($registry, new SocialPostValidator($registry), $hub, new NullLogger());
+        return new SocialPublisher($registry, new SocialPostValidator($registry), $hub, new NullLogger(), new EgressGuard($allow));
     }
 
     /** @param list<string> $adapterCodes one target per code */

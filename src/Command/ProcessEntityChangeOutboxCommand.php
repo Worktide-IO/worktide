@@ -7,6 +7,9 @@ namespace App\Command;
 use App\Channels\AdapterRegistry;
 use App\Channels\EntityChange;
 use App\Channels\SyncResult;
+use App\Egress\EgressBlockedException;
+use App\Egress\EgressGuard;
+use App\Egress\EgressModule;
 use App\Entity\EntityChangeOutbox;
 use App\Entity\EntitySync;
 use App\Entity\Enum\EntityChangeOutboxStatus;
@@ -54,6 +57,7 @@ final class ProcessEntityChangeOutboxCommand extends Command
         private readonly EntitySyncRepository $mappings,
         private readonly AdapterRegistry $registry,
         private readonly EntityManagerInterface $em,
+        private readonly EgressGuard $egress,
     ) {
         parent::__construct();
     }
@@ -101,6 +105,7 @@ final class ProcessEntityChangeOutboxCommand extends Command
             $state = $row->getPerMappingState();
             $hadFailure = false;
             $hadConflict = false;
+            $hadWithheld = false;
 
             foreach ($mappings as $mapping) {
                 $mid = $mapping->getId()?->toRfc4122() ?? 'unknown';
@@ -128,6 +133,11 @@ final class ProcessEntityChangeOutboxCommand extends Command
                     $hadConflict = true;
                     $mapping->setLastSyncError('Conflict: ' . ($result->reason ?? 'remote changed'));
                     $totalConflicts++;
+                } elseif ($result->withheld) {
+                    // Not a failure — held back by the egress policy. The mapping
+                    // is not marked 'sent', so it retries once the module is approved.
+                    $hadWithheld = true;
+                    $mapping->setLastSyncError('Withheld: ' . ($result->reason ?? 'egress not approved'));
                 } else {
                     $hadFailure = true;
                     $mapping->setLastSyncError($result->reason);
@@ -136,21 +146,34 @@ final class ProcessEntityChangeOutboxCommand extends Command
             }
 
             $row->setPerMappingState($state);
-            $row->incrementAttempts();
-            $row->setLastError($hadFailure ? 'One or more adapters returned a transient error.' : null);
 
             if ($hadConflict) {
+                $row->incrementAttempts();
+                $row->setLastError($hadFailure ? 'One or more adapters returned a transient error.' : null);
                 $row->setStatus(EntityChangeOutboxStatus::Conflict);
                 $row->setProcessedAt(new \DateTimeImmutable());
             } elseif ($hadFailure && $row->getAttemptCount() >= self::MAX_ATTEMPTS) {
+                $row->incrementAttempts();
+                $row->setLastError('One or more adapters returned a transient error.');
                 $row->setStatus(EntityChangeOutboxStatus::Failed);
                 $row->setProcessedAt(new \DateTimeImmutable());
             } elseif ($hadFailure) {
+                $row->incrementAttempts();
+                $row->setLastError('One or more adapters returned a transient error.');
                 $row->setStatus(EntityChangeOutboxStatus::Partial);
                 // Exponential backoff: 30s, 2min, 8min, 32min, ...
                 $delay = 30 * (2 ** ($row->getAttemptCount() - 1));
                 $row->setNextAttemptAt((new \DateTimeImmutable())->modify("+{$delay} seconds"));
+            } elseif ($hadWithheld) {
+                // No real attempt happened — withheld by egress policy. Leave the
+                // row Pending WITHOUT consuming an attempt, so it never dead-letters
+                // and flushes automatically once the module is approved.
+                $row->setLastError('Withheld: egress module not approved.');
+                $row->setStatus(EntityChangeOutboxStatus::Pending);
+                $row->setNextAttemptAt((new \DateTimeImmutable())->modify('+15 minutes'));
             } else {
+                $row->incrementAttempts();
+                $row->setLastError(null);
                 $row->setStatus(EntityChangeOutboxStatus::Sent);
                 $row->setProcessedAt(new \DateTimeImmutable());
             }
@@ -181,8 +204,16 @@ final class ProcessEntityChangeOutboxCommand extends Command
         if ($mapping->getSyncMode()->value === 'inbound') {
             return SyncResult::synced();
         }
+        // Default-deny egress gate: nothing reaches the external system unless
+        // the ticket_push module is approved (per channel) in EGRESS_ALLOW.
+        if (!$this->egress->isAllowed(EgressModule::TicketPush, $mapping->getChannel())) {
+            return SyncResult::withheld('ticket_push egress module not approved');
+        }
         try {
             return $adapter->pushEntity($mapping, $change);
+        } catch (EgressBlockedException $e) {
+            // Defense in depth: the adapter guards too. Treat as withheld, not a failure.
+            return SyncResult::withheld($e->getMessage());
         } catch (\Throwable $e) {
             return SyncResult::retry($e->getMessage());
         }
@@ -194,7 +225,7 @@ final class ProcessEntityChangeOutboxCommand extends Command
     private function serialiseResult(SyncResult $r): array
     {
         return [
-            'result' => $r->synced ? 'sent' : ($r->conflict ? 'conflict' : ($r->retry ? 'retry' : 'failed')),
+            'result' => $r->synced ? 'sent' : ($r->conflict ? 'conflict' : ($r->withheld ? 'withheld' : ($r->retry ? 'retry' : 'failed'))),
             'reason' => $r->reason,
             'etag' => $r->etag,
             'externalUpdatedAt' => $r->externalUpdatedAt?->format(\DateTimeInterface::ATOM),

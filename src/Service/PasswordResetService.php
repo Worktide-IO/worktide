@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Egress\EgressGuard;
+use App\Egress\EgressModule;
 use App\Entity\DomainEventLog;
 use App\Entity\PasswordResetToken;
 use App\Entity\RefreshToken;
@@ -37,6 +39,7 @@ final class PasswordResetService
         private readonly UserPasswordHasherInterface $hasher,
         private readonly MailerInterface $mailer,
         private readonly RequestStack $requestStack,
+        private readonly EgressGuard $egress,
         private readonly string $spaBaseUrl,
         private readonly string $mailFrom,
     ) {}
@@ -80,6 +83,11 @@ final class PasswordResetService
                 'expiresAt' => $token->getExpiresAt(),
             ]);
         // Routed async via Messenger (SendEmailMessage: async).
+        // Default-deny egress gate: the reset token is always issued, but the
+        // email only leaves the system when email_outbound is approved (EGRESS_ALLOW).
+        if (!$this->egress->isAllowed(EgressModule::EmailOutbound)) {
+            return;
+        }
         $this->mailer->send($mail);
     }
 
