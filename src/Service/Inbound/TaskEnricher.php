@@ -14,6 +14,7 @@ use App\Entity\TaskAssignee;
 use App\Entity\TaskStatus;
 use App\Entity\Workspace;
 use App\Repository\TaskStatusRepository;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * Maps an external ticket's status / priority / assignee / due date from a
@@ -41,12 +42,9 @@ final class TaskEnricher
     {
         $meta = $snapshot->sourceMetadata;
 
-        $statusName = $meta['redmineStatusName'] ?? null;
-        if (\is_string($statusName) && $statusName !== '') {
-            $status = $this->matchStatus($task->getWorkspace(), $statusName);
-            if ($status !== null) {
-                $task->setStatus($status);
-            }
+        $status = $this->resolveStatus($channel, $meta, $task->getWorkspace());
+        if ($status !== null) {
+            $task->setStatus($status);
         }
 
         $task->setPriority($this->mapPriority(\is_string($meta['redminePriorityName'] ?? null) ? $meta['redminePriorityName'] : null));
@@ -70,7 +68,7 @@ final class TaskEnricher
                 continue;
             }
             $user = $this->importFilter->resolveUser($channel, $participant);
-            if ($user !== null && $user->getId() !== null) {
+            if ($user !== null && $user->getId() !== null && !$this->hasAssignee($task, $user->getId())) {
                 $task->addAssignedPrincipal(
                     (new TaskAssignee())
                         ->setPrincipalType(AssigneePrincipalType::User)
@@ -82,12 +80,47 @@ final class TaskEnricher
         }
     }
 
-    private function matchStatus(Workspace $workspace, string $name): ?TaskStatus
+    /** Idempotency for the ongoing-pull path: don't add the same user twice. */
+    private function hasAssignee(Task $task, Uuid $userId): bool
     {
-        $needle = mb_strtolower(trim($name));
-        foreach ($this->taskStatuses->findBy(['workspace' => $workspace]) as $status) {
-            if (mb_strtolower($status->getName()) === $needle) {
-                return $status;
+        foreach ($task->getAssignedPrincipals() as $existing) {
+            if ($existing->getPrincipalType() === AssigneePrincipalType::User
+                && $existing->getPrincipalId()->equals($userId)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Status resolution order: the channel's curated status map (by Redmine
+     * status id) › exact name match › null (keep the importer's default).
+     *
+     * @param array<string, mixed> $meta
+     */
+    private function resolveStatus(Channel $channel, array $meta, Workspace $workspace): ?TaskStatus
+    {
+        $statusMap = $channel->getInboundConfig()['statusMap'] ?? null;
+        $rid = $meta['redmineStatusId'] ?? null;
+        if (\is_array($statusMap) && $rid !== null && isset($statusMap[(string) $rid])) {
+            try {
+                $mapped = $this->taskStatuses->find(Uuid::fromString((string) $statusMap[(string) $rid]));
+            } catch (\InvalidArgumentException) {
+                $mapped = null;
+            }
+            if ($mapped instanceof TaskStatus && $mapped->getWorkspace() === $workspace) {
+                return $mapped;
+            }
+        }
+
+        $name = $meta['redmineStatusName'] ?? null;
+        if (\is_string($name) && $name !== '') {
+            $needle = mb_strtolower(trim($name));
+            foreach ($this->taskStatuses->findBy(['workspace' => $workspace]) as $status) {
+                if (mb_strtolower($status->getName()) === $needle) {
+                    return $status;
+                }
             }
         }
 

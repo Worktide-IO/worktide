@@ -44,6 +44,7 @@ final class EntityApplier
         private readonly EntityTypeResolver $typeResolver,
         private readonly SyncReentryGuard $guard,
         private readonly \App\Service\Inbound\DiscoveredRecordCollector $discovered,
+        private readonly \App\Service\Inbound\TaskEnricher $enricher,
     ) {}
 
     /**
@@ -90,7 +91,7 @@ final class EntityApplier
                 return $mapping;
             }
             if (!$snapshot->remoteDeleted) {
-                $this->updateEntity($entity, $snapshot);
+                $this->updateEntity($entity, $snapshot, $channel);
             }
             $mapping
                 ->setExternalUpdatedAt($snapshot->externalUpdatedAt)
@@ -109,9 +110,13 @@ final class EntityApplier
         return $this->em->find($class, $mapping->getEntityId());
     }
 
-    private function updateEntity(object $entity, EntitySnapshot $snapshot): void
+    private function updateEntity(object $entity, EntitySnapshot $snapshot, Channel $channel): void
     {
         $this->applyFields($entity, $snapshot->fields);
+        // Ongoing pull also enriches status/priority/assignee/dueOn (same as seed import).
+        if ($entity instanceof \App\Entity\Task) {
+            $this->enricher->enrich($entity, $snapshot, $channel);
+        }
     }
 
     /**

@@ -188,7 +188,10 @@ abstract class BaseTicketSyncAdapter implements InboundAdapter, SyncableAdapter
 
         $snapshots = [];
         $safety = 0;
-        while ($url !== null && $safety++ < 20) {  // cap pagination to 20 pages per pull
+        // Pages per pull. Default 20 (×100 = 2000) keeps the per-minute cron cheap;
+        // raise channel.inboundConfig.maxPullPages for a one-shot full backfill.
+        $maxPages = max(1, (int) ($channel->getInboundConfig()['maxPullPages'] ?? 20));
+        while ($url !== null && $safety++ < $maxPages) {
             $response = $this->jsonGet($url, $headers);
             $body = $this->responseToArray($response);
             foreach ($this->extractListItems($body) as $payload) {
