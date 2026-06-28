@@ -25,7 +25,19 @@ final class SyncResult
         public readonly ?string $externalUrl = null,
         public readonly ?string $etag = null,
         public readonly ?string $reason = null,
+        /**
+         * Not attempted at all: the egress module is not approved
+         * ({@see \App\Egress\EgressGuard}). The framework leaves the change
+         * queued without consuming a retry attempt, so it flushes once the
+         * module is approved instead of dead-lettering.
+         */
+        public readonly bool $withheld = false,
     ) {}
+
+    public static function withheld(string $reason): self
+    {
+        return new self(synced: false, reason: $reason, withheld: true);
+    }
 
     public static function synced(
         ?\DateTimeImmutable $externalUpdatedAt = null,

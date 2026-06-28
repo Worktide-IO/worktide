@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\MessageHandler;
 
+use App\Egress\EgressGuard;
+use App\Egress\EgressModule;
 use App\Entity\Enum\WebhookDeliveryStatus;
 use App\Entity\Webhook;
 use App\Entity\WebhookDelivery;
@@ -47,6 +49,7 @@ final class SendWebhookHandler
         private readonly HttpClientInterface $http,
         private readonly EntityManagerInterface $em,
         private readonly LoggerInterface $logger,
+        private readonly EgressGuard $egress,
     ) {}
 
     public function __invoke(SendWebhookMessage $msg): void
@@ -62,6 +65,15 @@ final class SendWebhookHandler
             // Disabled mid-flight — log and skip silently. No delivery row,
             // since "we never tried" reads better than "tried and failed".
             $this->logger->info('Skipping webhook delivery — subscription inactive.', [
+                'webhookId' => $webhook->getId()?->toRfc4122(),
+                'event' => $msg->getEventPayload()['name'] ?? '?',
+            ]);
+            return;
+        }
+        // Default-deny egress gate: withhold delivery unless the webhook_delivery
+        // module is approved (EGRESS_ALLOW). Skip cleanly — no failed attempt.
+        if (!$this->egress->isAllowed(EgressModule::WebhookDelivery)) {
+            $this->logger->info('Withholding webhook delivery — egress module not approved.', [
                 'webhookId' => $webhook->getId()?->toRfc4122(),
                 'event' => $msg->getEventPayload()['name'] ?? '?',
             ]);

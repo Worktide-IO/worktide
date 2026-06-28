@@ -111,6 +111,12 @@ services:
                 email_graph: 0
                 email_gmail: 0
 
+    # Central default-deny egress gate. EGRESS_ALLOW empty = nothing leaves the
+    # system; approve modules explicitly (e.g. "llm,ticket_push:<channelUuid>").
+    App\Egress\EgressGuard:
+        arguments:
+            $allow: '%env(default::EGRESS_ALLOW)%'
+
     # LLM provider (Anthropic) behind LlmProviderInterface. Model defaults to
     # claude-opus-4-8 when ANTHROPIC_MODEL is unset.
     App\Service\Llm\AnthropicLlmProvider:

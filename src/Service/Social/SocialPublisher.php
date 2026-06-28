@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Service\Social;
 
 use App\Channels\AdapterRegistry;
+use App\Egress\EgressGuard;
+use App\Egress\EgressModule;
 use App\Entity\Enum\SocialPostStatus;
 use App\Entity\Enum\SocialPostTargetStatus;
 use App\Entity\SocialPost;
@@ -33,6 +35,7 @@ final class SocialPublisher
         private readonly SocialPostValidator $validator,
         private readonly HubInterface $hub,
         private readonly LoggerInterface $logger,
+        private readonly EgressGuard $egress,
     ) {}
 
     public function publishPost(SocialPost $post): void
@@ -50,6 +53,13 @@ final class SocialPublisher
 
     private function publishTarget(SocialPost $post, SocialPostTarget $target): void
     {
+        // Default-deny egress gate: hold the post back (do not consume an attempt)
+        // unless the social_publish module is approved for this channel.
+        if (!$this->egress->isAllowed(EgressModule::SocialPublish, $target->getChannel())) {
+            $target->setErrorReason('Withheld: social_publish egress module not approved.');
+            return; // stays Queued → publishes on a later tick once approved
+        }
+
         $problems = $this->validator->validateTarget($target);
         if ($problems !== []) {
             $target->markFailed(implode(' ', $problems));

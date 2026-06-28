@@ -216,6 +216,7 @@ final class PasswordResetServiceTest extends TestCase
             $hasher ?? $this->createStub(UserPasswordHasherInterface::class),
             $mailer,
             new RequestStack(),
+            new \App\Egress\EgressGuard('email_outbound'),
             self::SPA_BASE,
             self::MAIL_FROM,
         );
