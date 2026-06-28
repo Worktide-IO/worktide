@@ -40,11 +40,15 @@ final class AdapterRegistry
     /** @var array<string, SyncableAdapter> */
     private array $syncByCode = [];
 
+    /** @var array<string, SocialPublisherAdapter> */
+    private array $socialByCode = [];
+
     /**
      * @param iterable<InboundAdapter>        $inbound
      * @param iterable<OutboundAdapter>       $outbound
      * @param iterable<ConversationThreader>  $threaders
      * @param iterable<SyncableAdapter>       $sync
+     * @param iterable<SocialPublisherAdapter> $social
      * @param array<string, string>           $threaderCodeMap  adapterCode → threader-service-id (resolved via $threaders iterator)
      */
     public function __construct(
@@ -52,6 +56,7 @@ final class AdapterRegistry
         iterable $outbound,
         iterable $threaders,
         iterable $sync = [],
+        iterable $social = [],
         array $threaderCodeMap = [],
     ) {
         foreach ($inbound as $a) {
@@ -62,6 +67,9 @@ final class AdapterRegistry
         }
         foreach ($sync as $a) {
             $this->syncByCode[$a->getCode()] = $a;
+        }
+        foreach ($social as $a) {
+            $this->socialByCode[$a->getCode()] = $a;
         }
         // Threaders don't have a getCode() of their own (one threader can
         // serve multiple adapters); the map is configured in services.yaml.
@@ -112,6 +120,17 @@ final class AdapterRegistry
     public function trySync(string $code): ?SyncableAdapter
     {
         return $this->syncByCode[$code] ?? null;
+    }
+
+    public function getSocial(string $code): SocialPublisherAdapter
+    {
+        return $this->socialByCode[$code]
+            ?? throw new UnknownAdapterException("No social publisher adapter for code '$code'.");
+    }
+
+    public function trySocial(string $code): ?SocialPublisherAdapter
+    {
+        return $this->socialByCode[$code] ?? null;
     }
 
     /**
