@@ -34,7 +34,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * server-side session state. HMAC binds the channel ID to a nonce
  * we don't need to remember.
  */
-final class OAuth2Client
+class OAuth2Client
 {
     private const TOKEN_REFRESH_SLACK_SECONDS = 60;
 
