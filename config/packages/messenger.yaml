@@ -33,5 +33,12 @@ framework:
             # Social post fan-out — network calls off the request thread.
             App\Message\PublishSocialPostMessage: async
 
+            # Mercure live-update publishing — off the request thread so a slow
+            # or unreachable hub can't hang/500 entity writes (the API Platform
+            # postFlush dispatch otherwise publishes synchronously). Delivered by
+            # a messenger worker; if the hub is unreachable the publish just
+            # fails in the background, leaving the write itself unaffected.
+            Symfony\Component\Mercure\Update: async
+
             # Route your messages to the transports
             # 'App\Message\YourMessage': async

@@ -165,11 +165,22 @@ class Customer
     #[ORM\OneToMany(targetEntity: Project::class, mappedBy: 'customer')]
     private Collection $projects;
 
+    /**
+     * Concluded/ongoing contracts per type (SLA, AV, NDA, …). Read-only here —
+     * managed via the CustomerAgreement resource and the slug convenience
+     * endpoint; exposed so a single Customer GET surfaces the agreement overview.
+     *
+     * @var Collection<int, CustomerAgreement>
+     */
+    #[ORM\OneToMany(targetEntity: CustomerAgreement::class, mappedBy: 'customer')]
+    private Collection $agreements;
+
     public function __construct()
     {
         $this->tags = new ArrayCollection();
         $this->contacts = new ArrayCollection();
         $this->projects = new ArrayCollection();
+        $this->agreements = new ArrayCollection();
     }
 
     public function getName(): string { return $this->name; }
@@ -236,4 +247,7 @@ class Customer
 
     /** @return Collection<int, Project> */
     public function getProjects(): Collection { return $this->projects; }
+
+    /** @return Collection<int, CustomerAgreement> */
+    public function getAgreements(): Collection { return $this->agreements; }
 }
