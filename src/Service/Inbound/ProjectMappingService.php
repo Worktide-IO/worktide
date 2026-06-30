@@ -13,6 +13,7 @@ use App\Entity\Enum\CustomFieldType;
 use App\Entity\Enum\SyncMode;
 use App\Entity\EntitySync;
 use App\Entity\Project;
+use App\Entity\ProjectStatus;
 use App\Entity\Workspace;
 use App\Repository\CustomFieldDefinitionRepository;
 use App\Repository\CustomFieldValueRepository;
@@ -183,11 +184,7 @@ final class ProjectMappingService
             ->setExternalSource('redmine')
             ->setExternalId($externalId);
 
-        $status = $this->projectStatuses->findOneBy(['workspace' => $workspace]);
-        if ($status === null) {
-            throw new \RuntimeException('Workspace has no ProjectStatus; cannot create projects.');
-        }
-        $project->setStatus($status);
+        $project->setStatus($this->pickDefaultStatus($workspace));
 
         if (!$dryRun) {
             $this->em->persist($project);
@@ -208,6 +205,38 @@ final class ProjectMappingService
         }
 
         return $key;
+    }
+
+    /**
+     * Pick a sensible default status for an imported project. Imported Redmine
+     * projects are ongoing, so we want an active/running status — never a
+     * terminal one like "Abgebrochen" (the old code grabbed an arbitrary
+     * findOneBy(), which happened to be that). Preference order:
+     *   1. a status whose name reads as "running/active",
+     *   2. otherwise the lowest-position status that is neither completed nor
+     *      archived,
+     *   3. otherwise the first status that exists.
+     */
+    private function pickDefaultStatus(Workspace $workspace): ProjectStatus
+    {
+        /** @var list<ProjectStatus> $statuses */
+        $statuses = $this->projectStatuses->findBy(['workspace' => $workspace], ['position' => 'ASC']);
+        if ($statuses === []) {
+            throw new \RuntimeException('Workspace has no ProjectStatus; cannot create projects.');
+        }
+
+        foreach ($statuses as $status) {
+            if (preg_match('/läuft|laufend|aktiv|active|running|in bearbeitung|in progress|offen/i', $status->getName())) {
+                return $status;
+            }
+        }
+        foreach ($statuses as $status) {
+            if (!$status->isCompleted() && !$status->isArchived()) {
+                return $status;
+            }
+        }
+
+        return $statuses[0];
     }
 
     private function mirrorCustomField(?CustomFieldDefinition $definition, Project $project, string $externalId): void
