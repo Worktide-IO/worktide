@@ -16,4 +16,5 @@ enum FileTarget: string
     case User = 'user';
     case Comment = 'comment';
     case Document = 'document';
+    case Customer = 'customer';
 }

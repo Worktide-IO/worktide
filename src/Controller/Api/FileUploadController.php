@@ -10,6 +10,7 @@ use App\Entity\FileVersion;
 use App\Entity\User;
 use App\Entity\Workspace;
 use App\Repository\CommentRepository;
+use App\Repository\CustomerRepository;
 use App\Repository\FileRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\TaskRepository;
@@ -61,6 +62,7 @@ final class FileUploadController
         private readonly WorkspaceRepository $workspaces,
         private readonly UserRepository $users,
         private readonly CommentRepository $comments,
+        private readonly CustomerRepository $customers,
     ) {}
 
     #[Route(
@@ -191,7 +193,7 @@ final class FileUploadController
         $raw = (string) $request->request->get('target', '');
         $enum = FileTarget::tryFrom($raw);
         if ($enum === null) {
-            throw new BadRequestHttpException('Field "target" must be one of: project, task, workspace, user, comment.');
+            throw new BadRequestHttpException('Field "target" must be one of: project, task, workspace, user, comment, customer.');
         }
         return $enum;
     }
@@ -214,6 +216,7 @@ final class FileUploadController
             FileTarget::Workspace => $this->workspaces->find($id),
             FileTarget::User => $this->users->find($id),
             FileTarget::Comment => $this->comments->find($id),
+            FileTarget::Customer => $this->customers->find($id),
             FileTarget::Document => null,
         };
     }
