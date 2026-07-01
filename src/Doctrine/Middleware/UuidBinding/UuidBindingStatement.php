@@ -10,26 +10,21 @@ use Symfony\Component\Uid\AbstractUid;
 
 final class UuidBindingStatement extends AbstractStatementMiddleware
 {
-    private const RFC_UUID_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iD';
-
     public function bindValue(int|string $param, mixed $value, ParameterType $type): void
     {
         if ($value instanceof AbstractUid) {
-            // Symfony Uid object → 16-byte binary blob.
+            // Symfony Uid object → 16-byte binary blob. This is the only safe,
+            // type-driven conversion: the caller passed an actual Uid, so a
+            // BINARY(16) UUID column is unambiguously the target.
+            //
+            // We deliberately do NOT sniff 36-char UUID-shaped *strings* here:
+            // external systems (lexoffice, Google Calendar, …) legitimately
+            // use RFC 4122 UUIDs as their record ids, and we store those in
+            // VARCHAR columns (entity_syncs.external_id, discovered records).
+            // Packing such a string to binary corrupts it (SQLSTATE 1366).
+            // Pass a Uid object where a binary column is the target.
             $value = $value->toBinary();
             $type = ParameterType::STRING;
-        } elseif (
-            $type === ParameterType::STRING
-            && \is_string($value)
-            && \strlen($value) === 36
-            && preg_match(self::RFC_UUID_PATTERN, $value) === 1
-        ) {
-            // Plain 36-char RFC 4122 UUID string bound as a STRING — assume
-            // it targets a BINARY(16) UUID column and pack accordingly. All
-            // our UUID columns are binary; non-UUID columns can never carry
-            // a value that looks like a 36-char hex-with-dashes string in
-            // practice, so the false-positive risk is essentially zero.
-            $value = (string) hex2bin(str_replace('-', '', $value));
         }
 
         parent::bindValue($param, $value, $type);
