@@ -77,7 +77,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'industry' => 'exact',
     'tags.id' => 'exact',
 ])]
-#[ApiFilter(BooleanFilter::class, properties: ['isCompany'])]
+#[ApiFilter(BooleanFilter::class, properties: ['isCompany', 'isCustomer', 'isVendor'])]
 #[ApiFilter(ExistsFilter::class, properties: ['deletedAt'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt', 'updatedAt', 'status'])]
 class Customer
@@ -109,6 +109,18 @@ class Customer
 
     #[ORM\Column]
     private bool $isCompany = true;
+
+    /**
+     * Business-relationship type, mirrored from external systems (e.g. lexoffice
+     * roles customer/vendor). Orthogonal to {@see $isCompany} (Firma/Person): a
+     * record can be a customer, a vendor, or both. Existing/awork records default
+     * to customer.
+     */
+    #[ORM\Column]
+    private bool $isCustomer = true;
+
+    #[ORM\Column]
+    private bool $isVendor = false;
 
     #[ORM\Column(length: 40, nullable: true)]
     private ?string $vatId = null;
@@ -224,6 +236,12 @@ class Customer
 
     public function isCompany(): bool { return $this->isCompany; }
     public function setIsCompany(bool $v): self { $this->isCompany = $v; return $this; }
+
+    public function isCustomer(): bool { return $this->isCustomer; }
+    public function setIsCustomer(bool $v): self { $this->isCustomer = $v; return $this; }
+
+    public function isVendor(): bool { return $this->isVendor; }
+    public function setIsVendor(bool $v): self { $this->isVendor = $v; return $this; }
 
     public function getVatId(): ?string { return $this->vatId; }
     public function setVatId(?string $v): self { $this->vatId = $v; return $this; }

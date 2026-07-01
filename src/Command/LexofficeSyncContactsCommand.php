@@ -130,8 +130,15 @@ final class LexofficeSyncContactsCommand extends Command
                 $emails = $this->emails($lx);
                 $vat = isset($lx['company']['vatRegistrationId']) ? trim((string) $lx['company']['vatRegistrationId']) : null;
 
-                if ($channel !== null && $this->syncs->findOneBy(['channel' => $channel, 'externalId' => $lxId]) !== null) {
+                if ($channel !== null && ($sync = $this->syncs->findOneBy(['channel' => $channel, 'externalId' => $lxId])) !== null) {
                     ++$alreadyMapped;
+                    if ($apply) {
+                        // Backfill relationship type onto the already-mapped record.
+                        $mapped = $this->em->find(Customer::class, $sync->getEntityId());
+                        if ($mapped !== null) {
+                            $this->applyRoles($mapped, $lx);
+                        }
+                    }
                     continue;
                 }
 
@@ -143,6 +150,7 @@ final class LexofficeSyncContactsCommand extends Command
                     }
                     if ($apply) {
                         $this->fillEmpty($match, $lx, $emails, $vat);
+                        $this->applyRoles($match, $lx);
                         $pairs[] = [$match, $lxId];
                     }
                 } else {
@@ -370,6 +378,26 @@ final class LexofficeSyncContactsCommand extends Command
         }
     }
 
+    /**
+     * Mirror lexoffice roles onto the relationship-type flags. For lexoffice-origin
+     * records the roles are authoritative (set exactly); for matched foreign records
+     * (awork, …) they are additive — an awork project customer stays a customer even
+     * if lexoffice only lists it as a vendor.
+     *
+     * @param array<string, mixed> $lx
+     */
+    private function applyRoles(Customer $c, array $lx): void
+    {
+        $roles = array_keys($lx['roles'] ?? []);
+        $isCust = \in_array('customer', $roles, true);
+        $isVend = \in_array('vendor', $roles, true);
+        if ($c->getExternalSource() === self::ADAPTER) {
+            $c->setIsCustomer($isCust)->setIsVendor($isVend);
+        } else {
+            $c->setIsCustomer($c->isCustomer() || $isCust)->setIsVendor($c->isVendor() || $isVend);
+        }
+    }
+
     /** @param array<string, mixed> $lx */
     private function createCustomer(Workspace $workspace, array $lx, bool $isCompany, string $name, array $emails, ?string $vat): Customer
     {
@@ -384,6 +412,7 @@ final class LexofficeSyncContactsCommand extends Command
         // path on re-runs.
         $customer->setExternalSource(self::ADAPTER)
             ->setExternalId((string) ($lx['id'] ?? ''));
+        $this->applyRoles($customer, $lx);
         if ($isCompany) {
             $customer->setName($name)->setLegalName($name);
         } else {
