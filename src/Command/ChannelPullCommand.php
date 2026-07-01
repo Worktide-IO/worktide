@@ -52,7 +52,10 @@ final class ChannelPullCommand extends Command
     {
         $this
             ->addOption('channel', null, InputOption::VALUE_REQUIRED, 'Restrict to a single channel UUID')
-            ->addOption('workspace', null, InputOption::VALUE_REQUIRED, 'Restrict to channels in this workspace');
+            ->addOption('workspace', null, InputOption::VALUE_REQUIRED, 'Restrict to channels in this workspace')
+            ->addOption('backfill', null, InputOption::VALUE_NONE, 'Loop each channel until exhausted (bounded/throttled backfill) instead of one batch')
+            ->addOption('max-batches', null, InputOption::VALUE_REQUIRED, 'Backfill: stop after N batches per channel (0 = until exhausted)', '0')
+            ->addOption('throttle-ms', null, InputOption::VALUE_REQUIRED, 'Backfill: pause between batches in milliseconds', '1000');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -67,51 +70,92 @@ final class ChannelPullCommand extends Command
             return Command::SUCCESS;
         }
 
+        $backfill = (bool) $input->getOption('backfill');
+        $maxBatches = max(0, (int) $input->getOption('max-batches'));
+        $throttleMs = max(0, (int) $input->getOption('throttle-ms'));
+
         $totalEvents = 0;
         foreach ($channels as $channel) {
             $io->section(sprintf('%s [%s]', $channel->getName(), $channel->getAdapterCode()));
-            try {
-                $adapter = $this->registry->getInbound($channel->getAdapterCode());
-            } catch (UnknownAdapterException $e) {
-                $io->error($e->getMessage());
+
+            if (!$backfill) {
+                $totalEvents += max(0, $this->pullBatch($channel, $io));
                 continue;
             }
-            $pulledEvents = [];
-            try {
-                $result = $adapter->pull($channel);
-                $pulledEvents = $result->events;
-                $count = \count($pulledEvents);
-                $totalEvents += $count;
-                $io->writeln(sprintf(' → %d new event(s); cursor=%s', $count, $result->cursor ?? '(unchanged)'));
 
-                // Persist the cursor + last-synced markers on the channel
-                // so the next run resumes from where we stopped.
-                $cfg = $channel->getInboundConfig();
-                if ($result->cursor !== null) {
-                    $cfg['cursor'] = $result->cursor;
-                    $channel->setInboundConfig($cfg);
+            // Backfill: keep pulling batches until the channel is exhausted (a
+            // batch returns 0 new events) or --max-batches is reached, pausing
+            // --throttle-ms between batches. Each batch persists the cursor, so
+            // a stop/restart resumes where it left off.
+            $batches = 0;
+            while (true) {
+                $n = $this->pullBatch($channel, $io);
+                if ($n <= 0) {
+                    break; // exhausted (0) or error (-1, already logged)
                 }
-                $channel->setLastSyncedAt(new \DateTimeImmutable());
-                $channel->setLastSyncError(null);
-            } catch (PullNotSupportedException) {
-                // Push-only adapter — nothing to do for a pull run.
-                $io->writeln(' (push-only adapter; skipping)');
-            } catch (\Throwable $e) {
-                $channel->setLastSyncError(sprintf('%s: %s', $e::class, $e->getMessage()));
-                $io->error(sprintf('Pull failed: %s', $e->getMessage()));
-            }
-            $this->em->flush();
-
-            // Dispatch after flush (same as the webhook path): the worker is
-            // guaranteed to find each row committed. Only reached on a
-            // successful pull — failures left $pulledEvents empty.
-            foreach ($pulledEvents as $event) {
-                $this->bus->dispatch(new ProcessInboundEventMessage($event->getId()));
+                $totalEvents += $n;
+                if ($maxBatches > 0 && ++$batches >= $maxBatches) {
+                    $io->writeln(sprintf(' (--max-batches=%d reached; re-run to continue)', $maxBatches));
+                    break;
+                }
+                if ($throttleMs > 0) {
+                    usleep($throttleMs * 1000);
+                }
             }
         }
 
         $io->success(sprintf('Pulled %d new event(s) across %d channel(s).', $totalEvents, \count($channels)));
         return Command::SUCCESS;
+    }
+
+    /**
+     * Pull a single batch for one channel: persists the cursor + sync markers,
+     * dispatches processing for each new event. Errors are caught and recorded
+     * on the channel (the caller decides whether to continue).
+     *
+     * @return int number of new events; 0 when exhausted/push-only, -1 on error
+     */
+    private function pullBatch(Channel $channel, SymfonyStyle $io): int
+    {
+        try {
+            $adapter = $this->registry->getInbound($channel->getAdapterCode());
+        } catch (UnknownAdapterException $e) {
+            $io->error($e->getMessage());
+            return -1;
+        }
+
+        $pulledEvents = [];
+        try {
+            $result = $adapter->pull($channel);
+            $pulledEvents = $result->events;
+            $io->writeln(sprintf(' → %d new event(s); cursor=%s', \count($pulledEvents), $result->cursor ?? '(unchanged)'));
+
+            $cfg = $channel->getInboundConfig();
+            if ($result->cursor !== null) {
+                $cfg['cursor'] = $result->cursor;
+                $channel->setInboundConfig($cfg);
+            }
+            $channel->setLastSyncedAt(new \DateTimeImmutable());
+            $channel->setLastSyncError(null);
+        } catch (PullNotSupportedException) {
+            $io->writeln(' (push-only adapter; skipping)');
+            return 0;
+        } catch (\Throwable $e) {
+            $channel->setLastSyncError(sprintf('%s: %s', $e::class, $e->getMessage()));
+            $io->error(sprintf('Pull failed: %s', $e->getMessage()));
+            $this->em->flush();
+            return -1;
+        }
+
+        $this->em->flush();
+
+        // Dispatch after flush (same as the webhook path) so the worker finds
+        // each row committed.
+        foreach ($pulledEvents as $event) {
+            $this->bus->dispatch(new ProcessInboundEventMessage($event->getId()));
+        }
+
+        return \count($pulledEvents);
     }
 
     /**

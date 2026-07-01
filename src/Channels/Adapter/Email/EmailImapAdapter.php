@@ -122,7 +122,19 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
             if ($cursor > 0) {
                 $query->setFetchUid((string) ($cursor + 1) . ':*');
             } else {
-                $query->all();
+                // First run. With a backfill window we only pull messages since
+                // that date (so a 10GB mailbox's full history isn't ingested);
+                // later runs continue forward via the UID cursor, which never
+                // revisits the older (out-of-window) UIDs. Without a window we
+                // fall back to the whole folder.
+                $backfillSince = isset($cfg['backfillSince']) && \is_string($cfg['backfillSince']) && $cfg['backfillSince'] !== ''
+                    ? $cfg['backfillSince']
+                    : null;
+                if ($backfillSince !== null) {
+                    $query->since(new \DateTimeImmutable($backfillSince));
+                } else {
+                    $query->all();
+                }
             }
             $headers = $query->limit($batchLimit)->get();
 

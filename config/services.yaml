@@ -44,17 +44,24 @@ services:
         tags:
             - { name: doctrine.middleware }
 
-    # Flysystem local-disk adapter pointed at var/uploads. Production can swap
-    # this to an AwsS3V3Adapter via env without touching FileStorage callers.
-    file_storage.adapter:
-        class: League\Flysystem\Local\LocalFilesystemAdapter
+    # Storage backend is chosen at runtime from FILE_STORAGE_ADAPTER (local|s3)
+    # by the factory, so FileStorage callers never change. Local (var/uploads)
+    # is the dev default; S3 is required at 10GB+ mailbox scale.
+    App\Service\Storage\StorageAdapterFactory:
         arguments:
-            $location: '%kernel.project_dir%/var/uploads'
+            $driver: '%env(string:FILE_STORAGE_ADAPTER)%'
+            $localPath: '%kernel.project_dir%/var/uploads'
+            $s3Key: '%env(string:S3_KEY)%'
+            $s3Secret: '%env(string:S3_SECRET)%'
+            $s3Region: '%env(string:S3_REGION)%'
+            $s3Bucket: '%env(string:S3_BUCKET)%'
+            $s3Endpoint: '%env(string:S3_ENDPOINT)%'
+            $s3PathStyle: '%env(bool:S3_USE_PATH_STYLE)%'
+            $s3Prefix: '%env(string:S3_PREFIX)%'
 
     file_storage.filesystem:
-        class: League\Flysystem\Filesystem
-        arguments:
-            - '@file_storage.adapter'
+        class: League\Flysystem\FilesystemOperator
+        factory: ['@App\Service\Storage\StorageAdapterFactory', 'create']
 
     App\Service\FileStorage:
         arguments:
