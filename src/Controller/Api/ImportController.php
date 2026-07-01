@@ -14,6 +14,7 @@ use App\Entity\Task;
 use App\Entity\TaskStatus;
 use App\Entity\User;
 use App\Entity\Workspace;
+use App\Repository\IndustryRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\TaskRepository;
 use App\Repository\TaskStatusRepository;
@@ -62,6 +63,7 @@ final class ImportController
         private readonly ProjectRepository $projects,
         private readonly TaskStatusRepository $taskStatuses,
         private readonly TaskRepository $tasks,
+        private readonly IndustryRepository $industries,
     ) {}
 
     #[Route(
@@ -231,7 +233,6 @@ final class ImportController
             ->setName($name)
             ->setLegalName($this->str($row, 'legalName'))
             ->setVatId($this->str($row, 'vatId'))
-            ->setIndustry($this->str($row, 'industry'))
             ->setEmail($this->str($row, 'email'))
             ->setPhone($this->str($row, 'phone'))
             ->setWebsite($this->str($row, 'website'))
@@ -240,6 +241,13 @@ final class ImportController
             ->setZip($this->str($row, 'zip') ?? $this->str($row, 'postalCode'))
             ->setCity($this->str($row, 'city'))
             ->setCountry($this->str($row, 'country') ?? 'DE');
+
+        $industryName = $this->str($row, 'industry');
+        if ($industryName !== null && $industryName !== '') {
+            // Industry is a managed relation now — resolve the CSV name to an
+            // Industry in this workspace, creating it if new.
+            $c->setIndustry($this->industries->findOrCreate($workspace, $industryName));
+        }
 
         $statusStr = $this->str($row, 'status');
         if ($statusStr !== null) {
