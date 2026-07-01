@@ -64,6 +64,10 @@ services:
         arguments:
             $projectDir: '%kernel.project_dir%'
 
+    App\Command\AworkRebuildCustomerHierarchyCommand:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
     App\Controller\Api\WebhookEchoController:
         arguments:
             $projectDir: '%kernel.project_dir%'
