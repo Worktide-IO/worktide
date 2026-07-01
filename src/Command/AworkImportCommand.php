@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Entity\Contact;
 use App\Entity\Customer;
 use App\Entity\Enum\AssigneePrincipalType;
 use App\Entity\Enum\CustomerStatus;
@@ -21,6 +22,8 @@ use App\Entity\TimeEntry;
 use App\Entity\TypeOfWork;
 use App\Entity\User;
 use App\Entity\Workspace;
+use App\Service\Inbound\AworkCustomerClassification as C;
+use App\Service\Inbound\AworkCustomerClassifier;
 use App\Entity\WorkspaceMember;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -119,7 +122,8 @@ final class AworkImportCommand extends Command
             $taskStatusMap = $this->importPerProjectTaskStatuses($dir, $picked, $workspace);
             $io->writeln(sprintf('TaskStatuses (workspace-collapsed): %d', count($taskStatusMap)));
 
-            $customerMap = $this->importCustomers($companies, $workspace);
+            $classifier = AworkCustomerClassifier::fromFile($dir . '/customer-overrides.json');
+            $customerMap = $this->importCustomers($companies, $workspace, $classifier);
             $io->writeln(sprintf('Customers: %d', count($customerMap)));
 
             $this->em->flush();
@@ -379,23 +383,22 @@ final class AworkImportCommand extends Command
      * @param array<array<string,mixed>> $rows
      * @return array<string, Customer>  awork company id → Customer
      */
-    private function importCustomers(array $rows, Workspace $workspace): array
+    private function importCustomers(array $rows, Workspace $workspace, AworkCustomerClassifier $classifier): array
     {
         $repo = $this->em->getRepository(Customer::class);
+        $contactRepo = $this->em->getRepository(Contact::class);
         $map = [];
+        /** @var array<string, Customer> $firmaByRef */
+        $firmaByRef = [];
+
         foreach ($rows as $r) {
             $awid = $r['id'] ?? null;
-            if (!\is_string($awid)) {
+            if (!\is_string($awid) || trim((string) ($r['name'] ?? '')) === '') {
                 continue;
             }
-            $name = trim((string) ($r['name'] ?? ''));
-            if ($name === '') {
+            $class = $classifier->classify($r);
+            if ($class->kind === C::IGNORE) {
                 continue;
-            }
-
-            $customer = $repo->findOneBy(['externalSource' => self::EXTERNAL_SOURCE, 'externalId' => self::ref($awid)]);
-            if ($customer === null) {
-                $customer = new Customer();
             }
 
             $email = $phone = $website = $address = null;
@@ -408,30 +411,69 @@ final class AworkImportCommand extends Command
                 match ($type) {
                     'email' => $email ??= $value,
                     'phone' => $phone ??= $value,
-                    'url'   => $website ??= $value,
+                    'url' => $website ??= $value,
                     'address' => $address ??= $value,
                     default => null,
                 };
             }
 
+            // Ansprechpartner → Contact under a deduplicated company Customer.
+            if ($class->kind === C::CONTACT) {
+                $ref = AworkCustomerClassifier::companyRef((string) $class->companyName);
+                $firma = $firmaByRef[$ref]
+                    ?? $repo->findOneBy(['externalSource' => self::EXTERNAL_SOURCE, 'externalId' => $ref])
+                    ?? $repo->findOneBy(['workspace' => $workspace, 'name' => $class->companyName]);
+                if ($firma === null) {
+                    $firma = (new Customer())
+                        ->setWorkspace($workspace)
+                        ->setName((string) $class->companyName)
+                        ->setIsCompany(true)
+                        ->setStatus(CustomerStatus::Active);
+                    $firma->setExternalSource(self::EXTERNAL_SOURCE)->setExternalId($ref);
+                    $this->em->persist($firma);
+                }
+                $firmaByRef[$ref] = $firma;
+
+                $contact = $contactRepo->findOneBy(['externalSource' => self::EXTERNAL_SOURCE, 'externalId' => self::ref($awid)]) ?? new Contact();
+                $contact->setCustomer($firma)
+                    ->setFirstName($class->firstName)
+                    ->setLastName($class->lastName !== '' ? $class->lastName : $class->firstName);
+                $contact->setExternalSource(self::EXTERNAL_SOURCE)->setExternalId(self::ref($awid));
+                if ($email !== null) {
+                    $contact->setEmail($email);
+                }
+                if ($phone !== null) {
+                    $contact->setPhone($phone);
+                }
+                $this->em->persist($contact);
+                $map[$awid] = $firma; // projects on this awork id attach to the company
+                continue;
+            }
+
+            // Company or private person → a Customer keyed by aw:<id>.
+            $customer = $repo->findOneBy(['externalSource' => self::EXTERNAL_SOURCE, 'externalId' => self::ref($awid)]) ?? new Customer();
+            $isCompany = $class->kind === C::COMPANY;
             $customer
                 ->setWorkspace($workspace)
-                ->setName($name)
-                ->setLegalName($name)
-                ->setIsCompany(true)
-                // NOTE: awork's "industry" export actually carried company
-                // names/labels, not sectors — deliberately not mapped. Industry
-                // is now a managed Industry relation (set in the app).
+                ->setIsCompany($isCompany)
                 ->setEmail($email)
                 ->setPhone($phone)
                 ->setWebsite(self::sanitizeUrl($website))
                 ->setAddressLine1($address)
                 ->setStatus(($r['isExternal'] ?? false) ? CustomerStatus::Archived : CustomerStatus::Active);
-            $customer->setExternalSource(self::EXTERNAL_SOURCE);
-            $customer->setExternalId(self::ref($awid));
+            if ($isCompany) {
+                $customer->setName((string) $class->companyName)->setLegalName((string) $class->companyName)
+                    ->setFirstName(null)->setLastName(null);
+            } else {
+                $customer->setFirstName($class->firstName)->setLastName($class->lastName)->setLegalName(null);
+                // Fallback display name (lifecycle re-derives it on persist).
+                $customer->setName(trim(trim($class->lastName) . ', ' . trim($class->firstName), ', ') ?: trim((string) ($r['name'] ?? '')));
+            }
+            $customer->setExternalSource(self::EXTERNAL_SOURCE)->setExternalId(self::ref($awid));
             $this->em->persist($customer);
             $map[$awid] = $customer;
         }
+
         return $map;
     }
 
