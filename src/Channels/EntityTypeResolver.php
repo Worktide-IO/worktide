@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Channels;
 
 use App\Entity\Comment;
+use App\Entity\Contact;
+use App\Entity\Customer;
 use App\Entity\Document;
 use App\Entity\File;
 use App\Entity\Project;
@@ -34,6 +36,8 @@ final class EntityTypeResolver
         'document' => Document::class,
         'file' => File::class,
         'time_entry' => TimeEntry::class,
+        'customer' => Customer::class,
+        'contact' => Contact::class,
     ];
 
     public function classFor(string $slug): string
