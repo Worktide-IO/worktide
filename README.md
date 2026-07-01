@@ -162,7 +162,7 @@ workspace.
 # Token must already exist in ~/.config/awork-token (chmod 600).
 bash var/awork-snapshot/pull.sh                  # pull → var/awork-snapshot/*.json
 ddev exec php bin/console app:awork:import       # import into a "WapplerSystems (awork)" workspace
-ddev exec php bin/console app:user:reset-password wappler@wappler.systems demo
+ddev exec php bin/console app:user:reset-password admin@example.com demo
 ```
 
 See `src/Command/AworkImportCommand.php` for the field-by-field mapping.
