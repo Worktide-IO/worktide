@@ -21,12 +21,12 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 /**
  * Bidirectional sync adapter for Redmine.
  *
- * Tested against `projects.wappler.systems` (the user's own Redmine
- * instance — see `reference_redmine_ticket_creation.md` memo).
+ * Tested against a live Redmine instance
+ * (see `reference_redmine_ticket_creation.md` memo).
  *
  * Channel.inboundConfig shape:
  *   {
- *     baseUrl: string,        // e.g. "https://projects.wappler.systems"
+ *     baseUrl: string,        // e.g. "https://redmine.example.com"
  *     projectId?: int|string, // narrow to one Redmine project (optional)
  *     extraFilter?: string,   // raw query-string tail (advanced; rare)
  *   }

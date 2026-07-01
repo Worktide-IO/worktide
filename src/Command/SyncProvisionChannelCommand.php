@@ -23,7 +23,7 @@ use Symfony\Component\Uid\Uuid;
  *
  *   bin/console worktide:sync:provision-channel \
  *     --adapter=redmine --workspace=<uuid> --name="Redmine" \
- *     --base-url=https://projects.wappler.systems \
+ *     --base-url=https://redmine.example.com \
  *     --api-key-file=~/.config/redmine-token [--project-id=48]
  *
  * The secret is read from a file (never passed on the command line / logged).
@@ -49,7 +49,7 @@ final class SyncProvisionChannelCommand extends Command
             ->addOption('adapter', null, InputOption::VALUE_REQUIRED, 'redmine | jira')
             ->addOption('workspace', null, InputOption::VALUE_REQUIRED, 'Workspace UUID')
             ->addOption('name', null, InputOption::VALUE_REQUIRED, 'Channel display name (unique per workspace)')
-            ->addOption('base-url', null, InputOption::VALUE_REQUIRED, 'e.g. https://projects.wappler.systems')
+            ->addOption('base-url', null, InputOption::VALUE_REQUIRED, 'e.g. https://redmine.example.com')
             ->addOption('api-key-file', null, InputOption::VALUE_REQUIRED, 'Path to a file containing the API key / PAT')
             ->addOption('api-key', null, InputOption::VALUE_REQUIRED, 'API key / PAT inline (prefer --api-key-file)')
             ->addOption('project-id', null, InputOption::VALUE_REQUIRED, 'Redmine numeric projectId / Jira projectKey (omit = all)')
