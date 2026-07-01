@@ -97,15 +97,17 @@ final class TriageTicketHandler
             return;
         }
         try {
+            // Opaque, workspace-scoped topic string — the SPA builds the exact
+            // same string (see worktide-web AiTriagePanel). Only a minimal ping
+            // is sent (no summary/suggestion): the Mercure subscriber token
+            // grants `subscribe: ['*']`, so anyone could listen to a workspace
+            // topic — the actual content is re-fetched over the access-controlled
+            // REST API, never leaked over the hub.
             $this->hub->publish(new Update(
-                topics: ['/v1/workspaces/' . $wsId . '/ai-recommendations'],
+                topics: ['worktide:workspace:' . $wsId . ':ai-recommendations'],
                 data: json_encode([
-                    'id' => $recommendation->getId()?->toRfc4122(),
                     'target' => $recommendation->getTarget()->value,
                     'targetId' => $recommendation->getTargetId()->toRfc4122(),
-                    'kind' => $recommendation->getKind()->value,
-                    'status' => $recommendation->getStatus()->value,
-                    'suggestion' => $recommendation->getSuggestion(),
                 ]) ?: '{}',
                 private: true,
             ));
