@@ -153,6 +153,15 @@ deferred work). Consume it locally with:
 ddev exec php bin/console messenger:consume async -vv
 ```
 
+Slow, expensive AI/agent jobs (e.g. ticket triage) run on a **separate**
+`ai_agents` transport so they can't starve the fast `async` queue. Run a
+dedicated low-concurrency worker for it (in production, supervise it with
+`--time-limit`/`--memory-limit` + auto-restart):
+
+```bash
+ddev exec php bin/console messenger:consume ai_agents -vv
+```
+
 ### Import data from awork
 
 Read-only snapshot followed by an idempotent replicate into a dedicated

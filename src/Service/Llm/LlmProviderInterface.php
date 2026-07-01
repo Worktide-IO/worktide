@@ -21,4 +21,19 @@ interface LlmProviderInterface
      *                      model refusal, or when the response carries no text
      */
     public function complete(string $system, string $user, int $maxTokens = 4096): string;
+
+    /**
+     * Like {@see complete()} but for structured output: instructs the model to
+     * emit JSON, strips any Markdown code fences, and decodes to an associative
+     * array. The provider has no native tool-calling seam, so this is prompt-driven.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws LlmException when not configured, on failure/refusal, or when the
+     *                      response is not valid JSON object
+     */
+    public function completeJson(string $system, string $user, int $maxTokens = 2048): array;
+
+    /** The model identifier this provider will use — for provenance on stored suggestions. */
+    public function getModel(): string;
 }

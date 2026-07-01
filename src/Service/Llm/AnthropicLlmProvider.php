@@ -80,4 +80,42 @@ final class AnthropicLlmProvider implements LlmProviderInterface
 
         return $text;
     }
+
+    public function completeJson(string $system, string $user, int $maxTokens = 2048): array
+    {
+        $jsonSystem = $system . "\n\nReturn ONLY a single valid JSON object. No prose, no explanation, "
+            . 'no Markdown code fences around it.';
+
+        $raw = $this->complete($jsonSystem, $user, $maxTokens);
+        $decoded = json_decode(self::stripFences($raw), true);
+
+        if (!\is_array($decoded)) {
+            throw new LlmException('The model did not return a valid JSON object.');
+        }
+
+        /** @var array<string, mixed> $decoded */
+        return $decoded;
+    }
+
+    public function getModel(): string
+    {
+        return $this->model;
+    }
+
+    /**
+     * Strip a leading/trailing Markdown code fence (```json … ```) the model may
+     * wrap the JSON in despite instructions.
+     */
+    private static function stripFences(string $text): string
+    {
+        $trimmed = trim($text);
+        if (!str_starts_with($trimmed, '```')) {
+            return $trimmed;
+        }
+        // Drop the opening fence line (with optional language tag) and the closing fence.
+        $trimmed = preg_replace('/^```[a-zA-Z0-9]*\s*\n?/', '', $trimmed) ?? $trimmed;
+        $trimmed = preg_replace('/\n?```\s*$/', '', $trimmed) ?? $trimmed;
+
+        return trim($trimmed);
+    }
 }
