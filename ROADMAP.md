@@ -127,6 +127,20 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 - **`LlmProviderInterface`** + Anthropic-Claude-Implementierung (default, `src/Service/Llm/AnthropicLlmProvider.php` als Keim vorhanden) + Ollama-Adapter für datenschutzsensible Workspaces
 - Prompt-Caching für wiederkehrende Workspace- + User-Kontexte
 
+#### Modell-Routing-Policy — lokal vs. Cloud pro Task-Typ
+**Prinzip:** kein globaler „lokal oder Cloud"-Schalter, sondern eine **Routing-Policy pro Task-Typ** hinter dem `LlmProviderInterface`. Der Per-Workspace-Toggle wählt nur die *Default-Zuordnung* + harte Grenzen (Datenschutz-Workspace → lokal erzwungen). Lokale Modelle übernehmen die volumen-starken, reasoning-armen Aufgaben; Claude bleibt für Agentik + Qualität.
+
+| Task | Default |
+|---|---|
+| Klassifikation, Extraktion, Tagging, Zusammenfassung, Embeddings (→ Suche Phase D⁺) | **lokal** (Ollama/vLLM) |
+| Aufwands-Schätzung, einfache Reply-Suggestions | lokal, Fallback Claude bei Unsicherheit |
+| Agentische Web-Recherche, Tool-Ketten, Outbound-Drafting | **Claude** (Tool-Calling-Zuverlässigkeit + Multi-Hop-Synthese) |
+| Datenschutz-Workspace (Kundendaten dürfen die Infra nicht verlassen) | **lokal erzwungen** (deckt Data-Residency, Phase F) |
+
+- **Serving lokal**: **vLLM** für Produktion (Batching/Throughput bei Concurrency), **Ollama** für Dev + kleine Workspaces. Concurrency ist der Engpass „ständig scannender" Agenten — eine GPU-Box serialisiert; für periodische Cron-Batch-Scans unkritisch, für hohe Parallelität eigene Serving-Instanz.
+- **Wichtig — lokal ≠ kein Egress**: ein lokales Modell macht nur das *Reasoning* lokal. Web-Recherche-Calls (Such-API/Fetch) verlassen das System trotzdem und laufen weiter durch den EgressGuard.
+- **Strategischer Kern**: der Hauptgewinn von lokal ist **Data Residency** (Kundendaten verlassen die Infrastruktur nie), nicht primär Kosten — genau das Verkaufsargument für datenschutzsensible Workspaces.
+
 #### Agent-Runtime — dauerhaft laufende Prozesse (Ticket-/Mail-Scan, Web-Recherche)
 **Prinzip:** keine bespoke `while(true)`-Daemons. Der „ständig laufende" Charakter entsteht aus der crash-sicheren Triade **Trigger → Queue → Worker**, die bereits steht (`ChannelPullCommand` ist die Blaupause: Cron-Tick → dispatcht `ProcessInboundEventMessage` → Worker verarbeitet async, inkrementell über Cursor). Ein Scan-Agent = *stateless Worker + durabler Cursor + Scheduler-Tick*, kein Endlosprozess.
 
