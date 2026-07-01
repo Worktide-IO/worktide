@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Doctrine\Orm\Filter\BackedEnumFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
+use App\ApiPlatform\Filter\UuidExactFilter;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
@@ -50,13 +52,12 @@ use Symfony\Component\Uid\Uuid;
     ],
     mercure: true,
 )]
-#[ApiFilter(SearchFilter::class, properties: [
-    'workspace' => 'exact',
-    'target' => 'exact',
-    'targetId' => 'exact',
-    'kind' => 'exact',
-    'status' => 'exact',
-])]
+// SearchFilter can't match the native-enum columns nor the binary uuid column,
+// so use the dedicated filters: BackedEnumFilter for target/kind/status,
+// UuidBinaryFilter for targetId. workspace (a relation IRI) stays on SearchFilter.
+#[ApiFilter(SearchFilter::class, properties: ['workspace' => 'exact'])]
+#[ApiFilter(BackedEnumFilter::class, properties: ['target', 'kind', 'status'])]
+#[ApiFilter(UuidExactFilter::class, properties: ['targetId'])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt'])]
 class AIRecommendation
 {
