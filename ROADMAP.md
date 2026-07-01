@@ -166,13 +166,32 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 
 ---
 
+## Phase S — Skalierung & Performance (Infrastruktur)
+
+**Ziel:** Worktide auf viel Daten + read-heavy Traffic vorbereiten. Querschnitts-Phase — die drei Blöcke sind einzeln zündbar, nicht als Sequenz zu verstehen. Bewusst von den fachlichen Features entkoppelt.
+
+### Storage — S3 / Object-Store
+- **S3-Adapter aktivieren** (herausgezogen aus dem Document-Vault, Phase E). Die Architektur ist bereits darauf vorbereitet: `FileStorage` (`src/Service/FileStorage.php`) hängt nur an Flysystems `FilesystemOperator`, Callers kennen den Adapter nicht. In `config/services.yaml` wird `file_storage.adapter` env-gesteuert von `LocalFilesystemAdapter` auf `AwsS3V3Adapter` umgestellt — `league/flysystem-aws-s3-v3` requiren, sonst nichts. Klein (~1 Tag).
+- **Vor lokalem `var/uploads`-Überlauf** ziehen — sobald nennenswerte Datenmengen (File-Attachments, Document-Vault, Mail-Anhänge aus Phase C) anfallen. S3-kompatibel: AWS, UpCloud, MinIO (self-hostable), Cloudflare R2.
+- SSE-Verschlüsselung + Retention-Policies (GoBD) bleiben Teil des **Document-Vault (Phase E)** — der bloße Bucket-Anschluss ist davon entkoppelt und kann früher passieren.
+
+### HTTP-/Response-Cache
+- **API-Platform HTTP-Caching**: Cache-Tags mit Entity-basierter Invalidierung, `Vary`-Header, Reverse-Proxy vorgeschaltet — **Souin** (Caddy-Modul, self-hostable, MIT — kein Lock-in) oder Varnish. Größter Durchsatz-Hebel bei read-heavy API-Traffic.
+- **Achtung Multi-Tenancy + JWT**: Responses nur cachebar mit `Vary` auf Auth + Workspace-Scope, sonst strikt `private`. Tenant-Isolation im Cache-Key ist Voraussetzung, nicht Nice-to-have.
+
+### Application-Cache
+- **Redis / Valkey als Cache-Backend**: Doctrine Result- + Metadata/Query-Cache, Symfony `cache.app`-Pool, Rate-Limiter- + Lock-Storage (heute noch Default-Adapter). **Valkey** (BSD, Redis-Fork) statt Redis, um dem Lizenz-Lock-in auszuweichen.
+- Der **Mercure-Hub** skaliert bereits separat (externer Dienst) — kein Teil dieses Blocks.
+
+---
+
 ## Phase E — CRM + Customer-Portal
 
 **Ziel:** CRM-3 + CRM-4 abschließen, Kunden bekommen ihre eigene Sicht.
 
 - **CRM-4 Invoice + Billing-Run**: Invoice + InvoiceItem-Entity, Cron der aus ServiceSubscription (`nextBillingOn ≤ heute`) Rechnungen materialisiert. Status-FSM draft/sent/paid/cancelled
 - **Lexoffice OAuth-Integration**: OAuthConnection + Mapping `lexoffice_contact_id ↔ worktide_customer_id`. Auto-Push bei `invoice.created`
-- **Document-Vault**: Rechtssicherer File-Store, verschlüsselte Storage (S3-SSE), Versionierung, Retention-Policies (GoBD), PDF-Volltextsuche, Audit-Log
+- **Document-Vault**: Rechtssicherer File-Store — SSE-Verschlüsselung, Versionierung, Retention-Policies (GoBD), PDF-Volltextsuche, Audit-Log. Baut auf dem S3-Adapter aus **Phase S** auf (der reine Bucket-Anschluss ist dorthin herausgezogen)
 - **TYPO3-Customer-Portal** (`wapplersystems/worktide-customer-portal`): Extbase-Plugin gegen Worktide-API. Kunden sehen ihre CustomerSystems, ServiceSubscriptions, Wartungs-Reports, Rechnungen
 - **Terminvereinbarung** (Calendly-Klon): BookingPage, MeetingType, Availability, Booking, ExternalCalendarSync mit Google/Outlook. Public `/book/<slug>`
 - **Themability**: Light/Dark, Per-Workspace-Branding (Primary-Color + Logo), Custom-Theme-Builder
@@ -242,6 +261,10 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 6. **Phase E** — CRM-Vervollständigung + Customer-Portal (kann parallel zu D laufen)
 7. **Phase F** — Enterprise: bedarfsgetrieben nach erstem Enterprise-Kunden
 8. **Phase G** — alles andere bei Bedarf
+
+**Phase S** (Skalierung) läuft **quer** zu dieser Sequenz, nicht als Schritt:
+- **S3-Adapter früh** — vor `var/uploads`-Überlauf, spätestens mit Document-Vault (E) oder Mail-Anhängen (C).
+- **HTTP-Cache + Redis/Valkey** — zünden sobald Read-Traffic oder Datenmenge es rechtfertigen; parallel zu jeder Phase möglich, da rein infrastrukturell.
 
 ---
 
