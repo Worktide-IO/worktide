@@ -74,7 +74,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'legalName' => 'partial',
     'email' => 'partial',
     'status' => 'exact',
-    'industry' => 'partial',
+    'industry' => 'exact',
     'tags.id' => 'exact',
 ])]
 #[ApiFilter(BooleanFilter::class, properties: ['isCompany'])]
@@ -99,6 +99,14 @@ class Customer
     #[ORM\Column(length: 200, nullable: true)]
     private ?string $legalName = null;
 
+    /** Given name — only meaningful when !isCompany (private person). */
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $firstName = null;
+
+    /** Family name — only meaningful when !isCompany. */
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $lastName = null;
+
     #[ORM\Column]
     private bool $isCompany = true;
 
@@ -116,8 +124,9 @@ class Customer
     #[Assert\Url(requireTld: true)]
     private ?string $website = null;
 
-    #[ORM\Column(length: 120, nullable: true)]
-    private ?string $industry = null;
+    #[ORM\ManyToOne(targetEntity: Industry::class)]
+    #[ORM\JoinColumn(name: 'industry_id', nullable: true, onDelete: 'SET NULL')]
+    private ?Industry $industry = null;
 
     #[ORM\Column(length: 200, nullable: true)]
     private ?string $addressLine1 = null;
@@ -189,6 +198,30 @@ class Customer
     public function getLegalName(): ?string { return $this->legalName; }
     public function setLegalName(?string $v): self { $this->legalName = $v; return $this; }
 
+    public function getFirstName(): ?string { return $this->firstName; }
+    public function setFirstName(?string $v): self { $this->firstName = $v !== null ? trim($v) : null; return $this; }
+
+    public function getLastName(): ?string { return $this->lastName; }
+    public function setLastName(?string $v): self { $this->lastName = $v !== null ? trim($v) : null; return $this; }
+
+    /**
+     * Keep the display {@see self::$name} consistent for private persons:
+     * "Lastname, Firstname" derived from the structured fields. Companies keep
+     * their explicitly-set name. Runs on write.
+     */
+    #[ORM\PrePersist]
+    #[ORM\PreUpdate]
+    public function syncDisplayName(): void
+    {
+        if ($this->isCompany) {
+            return;
+        }
+        $parts = array_filter([trim((string) $this->lastName), trim((string) $this->firstName)], static fn (string $s) => $s !== '');
+        if ($parts !== []) {
+            $this->name = implode(', ', $parts);
+        }
+    }
+
     public function isCompany(): bool { return $this->isCompany; }
     public function setIsCompany(bool $v): self { $this->isCompany = $v; return $this; }
 
@@ -204,8 +237,8 @@ class Customer
     public function getWebsite(): ?string { return $this->website; }
     public function setWebsite(?string $v): self { $this->website = $v; return $this; }
 
-    public function getIndustry(): ?string { return $this->industry; }
-    public function setIndustry(?string $v): self { $this->industry = $v; return $this; }
+    public function getIndustry(): ?Industry { return $this->industry; }
+    public function setIndustry(?Industry $v): self { $this->industry = $v; return $this; }
 
     public function getAddressLine1(): ?string { return $this->addressLine1; }
     public function setAddressLine1(?string $v): self { $this->addressLine1 = $v; return $this; }

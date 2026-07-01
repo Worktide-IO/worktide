@@ -419,7 +419,9 @@ final class AworkImportCommand extends Command
                 ->setName($name)
                 ->setLegalName($name)
                 ->setIsCompany(true)
-                ->setIndustry(($r['industry'] ?? '') !== '' ? (string) $r['industry'] : null)
+                // NOTE: awork's "industry" export actually carried company
+                // names/labels, not sectors — deliberately not mapped. Industry
+                // is now a managed Industry relation (set in the app).
                 ->setEmail($email)
                 ->setPhone($phone)
                 ->setWebsite(self::sanitizeUrl($website))
