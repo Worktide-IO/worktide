@@ -9,6 +9,18 @@ framework:
                 retry_strategy:
                     max_retries: 3
                     multiplier: 2
+            # Slow, expensive, rate-limited AI/agent jobs (LLM calls, web
+            # research). Separate transport so a 30s Claude call can't starve
+            # the fast async queue (webhooks/mercure/mail). Consumed by a
+            # dedicated low-concurrency worker: messenger:consume ai_agents.
+            ai_agents:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    queue_name: ai_agents
+                retry_strategy:
+                    max_retries: 5
+                    multiplier: 3
+                    max_delay: 60000
             failed: 'doctrine://default?queue_name=failed'
             # sync: 'sync://'
 
@@ -32,6 +44,10 @@ framework:
 
             # Social post fan-out — network calls off the request thread.
             App\Message\PublishSocialPostMessage: async
+
+            # AI ticket triage — slow LLM call on its own transport so it never
+            # starves the fast async queue.
+            App\Message\TriageTicketMessage: ai_agents
 
             # Mercure live-update publishing — off the request thread so a slow
             # or unreachable hub can't hang/500 entity writes (the API Platform

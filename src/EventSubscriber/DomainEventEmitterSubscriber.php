@@ -42,6 +42,7 @@ use App\Entity\TaskStatus;
 use App\Entity\TaskTemplate;
 use App\Entity\Absence;
 use App\Entity\AbsenceRegion;
+use App\Entity\AIRecommendation;
 use App\Entity\Automation;
 use App\Entity\AutomationAction;
 use App\Entity\Autopilot;
@@ -139,6 +140,7 @@ final class DomainEventEmitterSubscriber
         Contact::class => 'Contact',
         CustomerSystem::class => 'CustomerSystem',
         ServiceSubscription::class => 'ServiceSubscription',
+        AIRecommendation::class => 'AIRecommendation',
     ];
 
     /** @var list<GenericEntityChangedEvent> */
