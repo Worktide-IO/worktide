@@ -124,8 +124,20 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 
 ### Schicht 1 — Infrastruktur
 - **`AIRecommendation`-Entity**: suggestion, reasoning (Markdown), appliesTo polymorph (Task/Project), status (pending/accepted/rejected), source
-- **`LlmProviderInterface`** + Anthropic-Claude-Implementierung (default) + Ollama-Adapter für datenschutzsensible Workspaces
+- **`LlmProviderInterface`** + Anthropic-Claude-Implementierung (default, `src/Service/Llm/AnthropicLlmProvider.php` als Keim vorhanden) + Ollama-Adapter für datenschutzsensible Workspaces
 - Prompt-Caching für wiederkehrende Workspace- + User-Kontexte
+
+#### Agent-Runtime — dauerhaft laufende Prozesse (Ticket-/Mail-Scan, Web-Recherche)
+**Prinzip:** keine bespoke `while(true)`-Daemons. Der „ständig laufende" Charakter entsteht aus der crash-sicheren Triade **Trigger → Queue → Worker**, die bereits steht (`ChannelPullCommand` ist die Blaupause: Cron-Tick → dispatcht `ProcessInboundEventMessage` → Worker verarbeitet async, inkrementell über Cursor). Ein Scan-Agent = *stateless Worker + durabler Cursor + Scheduler-Tick*, kein Endlosprozess.
+
+- **Eigener Messenger-Transport `ai_agents`** getrennt vom schnellen `async` (Webhooks/Mercure/Mail). Lange, teure, rate-limitierte LLM- + Recherche-Jobs dürfen die schnelle Zustellung nicht aushungern. Eigener Worker mit **niedriger Concurrency**, aggressiverem Backoff (`max_retries: 5`, `multiplier: 3`, `max_delay`).
+- **Lange Läufe zerlegen** (Step-Function-Muster): `Fetch → Analyze → Act` als je eigene, sich neu einreihende Messages — resumierbar, beobachtbar, kein minutenlanger Worker-Lock. Long-Timeout-Pool nur für echte Single-Long-Calls.
+- **EgressGuard als Gate** (`src/Egress/`, bereits vorhanden): Agenten lesen/recherchieren + schlagen frei vor, aber jeder Outbound (Web-Recherche, „Agent antwortet auf Ticket") läuft durch `EGRESS_ALLOW`. Human-in-the-Loop by default.
+- **Output = `AIRecommendation` + `DomainEventLog`, nicht autonome Aktion.** Ergebnis per **Mercure** live in die SPA pushen (Kanal existiert).
+- **Symfony Scheduler** (`RecurringMessage`) statt/neben OS-Cron für die wachsende Zahl periodischer Jobs (`channel:pull`, `evaluate:autopilots`, `lexoffice:sync`, `social:publish-due`, `run-schedules`): Zeitplan im Code, testbar, überlebt DDEV-Rebuilds.
+- **Rate-Limiting + Budget**: `symfony/rate-limiter` (Storage → Redis, siehe Phase S) vor jedem LLM-/Recherche-Call, plus Token-/Kosten-Accounting pro Workspace. Transiente Fehler (429/5xx) → Backoff-Retry; permanente → Dead-Letter (`failed`).
+- **Skalierung → Phase S**: Doctrine-Transport (heute) für Dev ausreichend; unter Last auf **Redis/Valkey-Transport** wechseln (`MESSENGER_TRANSPORT_DSN` env-swappbar). Worker in **eigenen Containern** unabhängig vom Web skaliert, in Prod via supervisord mit `--time-limit`/`--memory-limit` + Auto-Restart (PHP-Leak-Schutz).
+- **Entscheidung Polling vs. Langläufer**: Cron-Tick (1–5 min Latenz, einfach, crash-sicher) ist Default. Echte Sekunden-Latenz (IMAP IDLE / persistenter Agent-Loop = echter Daemon) nur bei konkretem Bedarf.
 
 ### Schicht 2 — Aufwands-Schätzung
 - AI schlägt `estimatedMinutes` vor — basierend auf TimeEntry-History ähnlicher Tasks (gleiches Projekttyp / Customer / Tags)
