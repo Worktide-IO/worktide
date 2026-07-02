@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
@@ -68,6 +69,7 @@ use Doctrine\ORM\Mapping as ORM;
     'assignee' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['lastEventAt', 'createdAt', 'subject'])]
+#[ApiFilter(DateFilter::class, properties: ['lastEventAt', 'createdAt'])]
 class Conversation
 {
     use EntityIdTrait;
