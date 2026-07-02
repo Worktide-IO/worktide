@@ -46,6 +46,16 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final class MailThreader implements ConversationThreader
 {
+    /**
+     * Conversations created earlier in the current pull batch but not yet
+     * flushed — findByThreadKey (a SQL query) can't see them, so without this a
+     * second message of the same thread would create a duplicate and violate the
+     * (channel, thread_key) unique index. Keyed by "<channelId>|<threadKey>".
+     *
+     * @var array<string, Conversation>
+     */
+    private array $pending = [];
+
     public function __construct(
         private readonly ConversationRepository $conversations,
         private readonly InboundEventRepository $events,
@@ -57,10 +67,13 @@ final class MailThreader implements ConversationThreader
         $headers = $event->getSourceMetadata()['headers'] ?? [];
 
         $threadKey = $this->resolveThreadKey($channel, $headers, $event);
+        $cacheKey = ($channel->getId()?->toRfc4122() ?? '') . '|' . $threadKey;
 
-        // Look up an existing Conversation under that key first.
-        $existing = $this->conversations->findByThreadKey($channel, $threadKey);
+        // Look up an existing Conversation — first among rows created earlier in
+        // this same (un-flushed) batch, then in the DB.
+        $existing = $this->pending[$cacheKey] ?? $this->conversations->findByThreadKey($channel, $threadKey);
         if ($existing !== null) {
+            $this->pending[$cacheKey] = $existing;
             $event->setConversation($existing);
             $existing->setLastEventAt($event->getReceivedAt());
             if ($event->getSenderRaw() !== null) {
@@ -85,6 +98,7 @@ final class MailThreader implements ConversationThreader
         }
 
         $this->em->persist($conversation);
+        $this->pending[$cacheKey] = $conversation; // reuse for later same-thread events in this batch
         $event->setConversation($conversation);
         return $conversation;
     }
