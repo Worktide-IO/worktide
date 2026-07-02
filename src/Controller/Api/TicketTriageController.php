@@ -78,7 +78,7 @@ final class TicketTriageController
         if (!$conversation instanceof Conversation) {
             throw new NotFoundHttpException();
         }
-        if (!$this->security->isGranted(WorktidePermission::VIEW, $conversation->getWorkspace())) {
+        if (!$this->security->isGranted(WorktidePermission::EDIT, $conversation)) {
             throw new AccessDeniedHttpException();
         }
 

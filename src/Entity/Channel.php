@@ -164,6 +164,16 @@ class Channel
     #[ORM\Column]
     private bool $isShared = true;
 
+    /**
+     * Owner of a personal mailbox (isShared = false). Visibility of this
+     * channel's conversations/messages is restricted to this user (plus
+     * workspace admins/owners) — enforced by MailboxVisibilityExtension +
+     * ConversationVoter. Null for shared team mailboxes.
+     */
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(name: 'owner_user_id', nullable: true, onDelete: 'SET NULL')]
+    private ?User $ownerUser = null;
+
     #[ORM\Column]
     private bool $isEnabled = true;
 
@@ -247,6 +257,9 @@ class Channel
 
     public function isShared(): bool { return $this->isShared; }
     public function setIsShared(bool $v): self { $this->isShared = $v; return $this; }
+
+    public function getOwnerUser(): ?User { return $this->ownerUser; }
+    public function setOwnerUser(?User $user): self { $this->ownerUser = $user; return $this; }
 
     public function isEnabled(): bool { return $this->isEnabled; }
     public function setIsEnabled(bool $v): self { $this->isEnabled = $v; return $this; }

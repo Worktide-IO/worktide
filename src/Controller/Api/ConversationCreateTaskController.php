@@ -51,7 +51,7 @@ final class ConversationCreateTaskController
         if ($conversation === null) {
             throw new NotFoundHttpException();
         }
-        if (!$this->security->isGranted(WorktidePermission::VIEW, $conversation->getWorkspace())) {
+        if (!$this->security->isGranted(WorktidePermission::EDIT, $conversation)) {
             throw new AccessDeniedHttpException();
         }
 
