@@ -24,10 +24,20 @@ final class ProcessInboundEventMessage
 {
     public function __construct(
         private readonly Uuid $inboundEventId,
+        /**
+         * True for live/incremental pulls, false during a bounded backfill.
+         * Backfill must never trigger AI ticket suggestions (cost control).
+         */
+        private readonly bool $live = true,
     ) {}
 
     public function getInboundEventId(): Uuid
     {
         return $this->inboundEventId;
+    }
+
+    public function isLive(): bool
+    {
+        return $this->live;
     }
 }

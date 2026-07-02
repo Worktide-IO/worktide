@@ -58,7 +58,7 @@ final class ProcessInboundEventHandler
         // service pattern). It sets the terminal state on the event; a thrown
         // (recoverable) exception leaves the event Pending so the retry can
         // re-run it cleanly.
-        $this->processor->process($event);
+        $this->processor->process($event, $message->isLive());
 
         $this->em->flush();
     }

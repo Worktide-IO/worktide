@@ -355,6 +355,11 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
                     'References' => $references === [] ? null : implode(' ', array_map(fn ($r) => "<$r>", $references)),
                     'Subject' => $subject,
                     'From' => $senderRaw,
+                    // Newsletter/automated-mail signals for MailRelevanceClassifier.
+                    'List-Unsubscribe' => $this->headerString($header?->get('list_unsubscribe')),
+                    'Precedence' => $this->headerString($header?->get('precedence')),
+                    'Auto-Submitted' => $this->headerString($header?->get('auto_submitted')),
+                    'X-Mailer' => $this->headerString($header?->get('x_mailer')),
                 ],
             ]);
 

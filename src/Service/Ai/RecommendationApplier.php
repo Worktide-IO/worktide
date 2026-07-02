@@ -10,15 +10,19 @@ use App\Entity\Conversation;
 use App\Entity\ConversationNote;
 use App\Entity\Enum\CommentTarget;
 use App\Entity\Enum\ConversationStatus;
+use App\Entity\Enum\RecommendationKind;
 use App\Entity\Enum\RecommendationTarget;
 use App\Entity\Enum\TagScope;
 use App\Entity\Enum\TaskPriority;
+use App\Entity\Project;
 use App\Entity\Tag;
 use App\Entity\Task;
 use App\Entity\User;
 use App\Repository\TagRepository;
 use App\Repository\TrackerRepository;
+use App\Service\Inbound\ConversationTaskConverter;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * Applies an accepted {@see AIRecommendation} to its ticket. This is the ONLY
@@ -37,15 +41,28 @@ final class RecommendationApplier
         private readonly EntityManagerInterface $em,
         private readonly TrackerRepository $trackers,
         private readonly TagRepository $tags,
+        private readonly ConversationTaskConverter $taskConverter,
     ) {}
 
-    public function apply(AIRecommendation $recommendation, User $reviewer): void
+    /**
+     * @throws \DomainException when a TicketFromConversation recommendation has
+     *                          no project (neither suggested nor overridden)
+     */
+    public function apply(AIRecommendation $recommendation, User $reviewer, ?Project $projectOverride = null): void
     {
         if ($recommendation->getTarget() === RecommendationTarget::Task) {
             $this->applyToTask($recommendation, $reviewer);
-        } else {
-            $this->applyToConversation($recommendation, $reviewer);
+
+            return;
         }
+
+        if ($recommendation->getKind() === RecommendationKind::TicketFromConversation) {
+            $this->applyTicketFromConversation($recommendation, $projectOverride);
+
+            return;
+        }
+
+        $this->applyToConversation($recommendation, $reviewer);
     }
 
     private function applyToTask(AIRecommendation $recommendation, User $reviewer): void
@@ -115,6 +132,48 @@ final class RecommendationApplier
             $note->setCreatedByUser($reviewer);
             $this->em->persist($note);
         }
+    }
+
+    private function applyTicketFromConversation(AIRecommendation $recommendation, ?Project $projectOverride): void
+    {
+        $conversation = $this->em->find(Conversation::class, $recommendation->getTargetId());
+        if ($conversation === null) {
+            return;
+        }
+        $suggestion = $recommendation->getSuggestion();
+
+        $project = $projectOverride ?? $this->resolveSuggestedProject($suggestion, $conversation);
+        if ($project === null) {
+            throw new \DomainException('A project is required to create a ticket from this conversation.');
+        }
+
+        $title = \is_string($suggestion['title'] ?? null) && trim($suggestion['title']) !== ''
+            ? $suggestion['title']
+            : null;
+
+        $this->taskConverter->convert($conversation, $project, $title);
+    }
+
+    /**
+     * @param array<string, mixed> $suggestion
+     */
+    private function resolveSuggestedProject(array $suggestion, Conversation $conversation): ?Project
+    {
+        $id = $suggestion['suggestedProject'] ?? null;
+        if (!\is_string($id) || $id === '') {
+            return null;
+        }
+        try {
+            $project = $this->em->find(Project::class, Uuid::fromString($id));
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+        // Never route across workspaces.
+        if ($project === null || !$project->getWorkspace()->getId()?->equals($conversation->getWorkspace()->getId())) {
+            return null;
+        }
+
+        return $project;
     }
 
     /**

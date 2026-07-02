@@ -79,7 +79,7 @@ final class ChannelPullCommand extends Command
             $io->section(sprintf('%s [%s]', $channel->getName(), $channel->getAdapterCode()));
 
             if (!$backfill) {
-                $totalEvents += max(0, $this->pullBatch($channel, $io));
+                $totalEvents += max(0, $this->pullBatch($channel, $io, live: true));
                 continue;
             }
 
@@ -89,7 +89,7 @@ final class ChannelPullCommand extends Command
             // a stop/restart resumes where it left off.
             $batches = 0;
             while (true) {
-                $n = $this->pullBatch($channel, $io);
+                $n = $this->pullBatch($channel, $io, live: false);
                 if ($n <= 0) {
                     break; // exhausted (0) or error (-1, already logged)
                 }
@@ -115,7 +115,7 @@ final class ChannelPullCommand extends Command
      *
      * @return int number of new events; 0 when exhausted/push-only, -1 on error
      */
-    private function pullBatch(Channel $channel, SymfonyStyle $io): int
+    private function pullBatch(Channel $channel, SymfonyStyle $io, bool $live): int
     {
         try {
             $adapter = $this->registry->getInbound($channel->getAdapterCode());
@@ -152,7 +152,7 @@ final class ChannelPullCommand extends Command
         // Dispatch after flush (same as the webhook path) so the worker finds
         // each row committed.
         foreach ($pulledEvents as $event) {
-            $this->bus->dispatch(new ProcessInboundEventMessage($event->getId()));
+            $this->bus->dispatch(new ProcessInboundEventMessage($event->getId(), live: $live));
         }
 
         return \count($pulledEvents);

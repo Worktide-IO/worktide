@@ -24,7 +24,7 @@ use Doctrine\ORM\EntityManagerInterface;
  * {@see \App\Service\PublicFormSubmissionService} (status fallback + minted
  * identifier).
  */
-final class ConversationTaskConverter
+class ConversationTaskConverter
 {
     public function __construct(
         private readonly EntityManagerInterface $em,
