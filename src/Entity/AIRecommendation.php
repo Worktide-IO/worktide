@@ -71,7 +71,7 @@ class AIRecommendation
     #[ORM\Column(type: 'uuid')]
     private Uuid $targetId;
 
-    #[ORM\Column(length: 16, enumType: RecommendationKind::class)]
+    #[ORM\Column(length: 32, enumType: RecommendationKind::class)]
     private RecommendationKind $kind = RecommendationKind::Triage;
 
     #[ORM\Column(length: 16, enumType: RecommendationStatus::class)]
