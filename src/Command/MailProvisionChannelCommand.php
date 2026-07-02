@@ -7,6 +7,7 @@ namespace App\Command;
 use App\Channels\Adapter\Email\EmailImapAdapter;
 use App\Entity\Channel;
 use App\Entity\Enum\ChannelCapability;
+use App\Entity\User;
 use App\Entity\Workspace;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -57,6 +58,7 @@ final class MailProvisionChannelCommand extends Command
             ->addOption('password-file', null, InputOption::VALUE_REQUIRED, 'Path to a file containing the IMAP password')
             ->addOption('password', null, InputOption::VALUE_REQUIRED, 'IMAP password inline (prefer --password-file)')
             ->addOption('backfill-months', null, InputOption::VALUE_REQUIRED, 'Backfill window in months (larger = more history + storage)', '6')
+            ->addOption('owner', null, InputOption::VALUE_REQUIRED, 'Personal mailbox owner (user UUID or email). Omit = shared team mailbox.')
             // Optional SMTP for outbound replies (defaults reuse the IMAP login).
             ->addOption('smtp-host', null, InputOption::VALUE_REQUIRED, 'SMTP host (omit = no outbound)')
             ->addOption('smtp-port', null, InputOption::VALUE_REQUIRED, 'SMTP port', '465')
@@ -85,6 +87,15 @@ final class MailProvisionChannelCommand extends Command
         $password = $this->readSecret($input, $io);
         if ($password === null) {
             return Command::INVALID;
+        }
+
+        $owner = null;
+        $ownerOpt = $input->getOption('owner');
+        if (\is_string($ownerOpt) && $ownerOpt !== '') {
+            $owner = $this->resolveUser($ownerOpt, $io);
+            if ($owner === null) {
+                return Command::INVALID;
+            }
         }
 
         $months = max(1, (int) $input->getOption('backfill-months'));
@@ -133,12 +144,19 @@ final class MailProvisionChannelCommand extends Command
             ->setInboundConfig($inbound)
             ->setOutboundConfig($outbound)
             ->setAuthConfig($auth) // encrypted on flush by the cipher listener
+            ->setIsShared($owner === null)
+            ->setOwnerUser($owner)
             ->setIsEnabled(true);
 
         $this->em->persist($channel);
         $this->em->flush();
 
-        $io->success(sprintf('Mail channel "%s" provisioned (backfill since %s).', $name, $backfillSince));
+        $io->success(sprintf(
+            'Mail channel "%s" provisioned — %s, backfill since %s.',
+            $name,
+            $owner !== null ? 'personal (owner ' . ($owner->getEmail() ?? $owner->getId()?->toRfc4122()) . ')' : 'shared',
+            $backfillSince,
+        ));
         $id = $channel->getId()?->toRfc4122();
         $io->writeln('Channel UUID: <info>' . $id . '</info>');
         $io->writeln('Backfill:   <info>bin/console worktide:channel:pull --backfill --throttle-ms=1000 --channel=' . $id . '</info>');
@@ -164,6 +182,25 @@ final class MailProvisionChannelCommand extends Command
         }
 
         return $ws;
+    }
+
+    private function resolveUser(string $ref, SymfonyStyle $io): ?User
+    {
+        try {
+            $user = $this->em->find(User::class, Uuid::fromString($ref));
+            if ($user !== null) {
+                return $user;
+            }
+        } catch (\InvalidArgumentException) {
+            // Not a UUID — fall through to email lookup.
+        }
+
+        $user = $this->em->getRepository(User::class)->findOneBy(['email' => $ref]);
+        if ($user === null) {
+            $io->error('--owner user not found (by UUID or email): ' . $ref);
+        }
+
+        return $user;
     }
 
     private function readSecret(InputInterface $input, SymfonyStyle $io): ?string
