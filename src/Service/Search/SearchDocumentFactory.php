@@ -62,6 +62,7 @@ final class SearchDocumentFactory
 
         [$type, $resource] = $cfg;
         [$title, $body] = $this->extract($entity);
+        [$parentType, $parentId] = $this->parent($entity);
 
         return new SearchDocument(
             type: $type,
@@ -71,6 +72,8 @@ final class SearchDocumentFactory
             body: $this->clip($body, self::SNIPPET_MAX),
             iri: '/v1/' . $resource . '/' . $id->toRfc4122(),
             updatedAt: $entity->getUpdatedAt(),
+            parentType: $parentType,
+            parentId: $parentId,
         );
     }
 
@@ -120,6 +123,24 @@ final class SearchDocumentFactory
             Comment::class => [$this->clip($e->getContent(), 80), $e->getContent()],
             default => ['', ''],
         };
+    }
+
+    /**
+     * Navigable container for message-level hits (a mail body match opens the
+     * thread). Other types have no parent.
+     *
+     * @return array{?string, ?string} [parentType, parentId]
+     */
+    private function parent(object $entity): array
+    {
+        if ($entity instanceof InboundEvent || $entity instanceof OutboundMessage) {
+            $conversationId = $entity->getConversation()?->getId();
+            if ($conversationId instanceof Uuid) {
+                return ['conversation', $conversationId->toRfc4122()];
+            }
+        }
+
+        return [null, null];
     }
 
     /**

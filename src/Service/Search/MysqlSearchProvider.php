@@ -84,6 +84,8 @@ final class MysqlSearchProvider implements SearchProviderInterface
                     title: $doc->title,
                     snippet: mb_substr($doc->body, 0, 200),
                     updatedAt: $doc->updatedAt->getTimestamp(),
+                    parentType: $doc->parentType,
+                    parentId: $doc->parentId,
                 );
             }
         }

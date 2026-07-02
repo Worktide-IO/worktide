@@ -63,6 +63,8 @@ final class MeilisearchProvider implements SearchProviderInterface
                 title: (string) ($formatted['title'] ?? $hit['title'] ?? ''),
                 snippet: (string) ($formatted['body'] ?? mb_substr((string) ($hit['body'] ?? ''), 0, 200)),
                 updatedAt: isset($hit['updatedAt']) ? (int) $hit['updatedAt'] : null,
+                parentType: isset($hit['parentType']) ? (string) $hit['parentType'] : null,
+                parentId: isset($hit['parentId']) ? (string) $hit['parentId'] : null,
             );
         }
 

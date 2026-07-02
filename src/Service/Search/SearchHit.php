@@ -17,6 +17,8 @@ final class SearchHit
         public readonly string $title,
         public readonly string $snippet,
         public readonly ?int $updatedAt,
+        public readonly ?string $parentType = null,
+        public readonly ?string $parentId = null,
     ) {}
 
     /**
@@ -31,6 +33,8 @@ final class SearchHit
             'title' => $this->title,
             'snippet' => $this->snippet,
             'updatedAt' => $this->updatedAt,
+            'parentType' => $this->parentType,
+            'parentId' => $this->parentId,
         ];
     }
 }

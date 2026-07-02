@@ -21,6 +21,8 @@ final class SearchDocument
         public readonly string $body,
         public readonly string $iri,
         public readonly \DateTimeImmutable $updatedAt,
+        public readonly ?string $parentType = null,
+        public readonly ?string $parentId = null,
     ) {}
 
     public function meiliId(): string
@@ -42,6 +44,8 @@ final class SearchDocument
             'body' => $this->body,
             'iri' => $this->iri,
             'updatedAt' => $this->updatedAt->getTimestamp(),
+            'parentType' => $this->parentType,
+            'parentId' => $this->parentId,
         ];
     }
 }
