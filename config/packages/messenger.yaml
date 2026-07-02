@@ -21,6 +21,17 @@ framework:
                     max_retries: 5
                     multiplier: 3
                     max_delay: 60000
+            # Search index sync — keeps Meilisearch in step with entity changes.
+            # Its own queue so a slow/unreachable search engine never delays the
+            # fast async queue. Idle entirely when SEARCH_PROVIDER=mysql.
+            search:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    queue_name: search
+                retry_strategy:
+                    max_retries: 5
+                    multiplier: 3
+                    max_delay: 60000
             failed: 'doctrine://default?queue_name=failed'
             # sync: 'sync://'
 
@@ -49,6 +60,7 @@ framework:
             # starves the fast async queue.
             App\Message\TriageTicketMessage: ai_agents
             App\Message\SuggestConversationTicketMessage: ai_agents
+            App\Message\SyncSearchIndexMessage: search
 
             # Mercure live-update publishing — off the request thread so a slow
             # or unreachable hub can't hang/500 entity writes (the API Platform

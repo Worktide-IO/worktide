@@ -1,0 +1,30 @@
+# Local Meilisearch full-text search engine for SEARCH_PROVIDER=meilisearch.
+# Reachable from the web container at http://meilisearch:7700. Dev key only —
+# real deployments set MEILI_MASTER_KEY + MEILISEARCH_API_KEY out of band.
+services:
+  meilisearch:
+    image: getmeili/meilisearch:v1.10
+    container_name: ddev-${DDEV_SITENAME}-meilisearch
+    restart: "no"
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: ${DDEV_APPROOT}
+    expose:
+      - "7700"
+    environment:
+      - MEILI_MASTER_KEY=masterKey
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_ENV=development
+      - VIRTUAL_HOST=${DDEV_HOSTNAME}
+      - HTTP_EXPOSE=7700:7700
+      - HTTPS_EXPOSE=7701:7700
+    volumes:
+      - meili-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  meili-data:

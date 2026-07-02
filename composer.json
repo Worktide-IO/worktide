@@ -21,6 +21,7 @@
         "league/flysystem-aws-s3-v3": "^3.0",
         "league/flysystem-local": "^3.31",
         "lexik/jwt-authentication-bundle": "^3.2",
+        "meilisearch/meilisearch-php": "^1.16",
         "nelmio/cors-bundle": "^2.6",
         "nyholm/psr7": "^1.8",
         "phpdocumentor/reflection-docblock": "^6.0",
