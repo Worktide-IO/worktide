@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Search;
 
+use App\Entity\Conversation;
 use App\Entity\Customer;
+use App\Entity\InboundEvent;
 use App\Entity\Task;
 use App\Entity\Workspace;
 use App\Service\Search\SearchDocumentFactory;
@@ -61,6 +63,30 @@ final class SearchDocumentFactoryTest extends TestCase
         self::assertSame('customer', $doc->type);
         self::assertSame('Stadtwerke Kulmbach', $doc->title);
         self::assertStringStartsWith('/v1/customers/', $doc->iri);
+    }
+
+    public function testInboundEventDocumentCarriesConversationParent(): void
+    {
+        $ws = $this->workspace();
+        $this->assignId($ws, Uuid::v7());
+        $conversation = new Conversation();
+        $convId = Uuid::v7();
+        $this->assignId($conversation, $convId);
+
+        $event = (new InboundEvent())
+            ->setSubject('Re: Angebot')
+            ->setBody('Details stehen im Text')
+            ->setWorkspace($ws)
+            ->setConversation($conversation);
+        $event->onPrePersistTimestamps();
+        $this->assignId($event, Uuid::v7());
+
+        $doc = $this->factory->build($event);
+
+        self::assertNotNull($doc);
+        self::assertSame('inbound_event', $doc->type);
+        self::assertSame('conversation', $doc->parentType);
+        self::assertSame($convId->toRfc4122(), $doc->parentId);
     }
 
     public function testNonSearchableEntityReturnsNull(): void
