@@ -48,6 +48,7 @@ framework:
             # AI ticket triage — slow LLM call on its own transport so it never
             # starves the fast async queue.
             App\Message\TriageTicketMessage: ai_agents
+            App\Message\SuggestConversationTicketMessage: ai_agents
 
             # Mercure live-update publishing — off the request thread so a slow
             # or unreachable hub can't hang/500 entity writes (the API Platform

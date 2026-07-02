@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Ai;
 
+use App\Entity\Conversation;
 use App\Entity\Enum\TagScope;
 use App\Entity\Tag;
 use App\Entity\Task;
@@ -15,6 +16,7 @@ use App\Repository\TrackerRepository;
 use App\Service\Ai\TicketTriageAssistant;
 use App\Service\Llm\LlmProviderInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\EntityRepository;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -131,5 +133,55 @@ final class TicketTriageAssistantTest extends TestCase
             ->setTitle('Login liefert 500')
             ->setDescription('Seit heute morgen.')
             ->setWorkspace(new Workspace());
+    }
+
+    public function testSuggestTicketReturnsDecisionTitleAndSummary(): void
+    {
+        $assistant = $this->conversationAssistant([
+            'shouldCreateTicket' => true,
+            'title' => 'Login behebt 500',
+            'summary' => 'Kunde kann sich nicht anmelden.',
+            'reasoning' => 'Konkretes Problem.',
+        ]);
+
+        $out = $assistant->suggestTicketForConversation((new Conversation())->setSubject('Login kaputt'));
+
+        self::assertTrue($out['suggestion']['shouldCreateTicket']);
+        self::assertSame('Login behebt 500', $out['suggestion']['title']);
+        self::assertSame('Kunde kann sich nicht anmelden.', $out['suggestion']['summary']);
+    }
+
+    public function testSuggestTicketFalsyDecisionAndTitleFallsBackToSubject(): void
+    {
+        $assistant = $this->conversationAssistant(['shouldCreateTicket' => false]);
+
+        $out = $assistant->suggestTicketForConversation((new Conversation())->setSubject('Danke!'));
+
+        self::assertFalse($out['suggestion']['shouldCreateTicket']);
+        self::assertSame('Danke!', $out['suggestion']['title']); // empty title → subject
+    }
+
+    /**
+     * @param array<string, mixed> $llmJson
+     */
+    private function conversationAssistant(array $llmJson): TicketTriageAssistant
+    {
+        $llm = $this->createStub(LlmProviderInterface::class);
+        $llm->method('isConfigured')->willReturn(true);
+        $llm->method('completeJson')->willReturn($llmJson);
+        $llm->method('getModel')->willReturn('claude-test');
+
+        $eventRepo = $this->createStub(EntityRepository::class);
+        $eventRepo->method('findBy')->willReturn([]);
+        $em = $this->createStub(EntityManagerInterface::class);
+        $em->method('getRepository')->willReturn($eventRepo);
+
+        return new TicketTriageAssistant(
+            $llm,
+            $this->createStub(TrackerRepository::class),
+            $this->createStub(TagRepository::class),
+            $this->createStub(CommentRepository::class),
+            $em,
+        );
     }
 }

@@ -12,8 +12,10 @@ use App\MessageHandler\ProcessInboundEventHandler;
 use App\Repository\ContactRepository;
 use App\Service\Inbound\ContactResolver;
 use App\Service\Inbound\InboundEventProcessor;
+use App\Service\Inbound\MailRelevanceClassifier;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Psr\Log\NullLogger;
 use Symfony\Component\Messenger\Exception\UnrecoverableMessageHandlingException;
 use Symfony\Component\Uid\Uuid;
@@ -74,7 +76,12 @@ final class ProcessInboundEventHandlerTest extends TestCase
 
         return new ProcessInboundEventHandler(
             $em,
-            new InboundEventProcessor(new NullLogger(), new ContactResolver($contacts)),
+            new InboundEventProcessor(
+                new NullLogger(),
+                new ContactResolver($contacts),
+                new MailRelevanceClassifier(),
+                $this->createStub(MessageBusInterface::class),
+            ),
             new NullLogger(),
         );
     }

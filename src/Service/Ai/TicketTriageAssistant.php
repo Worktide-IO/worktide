@@ -112,6 +112,33 @@ final class TicketTriageAssistant
         return ['suggestion' => $suggestion, 'reasoning' => $this->cleanReasoning($raw['reasoning'] ?? null)];
     }
 
+    /**
+     * Decide whether a conversation warrants a work ticket and, if so, a title +
+     * summary. The relevance heuristic already dropped newsletters/automated
+     * mail; this filters the remaining "thank you / FYI" replies that don't need
+     * a ticket.
+     *
+     * @return array{suggestion: array{shouldCreateTicket: bool, title: string, summary: string}, reasoning: ?string}
+     */
+    public function suggestTicketForConversation(Conversation $conversation): array
+    {
+        $raw = $this->llm->completeJson($this->ticketSuggestionSystemPrompt(), $this->buildConversationContext($conversation));
+
+        $title = trim((string) ($raw['title'] ?? ''));
+        if ($title === '') {
+            $title = $conversation->getSubject();
+        }
+
+        return [
+            'suggestion' => [
+                'shouldCreateTicket' => (bool) ($raw['shouldCreateTicket'] ?? false),
+                'title' => mb_substr($title, 0, 200),
+                'summary' => $this->cleanSummary($raw['summary'] ?? null),
+            ],
+            'reasoning' => $this->cleanReasoning($raw['reasoning'] ?? null),
+        ];
+    }
+
     // -- context builders -----------------------------------------------------
 
     private function buildTaskContext(Task $task): string
@@ -195,6 +222,21 @@ final class TicketTriageAssistant
         - "summary": one or two sentences summarising the conversation in its own language.
         - "status": one of exactly: {$statusList}. Use "spam" only for clear spam.
         - "reasoning": one short sentence explaining the choice.
+        PROMPT;
+    }
+
+    private function ticketSuggestionSystemPrompt(): string
+    {
+        return <<<PROMPT
+        You are a support triage assistant. Decide whether an email conversation warrants
+        creating a work ticket — i.e. a customer request, problem, or task that needs
+        action — versus not (a thank-you, an FYI/confirmation, small talk, out-of-office).
+
+        Respond as a JSON object with these keys:
+        - "shouldCreateTicket": boolean.
+        - "title": a short, actionable ticket title in the conversation's language (max ~80 chars).
+        - "summary": one or two sentences describing what needs to be done.
+        - "reasoning": one short sentence explaining the decision.
         PROMPT;
     }
 

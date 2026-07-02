@@ -6,7 +6,9 @@ namespace App\Service\Inbound;
 
 use App\Entity\Enum\InboundEventState;
 use App\Entity\InboundEvent;
+use App\Message\SuggestConversationTicketMessage;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 /**
  * Turns a Pending {@see InboundEvent} into work and marks it settled.
@@ -40,32 +42,45 @@ final class InboundEventProcessor
     public function __construct(
         private readonly LoggerInterface $logger,
         private readonly ContactResolver $contactResolver,
-        // Seams (inject when implemented):
-        // private readonly InboundImportFilter $importFilter,
-        // private readonly InboundRuleEngine $rules,
+        private readonly MailRelevanceClassifier $relevance,
+        private readonly MessageBusInterface $bus,
     ) {}
 
-    public function process(InboundEvent $event): void
+    public function process(InboundEvent $event, bool $live = true): void
     {
-        // 1. Import-filter — defense-in-depth guard for sources that can't
-        //    pre-filter at the adapter (e.g. a shared mailbox).
-        // if (!$this->importFilter->isRelevant($event)) {
-        //     $event->setState(InboundEventState::Dismissed);
-        //     return;
-        // }
-
-        // 2. Sender resolution — match the from-email onto a known Contact and
-        //    propagate its Customer onto the conversation (auto-resolve).
+        // Sender resolution — match the from-email onto a known Contact and
+        // propagate its Customer onto the conversation (auto-resolve).
         $this->contactResolver->resolveForEvent($event);
 
-        // 3. Apply inbound rules (may create a Task / assign the Conversation) …
-        // 4. Optional AI classification (Phase D) …
-
         $event->setState(InboundEventState::Processed);
+
+        $this->maybeSuggestTicket($event, $live);
 
         $this->logger->info('Inbound event processed.', [
             'inboundEventId' => $event->getId()?->toRfc4122(),
             'channel' => $event->getChannel()->getAdapterCode(),
         ]);
+    }
+
+    /**
+     * Auto-suggest a ticket only for LIVE mail in a SHARED mailbox that the
+     * relevance heuristic deems actionable (no newsletters/automated mail).
+     * Backfill and personal mailboxes never auto-trigger the LLM — those use the
+     * on-demand endpoint. The actual LLM call happens in the ai_agents handler.
+     */
+    private function maybeSuggestTicket(InboundEvent $event, bool $live): void
+    {
+        if (!$live || !$event->getChannel()->isShared()) {
+            return;
+        }
+        $conversation = $event->getConversation();
+        if ($conversation === null || $conversation->getId() === null) {
+            return;
+        }
+        if (!$this->relevance->isActionable($event)) {
+            return;
+        }
+
+        $this->bus->dispatch(new SuggestConversationTicketMessage($conversation->getId()));
     }
 }

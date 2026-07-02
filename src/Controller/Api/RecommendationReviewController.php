@@ -8,6 +8,7 @@ use App\Entity\AIRecommendation;
 use App\Entity\Conversation;
 use App\Entity\Enum\RecommendationStatus;
 use App\Entity\Enum\RecommendationTarget;
+use App\Entity\Project;
 use App\Entity\Task;
 use App\Entity\User;
 use App\Security\Voter\WorktidePermission;
@@ -15,6 +16,7 @@ use App\Service\Ai\RecommendationApplier;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -47,14 +49,38 @@ final class RecommendationReviewController
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
-    public function accept(string $id): JsonResponse
+    public function accept(string $id, Request $request): JsonResponse
     {
         [$recommendation, $user] = $this->loadAndAuthorize($id);
 
-        $this->applier->apply($recommendation, $user);
+        // Optional project override (for TicketFromConversation when no project
+        // could be suggested automatically).
+        $project = $this->resolveProjectOverride($request);
+
+        try {
+            $this->applier->apply($recommendation, $user, $project);
+        } catch (\DomainException $e) {
+            // e.g. a ticket suggestion with no project — the client must supply one.
+            throw new ConflictHttpException($e->getMessage());
+        }
         $this->settle($recommendation, RecommendationStatus::Accepted, $user);
 
         return $this->respond($recommendation);
+    }
+
+    private function resolveProjectOverride(Request $request): ?Project
+    {
+        $data = json_decode($request->getContent() ?: '[]', true);
+        $ref = \is_array($data) ? ($data['project'] ?? null) : null;
+        if (!\is_string($ref) || $ref === '') {
+            return null;
+        }
+        $uuid = str_contains($ref, '/') ? substr((string) strrchr($ref, '/'), 1) : $ref;
+        try {
+            return $this->em->find(Project::class, Uuid::fromString($uuid));
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
     }
 
     #[Route(

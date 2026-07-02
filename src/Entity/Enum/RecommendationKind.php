@@ -12,4 +12,5 @@ namespace App\Entity\Enum;
 enum RecommendationKind: string
 {
     case Triage = 'triage';
+    case TicketFromConversation = 'ticket_from_conversation';
 }
