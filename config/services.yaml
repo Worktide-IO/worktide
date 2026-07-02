@@ -67,6 +67,28 @@ services:
         arguments:
             $filesystem: '@file_storage.filesystem'
 
+    # Search backend chosen at runtime from SEARCH_PROVIDER (mysql|meilisearch).
+    # MySQL is the default and needs no service; Meilisearch is a drop-in.
+    App\Service\Search\MeilisearchClientFactory:
+        arguments:
+            $dsn: '%env(string:MEILISEARCH_DSN)%'
+            $apiKey: '%env(string:MEILISEARCH_API_KEY)%'
+
+    App\Service\Search\MeilisearchProvider:
+        arguments:
+            $indexPrefix: '%env(string:MEILISEARCH_INDEX_PREFIX)%'
+
+    App\Service\Search\SearchProviderFactory:
+        arguments:
+            $provider: '%env(string:SEARCH_PROVIDER)%'
+
+    App\Service\Search\SearchProviderInterface:
+        factory: ['@App\Service\Search\SearchProviderFactory', 'create']
+
+    App\EventSubscriber\SearchIndexingListener:
+        arguments:
+            $searchProvider: '%env(string:SEARCH_PROVIDER)%'
+
     App\Command\AworkImportCommand:
         arguments:
             $projectDir: '%kernel.project_dir%'
