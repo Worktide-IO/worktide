@@ -1,0 +1,49 @@
+# Local S3-compatible object storage (MinIO) for testing FILE_STORAGE_ADAPTER=s3.
+# Reachable from the web container at http://minio:9000. Console routed through
+# the ddev-router at https://<project>.ddev.site:9002. Dev credentials only.
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: ddev-${DDEV_SITENAME}-minio
+    restart: "no"
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: ${DDEV_APPROOT}
+    expose:
+      - "9000"
+      - "9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+      - VIRTUAL_HOST=${DDEV_HOSTNAME}
+      - HTTP_EXPOSE=9002:9001
+      - HTTPS_EXPOSE=9003:9001
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: waits for MinIO, then creates the "worktide" bucket.
+  minio-init:
+    image: minio/mc:latest
+    container_name: ddev-${DDEV_SITENAME}-minio-init
+    restart: "no"
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: ${DDEV_APPROOT}
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
+      mc mb -p local/worktide || true;
+      echo 'minio bucket ready';
+      sleep infinity;
+      "
+
+volumes:
+  minio-data:
