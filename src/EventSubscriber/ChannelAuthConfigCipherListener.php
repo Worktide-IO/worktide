@@ -63,9 +63,17 @@ final class ChannelAuthConfigCipherListener
         if (!is_array($new)) {
             return;
         }
-        $event->setNewValue('authConfig', $this->encryptTree($new));
-        // also reflect on the entity so subsequent reads in the same flush match
-        $entity->setAuthConfig($this->encryptTree($new));
+        $encrypted = $this->encryptTree($new);
+        // The DB row holds the encrypted form…
+        $event->setNewValue('authConfig', $encrypted);
+        // …but keep the in-memory copy DECRYPTED. postLoad decrypts on hydration
+        // yet Doctrine's original snapshot still holds the encrypted value, so
+        // authConfig looks "changed" on every unrelated flush (cursor, lastSync,
+        // …) and this listener runs. Re-encrypting the entity in memory would
+        // then leave adapters reading `{enc: …}` arrays and casting them to
+        // string ("Array to string conversion"). Decrypting keeps app code —
+        // e.g. RedmineAdapter/EmailImapAdapter — seeing plain string secrets.
+        $entity->setAuthConfig($this->decryptTree($encrypted));
     }
 
     public function postLoad(PostLoadEventArgs $event): void
