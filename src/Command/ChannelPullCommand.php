@@ -141,8 +141,10 @@ final class ChannelPullCommand extends Command
             $io->writeln(' (push-only adapter; skipping)');
             return 0;
         } catch (\Throwable $e) {
-            $channel->setLastSyncError(sprintf('%s: %s', $e::class, $e->getMessage()));
-            $io->error(sprintf('Pull failed: %s', $e->getMessage()));
+            // Include origin file:line — for PHP warnings promoted to ErrorException
+            // the message alone ("Array to string conversion") is not actionable.
+            $channel->setLastSyncError(sprintf('%s: %s (%s:%d)', $e::class, $e->getMessage(), $e->getFile(), $e->getLine()));
+            $io->error(sprintf('Pull failed: %s (%s:%d)', $e->getMessage(), $e->getFile(), $e->getLine()));
             $this->em->flush();
             return -1;
         }
