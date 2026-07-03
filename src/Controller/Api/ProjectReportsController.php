@@ -14,6 +14,7 @@ use App\Entity\Workspace;
 use App\Entity\WorkspaceMember;
 use App\Security\Voter\WorktidePermission;
 use App\Service\Reports\CumulativeFlowReconstructor;
+use App\Service\Reports\CycleTimeCalculator;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
@@ -38,9 +39,11 @@ use Symfony\Component\Uid\Uuid;
  *      → Two series (created, resolved) per bucket — drives the
  *        "is the team keeping up?" line chart.
  *
- *   GET /v1/reports/cycle-time?from=ISO&to=ISO[&project=<uuid>][&bucket=week]
- *      → Per-bucket average cycle time in hours (closedOn - createdAt)
- *        plus a count of tasks closed in that bucket.
+ *   GET /v1/reports/cycle-time?from=ISO&to=ISO[&project=<uuid>]
+ *      → Per-task cycle time (first status change → closed_on) for tasks
+ *        closed in the range: scatter `points`, distribution `percentiles`
+ *        (p50/p85/p95 hours), `averageHours` and `count`. See
+ *        {@see CycleTimeCalculator} for the "work started" heuristic.
  *
  * All endpoints respect workspace scoping (the standard
  * WorkspaceScopeExtension can't cover raw DBAL queries, so each
@@ -59,6 +62,7 @@ final class ProjectReportsController
         private readonly EntityManagerInterface $em,
         private readonly Connection $db,
         private readonly CumulativeFlowReconstructor $cumulativeFlow,
+        private readonly CycleTimeCalculator $cycleTimeCalc,
     ) {}
 
     #[Route(
@@ -501,11 +505,6 @@ final class ProjectReportsController
         $to = $this->parseRequiredDate($request, 'to');
         $this->assertRange($from, $to);
 
-        $bucket = $request->query->get('bucket', 'week');
-        if (!\in_array($bucket, ['day', 'week'], true)) {
-            throw new BadRequestHttpException('bucket must be `day` or `week`.');
-        }
-
         $projectBin = null;
         $projectId = $request->query->get('project');
         if ($projectId) {
@@ -517,10 +516,15 @@ final class ProjectReportsController
             $projectBin = $project->getId()?->toBinary();
         }
 
-        $bucketExpr = $bucket === 'day'
-            ? "DATE(t.closed_on)"
-            : "DATE_SUB(DATE(t.closed_on), INTERVAL WEEKDAY(t.closed_on) DAY)";
-
+        // Completed tasks in range. Cycle time = first status change ("work
+        // started") to closed_on; see CycleTimeCalculator for the fallback when
+        // a task has no recorded status change (bulk-imported already-closed).
+        $sql = 'SELECT t.id AS id, t.identifier AS identifier, t.created_at AS createdAt, t.closed_on AS closedOn
+                FROM tasks t
+                WHERE t.workspace_id = :ws
+                  AND t.deleted_at IS NULL
+                  AND t.closed_on IS NOT NULL
+                  AND t.closed_on BETWEEN :from AND :to';
         $params = [
             'ws' => $workspace->getId()?->toBinary(),
             'from' => $from->format('Y-m-d'),
@@ -531,47 +535,49 @@ final class ProjectReportsController
             'from' => ParameterType::STRING,
             'to' => ParameterType::STRING,
         ];
-        $projectClause = '';
         if ($projectBin !== null) {
-            $projectClause = ' AND t.project_id = :project';
+            $sql .= ' AND t.project_id = :project';
             $params['project'] = $projectBin;
             $types['project'] = ParameterType::BINARY;
         }
 
-        // Cycle time = (closed_on - created_at) in hours, averaged per
-        // bucket. TIMESTAMPDIFF gives integer hours which is fine for
-        // the chart (sub-hour precision rarely matters here).
-        $sql = "
-            SELECT $bucketExpr AS bucket,
-                   COUNT(*) AS resolved,
-                   AVG(TIMESTAMPDIFF(HOUR, t.created_at, t.closed_on)) AS avgHours,
-                   MIN(TIMESTAMPDIFF(HOUR, t.created_at, t.closed_on)) AS minHours,
-                   MAX(TIMESTAMPDIFF(HOUR, t.created_at, t.closed_on)) AS maxHours
-            FROM tasks t
-            WHERE t.workspace_id = :ws
-              AND t.deleted_at IS NULL
-              AND t.closed_on IS NOT NULL
-              AND t.closed_on BETWEEN :from AND :to
-              $projectClause
-            GROUP BY bucket
-            ORDER BY bucket
-        ";
+        $tasks = [];
+        foreach ($this->db->fetchAllAssociative($sql, $params, $types) as $r) {
+            $tasks[] = [
+                'id' => Uuid::fromBinary($r['id'])->toRfc4122(),
+                'identifier' => $r['identifier'] !== null ? (string) $r['identifier'] : null,
+                'createdAt' => new \DateTimeImmutable($r['createdAt']),
+                'closedOn' => new \DateTimeImmutable($r['closedOn']),
+            ];
+        }
 
-        $rows = $this->db->fetchAllAssociative($sql, $params, $types);
-        $series = array_map(fn ($r) => [
-            'bucket' => $r['bucket'],
-            'resolved' => (int) $r['resolved'],
-            'avgHours' => round((float) $r['avgHours'], 1),
-            'minHours' => (int) $r['minHours'],
-            'maxHours' => (int) $r['maxHours'],
-        ], $rows);
+        // Earliest status-change per task marks "work started" (same event
+        // source the CFD replay uses; non-status updates are filtered out).
+        $events = [];
+        if ($tasks !== []) {
+            $eventSql = "SELECT aggregate_id AS taskId, occurred_at AS occurredAt
+                         FROM domain_events
+                         WHERE aggregate_type = 'Task'
+                           AND workspace_id = :ws
+                           AND JSON_EXTRACT(payload, '$.status.to') IS NOT NULL";
+            foreach ($this->db->fetchAllAssociative($eventSql, ['ws' => $workspace->getId()?->toBinary()], ['ws' => ParameterType::BINARY]) as $r) {
+                $events[] = [
+                    'taskId' => Uuid::fromBinary($r['taskId'])->toRfc4122(),
+                    'occurredAt' => new \DateTimeImmutable($r['occurredAt']),
+                ];
+            }
+        }
+
+        $result = $this->cycleTimeCalc->compute($tasks, $events);
 
         return new JsonResponse([
             'from' => $from->format('Y-m-d'),
             'to' => $to->format('Y-m-d'),
-            'bucket' => $bucket,
             'project' => $projectId,
-            'series' => $series,
+            'count' => $result['count'],
+            'averageHours' => $result['averageHours'],
+            'percentiles' => $result['percentiles'],
+            'points' => $result['points'],
         ]);
     }
 
