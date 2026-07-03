@@ -13,6 +13,7 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
+use App\ApiPlatform\Filter\UuidExactFilter;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\ExternalReferenceTrait;
 use App\Entity\Trait\SoftDeletableTrait;
@@ -38,6 +39,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
         new Delete(),
     ],
 )]
+#[ApiFilter(UuidExactFilter::class, properties: ['id'])]
 #[ApiFilter(SearchFilter::class, properties: ['email' => 'partial', 'firstName' => 'partial', 'lastName' => 'partial'])]
 #[ApiFilter(OrderFilter::class, properties: ['email', 'lastName', 'firstName', 'createdAt', 'lastLoginAt'])]
 class User implements UserInterface, PasswordAuthenticatedUserInterface

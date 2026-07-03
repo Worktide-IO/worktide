@@ -581,6 +581,40 @@ final class ProjectReportsController
         ]);
     }
 
+    /**
+     * Open-task counts per project in one grouped query — replaces the SPA
+     * fetching every open task just to tally them client-side. Keyed by
+     * project IRI so the caller can look up by `task.project`.
+     */
+    #[Route(
+        path: '/v1/reports/open-task-counts',
+        name: 'api_report_open_task_counts',
+        host: 'api.worktide.ddev.site',
+        methods: ['GET'],
+    )]
+    public function openTaskCounts(Request $request): JsonResponse
+    {
+        $user = $this->requireUser();
+        $workspace = $this->resolveWorkspace($request, $user)
+            ?? throw new BadRequestHttpException('Workspace could not be determined.');
+
+        $sql = 'SELECT project_id, COUNT(*) AS c
+                FROM tasks
+                WHERE workspace_id = :ws
+                  AND deleted_at IS NULL
+                  AND closed_on IS NULL
+                  AND project_id IS NOT NULL
+                GROUP BY project_id';
+        $counts = [];
+        foreach (
+            $this->db->fetchAllAssociative($sql, ['ws' => $workspace->getId()?->toBinary()], ['ws' => ParameterType::BINARY]) as $r
+        ) {
+            $counts['/v1/projects/' . Uuid::fromBinary($r['project_id'])->toRfc4122()] = (int) $r['c'];
+        }
+
+        return new JsonResponse(['counts' => $counts]);
+    }
+
     // --- helpers --------------------------------------------------------
 
     private function requireUser(): User

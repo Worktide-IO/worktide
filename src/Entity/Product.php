@@ -14,6 +14,7 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
+use App\ApiPlatform\Filter\UuidExactFilter;
 use App\Entity\Enum\ProductStatus;
 use App\Entity\Enum\ProductType;
 use App\Entity\Trait\AuditableTrait;
@@ -54,6 +55,7 @@ use Symfony\Component\Validator\Constraints as Assert;
         new Delete(security: "is_granted('EDIT', object.getWorkspace())"),
     ],
 )]
+#[ApiFilter(UuidExactFilter::class, properties: ['id'])]
 #[ApiFilter(SearchFilter::class, properties: [
     'workspace' => 'exact',
     'slug' => 'exact',

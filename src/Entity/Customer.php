@@ -8,6 +8,7 @@ use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
 use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use App\ApiPlatform\Filter\UuidExactFilter;
 use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Delete;
@@ -68,6 +69,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     // collection IRI for a wildcard match or to a single-customer IRI.
     mercure: true,
 )]
+#[ApiFilter(UuidExactFilter::class, properties: ['id'])]
 #[ApiFilter(SearchFilter::class, properties: [
     'workspace' => 'exact',
     'name' => 'partial',
