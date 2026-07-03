@@ -7,7 +7,9 @@ namespace App\Controller\Api;
 use App\Entity\AIRecommendation;
 use App\Entity\Conversation;
 use App\Entity\Enum\RecommendationStatus;
+use App\Entity\Customer;
 use App\Entity\Enum\RecommendationTarget;
+use App\Entity\Product;
 use App\Entity\Project;
 use App\Entity\Task;
 use App\Entity\User;
@@ -138,6 +140,30 @@ final class RecommendationReviewController
                 throw new NotFoundHttpException();
             }
             if (!$this->security->isGranted(WorktidePermission::EDIT, $task)) {
+                throw new AccessDeniedHttpException();
+            }
+
+            return;
+        }
+
+        if ($recommendation->getTarget() === RecommendationTarget::Product) {
+            $product = $this->em->find(Product::class, $recommendation->getTargetId());
+            if (!$product instanceof Product) {
+                throw new NotFoundHttpException();
+            }
+            if (!$this->security->isGranted(WorktidePermission::EDIT, $product->getWorkspace())) {
+                throw new AccessDeniedHttpException();
+            }
+
+            return;
+        }
+
+        if ($recommendation->getTarget() === RecommendationTarget::Customer) {
+            $customer = $this->em->find(Customer::class, $recommendation->getTargetId());
+            if (!$customer instanceof Customer) {
+                throw new NotFoundHttpException();
+            }
+            if (!$this->security->isGranted(WorktidePermission::EDIT, $customer->getWorkspace())) {
                 throw new AccessDeniedHttpException();
             }
 

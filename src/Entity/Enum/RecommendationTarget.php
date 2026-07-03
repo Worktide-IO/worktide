@@ -12,4 +12,6 @@ enum RecommendationTarget: string
 {
     case Task = 'task';
     case Conversation = 'conversation';
+    case Product = 'product';
+    case Customer = 'customer';
 }
