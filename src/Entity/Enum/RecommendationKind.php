@@ -13,4 +13,6 @@ enum RecommendationKind: string
 {
     case Triage = 'triage';
     case TicketFromConversation = 'ticket_from_conversation';
+    case MarketingSocialDraft = 'marketing_social_draft';
+    case CustomerUpgradeOutreach = 'customer_upgrade_outreach';
 }
