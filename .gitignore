@@ -41,3 +41,6 @@
 /logo.svg
 
 Bildschirmfoto_*.png
+
+# Local DDEV throwaway SQLite DB (never commit)
+.ddev/db.sqlite3
