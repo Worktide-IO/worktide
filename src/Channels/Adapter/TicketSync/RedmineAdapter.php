@@ -88,8 +88,12 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
 
     protected function authHeaders(Channel $channel): array
     {
-        $key = (string) ($channel->getAuthConfig()['apiKey'] ?? '');
-        if ($key === '') {
+        // apiKey must be a decrypted string. When the cipher listener can't
+        // decrypt it (rotated/corrupt key) it stays as the `{enc: …}` array —
+        // guard against it so we fail cleanly (no auth header → 401 surfaced by
+        // selfTest) instead of raising an "Array to string conversion" warning.
+        $key = $channel->getAuthConfig()['apiKey'] ?? '';
+        if (!\is_string($key) || $key === '') {
             return [];
         }
         return ['X-Redmine-API-Key' => $key];
@@ -108,6 +112,17 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
         $projectId = $cfg['projectId'] ?? null;
         if ($projectId !== null && $projectId !== '') {
             $params['project_id'] = (string) $projectId;
+        }
+        // Optional server-side filters (config-driven, per channel):
+        //  - trackerId: only issues of that tracker (numeric Redmine tracker id).
+        //  - assignedToId: "me" (the API key's user) or a numeric user id.
+        $trackerId = $cfg['trackerId'] ?? null;
+        if (\is_scalar($trackerId) && (string) $trackerId !== '') {
+            $params['tracker_id'] = (string) $trackerId;
+        }
+        $assignedToId = $cfg['assignedToId'] ?? null;
+        if (\is_scalar($assignedToId) && (string) $assignedToId !== '') {
+            $params['assigned_to_id'] = (string) $assignedToId;
         }
         if ($since !== null) {
             // Redmine accepts `updated_on=>=YYYY-MM-DD` for incremental
@@ -192,6 +207,14 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
             fields: [
                 'title' => $title,
                 'description' => $description !== '' ? $description : null,
+                // Schedule/effort so the ticket carries Redmine's dates, not just
+                // its text. Date strings (Y-m-d) are parsed on import; hours →
+                // minutes for Task::estimatedMinutes.
+                'startOn' => $payload['start_date'] ?? null,
+                'dueOn' => $payload['due_date'] ?? null,
+                'estimatedMinutes' => isset($payload['estimated_hours']) && is_numeric($payload['estimated_hours'])
+                    ? (int) round(((float) $payload['estimated_hours']) * 60)
+                    : null,
             ],
             externalUpdatedAt: $this->parseTimestamp($payload['updated_on'] ?? null),
             externalUrl: $externalId !== '' ? $this->entityWebUrl($channel, $externalId) : null,
