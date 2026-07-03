@@ -31,20 +31,35 @@ final class UuidExactFilter extends AbstractFilter
         array $context = [],
     ): void {
         if (
-            !\is_string($value)
-            || !$this->isPropertyEnabled($property, $resourceClass)
+            !$this->isPropertyEnabled($property, $resourceClass)
             || !$this->isPropertyMapped($property, $resourceClass)
-            || !Uuid::isValid($value)
         ) {
             return;
         }
 
-        $alias = $queryBuilder->getRootAliases()[0];
-        $parameter = $queryNameGenerator->generateParameterName($property);
+        // Accept a single uuid (?id=<uuid>) or a list (?id[]=a&id[]=b) so callers
+        // can resolve many rows in one request. Invalid entries are dropped.
+        $values = \is_array($value) ? $value : [$value];
+        $uuids = [];
+        foreach ($values as $v) {
+            if (\is_string($v) && Uuid::isValid($v)) {
+                $uuids[] = Uuid::fromString($v);
+            }
+        }
+        if ($uuids === []) {
+            return;
+        }
 
-        $queryBuilder
-            ->andWhere(\sprintf('%s.%s = :%s', $alias, $property, $parameter))
-            ->setParameter($parameter, Uuid::fromString($value), UuidType::NAME);
+        $alias = $queryBuilder->getRootAliases()[0];
+        // One bound parameter per uuid OR-ed together (equivalent to IN) — keeps
+        // Doctrine's uuid→binary conversion working for every value.
+        $terms = [];
+        foreach ($uuids as $i => $uuid) {
+            $parameter = $queryNameGenerator->generateParameterName($property) . '_' . $i;
+            $terms[] = \sprintf('%s.%s = :%s', $alias, $property, $parameter);
+            $queryBuilder->setParameter($parameter, $uuid, UuidType::NAME);
+        }
+        $queryBuilder->andWhere('(' . implode(' OR ', $terms) . ')');
     }
 
     /**
