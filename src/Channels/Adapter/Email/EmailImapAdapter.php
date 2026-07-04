@@ -120,7 +120,10 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
             // we can refuse oversized messages BEFORE they hit memory.
             $query = $folder->messages()->setFetchBody(false);
             if ($cursor > 0) {
-                $query->setFetchUid((string) ($cursor + 1) . ':*');
+                // Server-side UID-range fetch (everything newer than the cursor).
+                // php-imap 6.x dropped setFetchUid(); whereUid() emits the same
+                // `UID N:*` search criterion and stays chainable with limit().
+                $query->whereUid((string) ($cursor + 1) . ':*');
             } else {
                 // First run. With a backfill window we only pull messages since
                 // that date (so a 10GB mailbox's full history isn't ingested);

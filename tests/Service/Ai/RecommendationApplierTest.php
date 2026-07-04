@@ -16,7 +16,14 @@ use App\Entity\Tag;
 use App\Entity\Task;
 use App\Entity\Tracker;
 use App\Entity\User;
+use App\Entity\Customer;
+use App\Entity\Enum\OutboundMessageStatus;
+use App\Entity\Enum\SocialPostStatus;
+use App\Entity\OutboundMessage;
+use App\Entity\Product;
+use App\Entity\SocialPost;
 use App\Entity\Workspace;
+use App\Repository\ChannelRepository;
 use App\Repository\TagRepository;
 use App\Repository\TrackerRepository;
 use App\Service\Ai\RecommendationApplier;
@@ -51,7 +58,7 @@ final class RecommendationApplierTest extends TestCase
         $tags = $this->createStub(TagRepository::class);
         $tags->method('findBy')->willReturn([$tag]);
 
-        $applier = new RecommendationApplier($em, $trackers, $tags, $this->createStub(ConversationTaskConverter::class));
+        $applier = new RecommendationApplier($em, $trackers, $tags, $this->createStub(ConversationTaskConverter::class), $this->createStub(ChannelRepository::class));
 
         $applier->apply($this->taskRecommendation([
             'summary' => 'Login wirft 500.',
@@ -83,7 +90,7 @@ final class RecommendationApplierTest extends TestCase
         $tags = $this->createStub(TagRepository::class);
         $tags->method('findBy')->willReturn([]);
 
-        $applier = new RecommendationApplier($em, $trackers, $tags, $this->createStub(ConversationTaskConverter::class));
+        $applier = new RecommendationApplier($em, $trackers, $tags, $this->createStub(ConversationTaskConverter::class), $this->createStub(ChannelRepository::class));
 
         $applier->apply($this->taskRecommendation([
             'summary' => '',
@@ -121,6 +128,7 @@ final class RecommendationApplierTest extends TestCase
             $this->createStub(TrackerRepository::class),
             $this->createStub(TagRepository::class),
             $converter,
+            $this->createStub(ChannelRepository::class),
         );
 
         $applier->apply($this->ticketRecommendation([
@@ -147,6 +155,7 @@ final class RecommendationApplierTest extends TestCase
             $this->createStub(TrackerRepository::class),
             $this->createStub(TagRepository::class),
             $converter,
+            $this->createStub(ChannelRepository::class),
         );
 
         $this->expectException(\DomainException::class);
@@ -155,6 +164,88 @@ final class RecommendationApplierTest extends TestCase
             'summary' => '…',
             'suggestedProject' => null,
         ]), new User());
+    }
+
+    public function testMarketingSocialDraftCreatesDraftPostWithMatchingTargets(): void
+    {
+        $product = (new Product())->setName('Widget')->setSlug('widget')->setWorkspace(new Workspace());
+
+        $em = $this->createStub(EntityManagerInterface::class);
+        $em->method('find')->willReturn($product);
+        $persisted = [];
+        $em->method('persist')->willReturnCallback(function (object $o) use (&$persisted): void {
+            $persisted[] = $o;
+        });
+
+        $channel = (new \App\Entity\Channel())->setName('LinkedIn')->setAdapterCode('social_test');
+        $channels = $this->createStub(ChannelRepository::class);
+        $channels->method('findEnabledSocial')->willReturn([$channel]);
+
+        $applier = new RecommendationApplier(
+            $em,
+            $this->createStub(TrackerRepository::class),
+            $this->createStub(TagRepository::class),
+            $this->createStub(ConversationTaskConverter::class),
+            $channels,
+        );
+
+        $applier->apply($this->productRecommendation([
+            'summary' => 'Meet Widget.',
+            'variants' => [
+                ['adapterCode' => 'social_test', 'body' => 'Hello from Widget on LinkedIn'],
+                ['adapterCode' => 'social_absent', 'body' => 'no connected channel'],
+            ],
+        ]), new User());
+
+        $posts = array_values(array_filter($persisted, static fn (object $o): bool => $o instanceof SocialPost));
+        self::assertCount(1, $posts);
+        $post = $posts[0];
+        self::assertSame(SocialPostStatus::Draft, $post->getStatus());
+        self::assertSame('Meet Widget.', $post->getBody());
+        self::assertCount(1, $post->getTargets());
+        $target = $post->getTargets()->first();
+        self::assertNotFalse($target);
+        self::assertSame($channel, $target->getChannel());
+        self::assertSame('Hello from Widget on LinkedIn', $target->getBodyOverride());
+    }
+
+    public function testCustomerUpgradeOutreachCreatesQueuedOutboundMessage(): void
+    {
+        $customer = (new Customer())->setName('Acme GmbH')->setEmail('kunde@example.com')->setWorkspace(new Workspace());
+
+        $em = $this->createStub(EntityManagerInterface::class);
+        $em->method('find')->willReturn($customer);
+        $persisted = [];
+        $em->method('persist')->willReturnCallback(function (object $o) use (&$persisted): void {
+            $persisted[] = $o;
+        });
+
+        $channel = (new \App\Entity\Channel())->setName('Mail')->setAdapterCode('email_imap');
+        $channels = $this->createStub(ChannelRepository::class);
+        $channels->method('findEnabledEmailOutbound')->willReturn([$channel]);
+
+        $applier = new RecommendationApplier(
+            $em,
+            $this->createStub(TrackerRepository::class),
+            $this->createStub(TagRepository::class),
+            $this->createStub(ConversationTaskConverter::class),
+            $channels,
+        );
+
+        $reviewer = new User();
+        $applier->apply($this->customerRecommendation([
+            'subject' => 'Zeit für ein Update',
+            'body' => 'Hallo Acme, es gibt eine neue Version …',
+        ]), $reviewer);
+
+        $msgs = array_values(array_filter($persisted, static fn (object $o): bool => $o instanceof OutboundMessage));
+        self::assertCount(1, $msgs);
+        $msg = $msgs[0];
+        self::assertSame('kunde@example.com', $msg->getRecipientRaw());
+        self::assertSame('Zeit für ein Update', $msg->getSubject());
+        self::assertSame('Hallo Acme, es gibt eine neue Version …', $msg->getBody());
+        self::assertSame(OutboundMessageStatus::Queued, $msg->getStatus());
+        self::assertSame($reviewer, $msg->getCreatedByUser());
     }
 
     private function assignId(object $entity, Uuid $id): void
@@ -180,6 +271,28 @@ final class RecommendationApplierTest extends TestCase
             ->setWorkspace(new Workspace())
             ->setTarget(RecommendationTarget::Conversation)
             ->setKind(RecommendationKind::TicketFromConversation)
+            ->setTargetId(Uuid::v7())
+            ->setSuggestion($suggestion);
+    }
+
+    /** @param array<string, mixed> $suggestion */
+    private function productRecommendation(array $suggestion): AIRecommendation
+    {
+        return (new AIRecommendation())
+            ->setWorkspace(new Workspace())
+            ->setTarget(RecommendationTarget::Product)
+            ->setKind(RecommendationKind::MarketingSocialDraft)
+            ->setTargetId(Uuid::v7())
+            ->setSuggestion($suggestion);
+    }
+
+    /** @param array<string, mixed> $suggestion */
+    private function customerRecommendation(array $suggestion): AIRecommendation
+    {
+        return (new AIRecommendation())
+            ->setWorkspace(new Workspace())
+            ->setTarget(RecommendationTarget::Customer)
+            ->setKind(RecommendationKind::CustomerUpgradeOutreach)
             ->setTargetId(Uuid::v7())
             ->setSuggestion($suggestion);
     }

@@ -6,7 +6,9 @@ namespace App\Service\Inbound;
 
 use App\Channels\SyncReentryGuard;
 use App\Entity\DiscoveredExternalRecord;
+use App\Entity\Enum\ChannelCapability;
 use App\Entity\Enum\DiscoveredRecordState;
+use App\Entity\Enum\SyncMode;
 use App\Entity\Enum\TaskCreatedVia;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\EntitySync;
@@ -94,7 +96,7 @@ final class DiscoveredRecordImporter
         $title = (string) ($fields['title'] ?? '');
         $description = $fields['description'] ?? null;
 
-        return (new Task())
+        $task = (new Task())
             ->setWorkspace($project->getWorkspace())
             ->setProject($project)
             ->setTitle($title !== '' ? $title : $record->getTitle())
@@ -103,6 +105,42 @@ final class DiscoveredRecordImporter
             ->setPriority(TaskPriority::Normal)
             ->setCreatedVia(TaskCreatedVia::Api)
             ->setIdentifier($project->getKey() . '-' . dechex(random_int(0x1000, 0xFFFF)));
+
+        self::applyScheduleFields($task, $fields);
+
+        return $task;
+    }
+
+    /**
+     * Apply optional schedule/effort fields carried by the snapshot (e.g.
+     * Redmine start_date / due_date / estimated_hours). Absent or unparsable
+     * values leave the task untouched.
+     *
+     * @param array<string, mixed> $fields
+     */
+    public static function applyScheduleFields(Task $task, array $fields): void
+    {
+        if (($start = self::parseDate($fields['startOn'] ?? null)) !== null) {
+            $task->setStartOn($start);
+        }
+        if (($due = self::parseDate($fields['dueOn'] ?? null)) !== null) {
+            $task->setDueOn($due);
+        }
+        if (isset($fields['estimatedMinutes']) && is_numeric($fields['estimatedMinutes'])) {
+            $task->setEstimatedMinutes((int) $fields['estimatedMinutes']);
+        }
+    }
+
+    private static function parseDate(mixed $value): ?\DateTimeImmutable
+    {
+        if (!\is_string($value) || $value === '') {
+            return null;
+        }
+        try {
+            return new \DateTimeImmutable($value);
+        } catch (\Exception) {
+            return null;
+        }
     }
 
     private function mapping(DiscoveredExternalRecord $record, \Symfony\Component\Uid\Uuid $entityId): EntitySync
@@ -113,7 +151,14 @@ final class DiscoveredRecordImporter
             ->setEntityType($record->getEntityType())
             ->setEntityId($entityId)
             ->setExternalId($record->getExternalId())
-            ->setExternalUrl($record->getExternalUrl());
+            ->setExternalUrl($record->getExternalUrl())
+            // Read-only source (channel without the `outbound` capability) →
+            // inbound-only mapping so local edits are never pushed back.
+            ->setSyncMode(
+                $record->getChannel()->supports(ChannelCapability::Outbound)
+                    ? SyncMode::Bidirectional
+                    : SyncMode::Inbound,
+            );
     }
 
     private function resolveStatus(Project $project): TaskStatus

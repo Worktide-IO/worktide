@@ -13,7 +13,9 @@ use App\Entity\User;
 use App\Entity\Workspace;
 use App\Entity\WorkspaceMember;
 use App\Security\Voter\WorktidePermission;
+use App\Service\Priority\PriorityScoreCalculator;
 use App\Service\Reports\CumulativeFlowReconstructor;
+use App\Service\Reports\CycleTimeCalculator;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
@@ -38,9 +40,11 @@ use Symfony\Component\Uid\Uuid;
  *      → Two series (created, resolved) per bucket — drives the
  *        "is the team keeping up?" line chart.
  *
- *   GET /v1/reports/cycle-time?from=ISO&to=ISO[&project=<uuid>][&bucket=week]
- *      → Per-bucket average cycle time in hours (closedOn - createdAt)
- *        plus a count of tasks closed in that bucket.
+ *   GET /v1/reports/cycle-time?from=ISO&to=ISO[&project=<uuid>]
+ *      → Per-task cycle time (first status change → closed_on) for tasks
+ *        closed in the range: scatter `points`, distribution `percentiles`
+ *        (p50/p85/p95 hours), `averageHours` and `count`. See
+ *        {@see CycleTimeCalculator} for the "work started" heuristic.
  *
  * All endpoints respect workspace scoping (the standard
  * WorkspaceScopeExtension can't cover raw DBAL queries, so each
@@ -59,6 +63,8 @@ final class ProjectReportsController
         private readonly EntityManagerInterface $em,
         private readonly Connection $db,
         private readonly CumulativeFlowReconstructor $cumulativeFlow,
+        private readonly CycleTimeCalculator $cycleTimeCalc,
+        private readonly PriorityScoreCalculator $priorityScoreCalc,
     ) {}
 
     #[Route(
@@ -501,10 +507,132 @@ final class ProjectReportsController
         $to = $this->parseRequiredDate($request, 'to');
         $this->assertRange($from, $to);
 
-        $bucket = $request->query->get('bucket', 'week');
-        if (!\in_array($bucket, ['day', 'week'], true)) {
-            throw new BadRequestHttpException('bucket must be `day` or `week`.');
+        $projectBin = null;
+        $projectId = $request->query->get('project');
+        if ($projectId) {
+            $project = $this->loadEntity(Project::class, $projectId);
+            if ($project->getWorkspace()->getId()?->toRfc4122() !== $workspace->getId()?->toRfc4122()
+                || !$this->security->isGranted(WorktidePermission::VIEW, $project)) {
+                throw new AccessDeniedHttpException();
+            }
+            $projectBin = $project->getId()?->toBinary();
         }
+
+        // Completed tasks in range. Cycle time = first status change ("work
+        // started") to closed_on; see CycleTimeCalculator for the fallback when
+        // a task has no recorded status change (bulk-imported already-closed).
+        $sql = 'SELECT t.id AS id, t.identifier AS identifier, t.created_at AS createdAt, t.closed_on AS closedOn
+                FROM tasks t
+                WHERE t.workspace_id = :ws
+                  AND t.deleted_at IS NULL
+                  AND t.closed_on IS NOT NULL
+                  AND t.closed_on BETWEEN :from AND :to';
+        $params = [
+            'ws' => $workspace->getId()?->toBinary(),
+            'from' => $from->format('Y-m-d'),
+            'to' => $to->format('Y-m-d 23:59:59'),
+        ];
+        $types = [
+            'ws' => ParameterType::BINARY,
+            'from' => ParameterType::STRING,
+            'to' => ParameterType::STRING,
+        ];
+        if ($projectBin !== null) {
+            $sql .= ' AND t.project_id = :project';
+            $params['project'] = $projectBin;
+            $types['project'] = ParameterType::BINARY;
+        }
+
+        $tasks = [];
+        foreach ($this->db->fetchAllAssociative($sql, $params, $types) as $r) {
+            $tasks[] = [
+                'id' => Uuid::fromBinary($r['id'])->toRfc4122(),
+                'identifier' => $r['identifier'] !== null ? (string) $r['identifier'] : null,
+                'createdAt' => new \DateTimeImmutable($r['createdAt']),
+                'closedOn' => new \DateTimeImmutable($r['closedOn']),
+            ];
+        }
+
+        // Earliest status-change per task marks "work started" (same event
+        // source the CFD replay uses; non-status updates are filtered out).
+        $events = [];
+        if ($tasks !== []) {
+            $eventSql = "SELECT aggregate_id AS taskId, occurred_at AS occurredAt
+                         FROM domain_events
+                         WHERE aggregate_type = 'Task'
+                           AND workspace_id = :ws
+                           AND JSON_EXTRACT(payload, '$.status.to') IS NOT NULL";
+            foreach ($this->db->fetchAllAssociative($eventSql, ['ws' => $workspace->getId()?->toBinary()], ['ws' => ParameterType::BINARY]) as $r) {
+                $events[] = [
+                    'taskId' => Uuid::fromBinary($r['taskId'])->toRfc4122(),
+                    'occurredAt' => new \DateTimeImmutable($r['occurredAt']),
+                ];
+            }
+        }
+
+        $result = $this->cycleTimeCalc->compute($tasks, $events);
+
+        return new JsonResponse([
+            'from' => $from->format('Y-m-d'),
+            'to' => $to->format('Y-m-d'),
+            'project' => $projectId,
+            'count' => $result['count'],
+            'averageHours' => $result['averageHours'],
+            'percentiles' => $result['percentiles'],
+            'points' => $result['points'],
+        ]);
+    }
+
+    /**
+     * Open-task counts per project in one grouped query — replaces the SPA
+     * fetching every open task just to tally them client-side. Keyed by
+     * project IRI so the caller can look up by `task.project`.
+     */
+    #[Route(
+        path: '/v1/reports/open-task-counts',
+        name: 'api_report_open_task_counts',
+        host: 'api.worktide.ddev.site',
+        methods: ['GET'],
+    )]
+    public function openTaskCounts(Request $request): JsonResponse
+    {
+        $user = $this->requireUser();
+        $workspace = $this->resolveWorkspace($request, $user)
+            ?? throw new BadRequestHttpException('Workspace could not be determined.');
+
+        $sql = 'SELECT project_id, COUNT(*) AS c
+                FROM tasks
+                WHERE workspace_id = :ws
+                  AND deleted_at IS NULL
+                  AND closed_on IS NULL
+                  AND project_id IS NOT NULL
+                GROUP BY project_id';
+        $counts = [];
+        foreach (
+            $this->db->fetchAllAssociative($sql, ['ws' => $workspace->getId()?->toBinary()], ['ws' => ParameterType::BINARY]) as $r
+        ) {
+            $counts['/v1/projects/' . Uuid::fromBinary($r['project_id'])->toRfc4122()] = (int) $r['c'];
+        }
+
+        return new JsonResponse(['counts' => $counts]);
+    }
+
+    /**
+     * Internal priority score (0–100) per task + explainable breakdown. A
+     * separate signal that complements the human priority — see PriorityScorer.
+     * Weights live in Workspace.settings.priorityScoring (tunable per workspace).
+     */
+    #[Route(
+        path: '/v1/reports/priority-scores',
+        name: 'api_report_priority_scores',
+        host: 'api.worktide.ddev.site',
+        methods: ['GET'],
+    )]
+    public function priorityScores(Request $request): JsonResponse
+    {
+        $user = $this->requireUser();
+        $workspace = $this->resolveWorkspace($request, $user)
+            ?? throw new BadRequestHttpException('Workspace could not be determined.');
 
         $projectBin = null;
         $projectId = $request->query->get('project');
@@ -517,62 +645,16 @@ final class ProjectReportsController
             $projectBin = $project->getId()?->toBinary();
         }
 
-        $bucketExpr = $bucket === 'day'
-            ? "DATE(t.closed_on)"
-            : "DATE_SUB(DATE(t.closed_on), INTERVAL WEEKDAY(t.closed_on) DAY)";
-
-        $params = [
-            'ws' => $workspace->getId()?->toBinary(),
-            'from' => $from->format('Y-m-d'),
-            'to' => $to->format('Y-m-d 23:59:59'),
-        ];
-        $types = [
-            'ws' => ParameterType::BINARY,
-            'from' => ParameterType::STRING,
-            'to' => ParameterType::STRING,
-        ];
-        $projectClause = '';
-        if ($projectBin !== null) {
-            $projectClause = ' AND t.project_id = :project';
-            $params['project'] = $projectBin;
-            $types['project'] = ParameterType::BINARY;
+        $scores = $this->priorityScoreCalc->computeForWorkspace($workspace, $projectBin);
+        if ($scores === []) {
+            return new JsonResponse(['scores' => new \stdClass()]);
+        }
+        $out = [];
+        foreach ($scores as $taskUuid => $data) {
+            $out['/v1/tasks/' . $taskUuid] = $data;
         }
 
-        // Cycle time = (closed_on - created_at) in hours, averaged per
-        // bucket. TIMESTAMPDIFF gives integer hours which is fine for
-        // the chart (sub-hour precision rarely matters here).
-        $sql = "
-            SELECT $bucketExpr AS bucket,
-                   COUNT(*) AS resolved,
-                   AVG(TIMESTAMPDIFF(HOUR, t.created_at, t.closed_on)) AS avgHours,
-                   MIN(TIMESTAMPDIFF(HOUR, t.created_at, t.closed_on)) AS minHours,
-                   MAX(TIMESTAMPDIFF(HOUR, t.created_at, t.closed_on)) AS maxHours
-            FROM tasks t
-            WHERE t.workspace_id = :ws
-              AND t.deleted_at IS NULL
-              AND t.closed_on IS NOT NULL
-              AND t.closed_on BETWEEN :from AND :to
-              $projectClause
-            GROUP BY bucket
-            ORDER BY bucket
-        ";
-
-        $rows = $this->db->fetchAllAssociative($sql, $params, $types);
-        $series = array_map(fn ($r) => [
-            'bucket' => $r['bucket'],
-            'resolved' => (int) $r['resolved'],
-            'avgHours' => round((float) $r['avgHours'], 1),
-            'minHours' => (int) $r['minHours'],
-            'maxHours' => (int) $r['maxHours'],
-        ], $rows);
-
-        return new JsonResponse([
-            'from' => $from->format('Y-m-d'),
-            'to' => $to->format('Y-m-d'),
-            'bucket' => $bucket,
-            'project' => $projectId,
-            'series' => $series,
-        ]);
+        return new JsonResponse(['scores' => $out]);
     }
 
     // --- helpers --------------------------------------------------------

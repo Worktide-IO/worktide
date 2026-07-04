@@ -44,4 +44,52 @@ class ChannelRepository extends ServiceEntityRepository
             fn (Channel $c) => \in_array('inbound', $c->getCapabilities(), true),
         ));
     }
+
+    /**
+     * Every enabled social channel in the workspace (adapterCode `social_*`) —
+     * the set a marketing draft can fan out to. Prefix filter in PHP for the
+     * same portability reason as {@see self::findEnabledInbound()}.
+     *
+     * @return list<Channel>
+     */
+    public function findEnabledSocial(Workspace $workspace): array
+    {
+        /** @var list<Channel> $candidates */
+        $candidates = $this->createQueryBuilder('c')
+            ->where('c.workspace = :ws')
+            ->andWhere('c.isEnabled = 1')
+            ->andWhere('c.deletedAt IS NULL')
+            ->setParameter('ws', $workspace)
+            ->getQuery()
+            ->getResult();
+
+        return array_values(array_filter(
+            $candidates,
+            fn (Channel $c) => str_starts_with($c->getAdapterCode(), 'social_'),
+        ));
+    }
+
+    /**
+     * Enabled outbound-capable email channels in the workspace (adapterCode
+     * `email_*`) — where a drafted outreach mail can be sent from.
+     *
+     * @return list<Channel>
+     */
+    public function findEnabledEmailOutbound(Workspace $workspace): array
+    {
+        /** @var list<Channel> $candidates */
+        $candidates = $this->createQueryBuilder('c')
+            ->where('c.workspace = :ws')
+            ->andWhere('c.isEnabled = 1')
+            ->andWhere('c.deletedAt IS NULL')
+            ->setParameter('ws', $workspace)
+            ->getQuery()
+            ->getResult();
+
+        return array_values(array_filter(
+            $candidates,
+            fn (Channel $c) => str_starts_with($c->getAdapterCode(), 'email_')
+                && \in_array('outbound', $c->getCapabilities(), true),
+        ));
+    }
 }

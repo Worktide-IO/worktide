@@ -145,4 +145,14 @@ final class AdapterRegistry
         sort($all);
         return array_values($all);
     }
+
+    /**
+     * @return list<string>  every social network we can publish to (`social_*`)
+     */
+    public function knownSocialCodes(): array
+    {
+        $codes = array_keys($this->socialByCode);
+        sort($codes);
+        return array_values($codes);
+    }
 }
