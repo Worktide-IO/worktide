@@ -24,4 +24,5 @@ enum EgressModule: string
     case WebhookDelivery = 'webhook_delivery';
     case TicketPush = 'ticket_push';
     case Llm = 'llm';
+    case ExternalSearch = 'external_search'; // research agent: outbound web/company search
 }

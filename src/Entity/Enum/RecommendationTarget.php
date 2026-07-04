@@ -14,4 +14,5 @@ enum RecommendationTarget: string
     case Conversation = 'conversation';
     case Product = 'product';
     case Customer = 'customer';
+    case Workspace = 'workspace';
 }

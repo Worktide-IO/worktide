@@ -28,6 +28,9 @@ services:
             tags: ['worktide.channel.sync']
         App\Channels\SocialPublisherAdapter:
             tags: ['worktide.channel.social']
+        # Research agent: every external-search adapter is indexed for the registry.
+        App\Service\ExternalSearch\ExternalSearchProviderInterface:
+            tags: ['worktide.external_search']
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name
@@ -170,6 +173,19 @@ services:
             $providerName: '%env(default::LLM_PROVIDER)%'
     App\Service\Llm\LlmProviderInterface:
         factory: ['@App\Service\Llm\LlmProviderFactory', 'create']
+
+    # External-search adapters for the research agent. Inert without their API
+    # key (isConfigured() = false); every call is gated by the external_search
+    # egress module. The registry fans a query across all configured adapters.
+    App\Service\ExternalSearch\Provider\TavilySearchProvider:
+        arguments:
+            $apiKey: '%env(default::TAVILY_API_KEY)%'
+    App\Service\ExternalSearch\Provider\BuiltWithSearchProvider:
+        arguments:
+            $apiKey: '%env(default::BUILTWITH_API_KEY)%'
+    App\Service\ExternalSearch\ExternalSearchRegistry:
+        arguments:
+            $providers: !tagged_iterator 'worktide.external_search'
 
     # Signed, short-lived public media URLs (Instagram pulls image_url itself).
     App\Service\Social\SocialMediaUrlSigner:

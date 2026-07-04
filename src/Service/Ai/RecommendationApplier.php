@@ -18,13 +18,17 @@ use App\Entity\Enum\OutboundMessageStatus;
 use App\Entity\Enum\TagScope;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\OutboundMessage;
+use App\Entity\Enum\ResearchMissionStatus;
+use App\Entity\Enum\ResearchObjective;
 use App\Entity\Product;
 use App\Entity\Project;
+use App\Entity\ResearchMission;
 use App\Entity\SocialPost;
 use App\Entity\SocialPostTarget;
 use App\Entity\Tag;
 use App\Entity\Task;
 use App\Entity\User;
+use App\Entity\Workspace;
 use App\Repository\ChannelRepository;
 use App\Repository\TagRepository;
 use App\Repository\TrackerRepository;
@@ -73,6 +77,12 @@ final class RecommendationApplier
 
         if ($recommendation->getTarget() === RecommendationTarget::Customer) {
             $this->applyCustomerUpgradeOutreach($recommendation, $reviewer);
+
+            return;
+        }
+
+        if ($recommendation->getTarget() === RecommendationTarget::Workspace) {
+            $this->applyResearchSuggestion($recommendation);
 
             return;
         }
@@ -183,6 +193,45 @@ final class RecommendationApplier
             ->setCreatedByRecommendationId($recommendation->getId());
 
         $this->em->persist($message);
+    }
+
+    /**
+     * Materialise an accepted proactive research suggestion into a
+     * {@see ResearchMission}. The suggestion carries a ready-to-run prompt +
+     * normalized brief; a mission with a `query` in its brief starts Ready
+     * (dispatch the run endpoint), otherwise Draft (needs clarification first).
+     * The reviewer becomes the mission's author via the auditable subscriber.
+     */
+    private function applyResearchSuggestion(AIRecommendation $recommendation): void
+    {
+        $workspace = $this->em->find(Workspace::class, $recommendation->getTargetId());
+        if (!$workspace instanceof Workspace) {
+            return;
+        }
+        $suggestion = $recommendation->getSuggestion();
+        $prompt = \is_string($suggestion['prompt'] ?? null) ? trim((string) $suggestion['prompt']) : '';
+        if ($prompt === '') {
+            return;
+        }
+        $brief = \is_array($suggestion['brief'] ?? null) ? $suggestion['brief'] : [];
+        $objective = \is_string($suggestion['objective'] ?? null)
+            ? (ResearchObjective::tryFrom($suggestion['objective']) ?? ResearchObjective::General)
+            : ResearchObjective::General;
+        $targetCount = is_numeric($suggestion['targetCount'] ?? null) ? max(0, (int) $suggestion['targetCount']) : null;
+
+        $mission = (new ResearchMission())
+            ->setWorkspace($workspace)
+            ->setPrompt($prompt)
+            ->setObjective($objective)
+            ->setCreatedVia('suggestion')
+            ->setBrief($brief === [] ? null : $brief)
+            ->setTargetCount($targetCount)
+            ->setStatus(
+                isset($brief['query']) && $brief['query'] !== ''
+                    ? ResearchMissionStatus::Ready
+                    : ResearchMissionStatus::Draft,
+            );
+        $this->em->persist($mission);
     }
 
     /** Customer's own email, else the first contact with an email; null if none. */
