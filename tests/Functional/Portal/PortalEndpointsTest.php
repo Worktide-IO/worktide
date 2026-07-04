@@ -143,6 +143,24 @@ final class PortalEndpointsTest extends WebTestCase
         self::assertCount(1, $data['incidents']);
         self::assertTrue($data['incidents'][0]['open']);
         self::assertSame('Störung', $data['incidents'][0]['kindLabel']);
+
+        // Default window is 30 days and the selectable set is advertised.
+        self::assertSame(30, $data['windowDays']);
+        self::assertSame([7, 30, 90], $data['availableWindows']);
+    }
+
+    public function testMonitoringWindowParamIsClamped(): void
+    {
+        $ctx = $this->seedMonitoring();
+        $token = $this->token($ctx['portalUser']);
+
+        // A supported window echoes back verbatim.
+        $this->request('GET', '/v1/portal/systems?days=7', $token);
+        self::assertSame(7, $this->json()['windowDays']);
+
+        // An unsupported value falls back to the default rather than erroring.
+        $this->request('GET', '/v1/portal/systems?days=999', $token);
+        self::assertSame(30, $this->json()['windowDays']);
     }
 
     // --- helpers ----------------------------------------------------
