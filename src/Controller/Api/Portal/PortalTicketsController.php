@@ -251,6 +251,7 @@ final class PortalTicketsController
             'priorityLabel' => self::PRIORITY_LABELS[$priority] ?? $priority,
             'dueOn' => $task->getDueOn()?->format(\DateTimeInterface::ATOM),
             'createdAt' => $task->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+            'updatedAt' => $task->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
             'projectName' => $task->getProject()?->getName(),
         ];
     }
