@@ -7,8 +7,10 @@ namespace App\Entity;
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Doctrine\Orm\Filter\RangeFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
@@ -65,7 +67,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiFilter(DateFilter::class, properties: ['dueOn', 'startOn', 'scheduledEnd', 'startedOn', 'closedOn', 'createdAt', 'updatedAt'])]
 #[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'dueOn', 'startOn', 'scheduledEnd', 'parent', 'closedOn'])]
 #[ApiFilter(\ApiPlatform\Doctrine\Orm\Filter\BooleanFilter::class, properties: ['isPrio', 'isHiddenForConnectUsers'])]
-#[ApiFilter(OrderFilter::class, properties: ['identifier', 'title', 'priority', 'position', 'dueOn', 'createdAt', 'updatedAt'])]
+#[ApiFilter(OrderFilter::class, properties: ['identifier', 'title', 'priority', 'position', 'dueOn', 'createdAt', 'updatedAt', 'priorityScore'])]
+#[ApiFilter(RangeFilter::class, properties: ['priorityScore'])]
 class Task
 {
     use EntityIdTrait;
@@ -186,6 +189,30 @@ class Task
 
     #[ORM\Column(type: 'integer', nullable: true)]
     private ?int $estimatedMinutes = null;
+
+    /**
+     * Materialized internal priority score (WSJF-lite, 0–100) — a computed
+     * signal, not manually editable. Written by worktide:priority:recompute
+     * (see {@see \App\Service\Priority\PriorityScoreCalculator}); read-only over
+     * the API so it can be sorted/filtered server-side and shipped in the row
+     * payload without a separate reports fetch.
+     */
+    #[ORM\Column(type: 'integer', nullable: true)]
+    #[ApiProperty(writable: false)]
+    private ?int $priorityScore = null;
+
+    #[ORM\Column(type: 'boolean', options: ['default' => false])]
+    #[ApiProperty(writable: false)]
+    private bool $priorityScoreBlocked = false;
+
+    /** @var array<int, array{label: string, contribution: int}>|null */
+    #[ORM\Column(type: 'json', nullable: true)]
+    #[ApiProperty(writable: false)]
+    private ?array $priorityScoreParts = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    #[ApiProperty(writable: false)]
+    private ?\DateTimeImmutable $priorityScoreAt = null;
 
     /**
      * Idempotency anchor for inbound channels (CSV-Import, Mail-Inbound,
@@ -508,6 +535,52 @@ class Task
     public function setEstimatedMinutes(?int $minutes): self
     {
         $this->estimatedMinutes = $minutes;
+        return $this;
+    }
+
+    public function getPriorityScore(): ?int
+    {
+        return $this->priorityScore;
+    }
+
+    public function setPriorityScore(?int $score): self
+    {
+        $this->priorityScore = $score;
+        return $this;
+    }
+
+    public function isPriorityScoreBlocked(): bool
+    {
+        return $this->priorityScoreBlocked;
+    }
+
+    public function setPriorityScoreBlocked(bool $blocked): self
+    {
+        $this->priorityScoreBlocked = $blocked;
+        return $this;
+    }
+
+    /** @return array<int, array{label: string, contribution: int}>|null */
+    public function getPriorityScoreParts(): ?array
+    {
+        return $this->priorityScoreParts;
+    }
+
+    /** @param array<int, array{label: string, contribution: int}>|null $parts */
+    public function setPriorityScoreParts(?array $parts): self
+    {
+        $this->priorityScoreParts = $parts;
+        return $this;
+    }
+
+    public function getPriorityScoreAt(): ?\DateTimeImmutable
+    {
+        return $this->priorityScoreAt;
+    }
+
+    public function setPriorityScoreAt(?\DateTimeImmutable $at): self
+    {
+        $this->priorityScoreAt = $at;
         return $this;
     }
 
