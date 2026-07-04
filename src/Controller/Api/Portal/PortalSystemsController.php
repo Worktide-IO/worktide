@@ -12,6 +12,7 @@ use App\Repository\SystemIncidentRepository;
 use App\Repository\SystemUptimeDayRepository;
 use App\Service\Portal\PortalAccessResolver;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -29,7 +30,9 @@ use Symfony\Component\Routing\Attribute\Route;
  */
 final class PortalSystemsController
 {
-    private const WINDOW_DAYS = 30;
+    /** Selectable "Zeitraum" windows (days); anything else falls back to the default. */
+    private const ALLOWED_WINDOWS = [7, 30, 90];
+    private const DEFAULT_WINDOW_DAYS = 30;
 
     private const ENV_LABELS = [
         'production' => 'Produktion',
@@ -56,12 +59,14 @@ final class PortalSystemsController
         host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
-    public function list(): JsonResponse
+    public function list(Request $request): JsonResponse
     {
         $this->portal->assertFeatureEnabled('monitoring');
 
+        $windowDays = $this->resolveWindow($request->query->getInt('days', self::DEFAULT_WINDOW_DAYS));
+
         $systems = $this->systems->findVisiblePortalSystems($this->portal->customer());
-        $since = (new \DateTimeImmutable('today'))->modify('-' . (self::WINDOW_DAYS - 1) . ' days');
+        $since = (new \DateTimeImmutable('today'))->modify('-' . ($windowDays - 1) . ' days');
 
         // Uptime rows grouped per system id.
         $uptimeBySystem = [];
@@ -88,7 +93,15 @@ final class PortalSystemsController
                 $systems,
             ),
             'incidents' => array_map($this->incidentDto(...), $recent),
+            'windowDays' => $windowDays,
+            'availableWindows' => self::ALLOWED_WINDOWS,
         ]);
+    }
+
+    /** Clamp an untrusted `days` param to a supported window. */
+    private function resolveWindow(int $days): int
+    {
+        return \in_array($days, self::ALLOWED_WINDOWS, true) ? $days : self::DEFAULT_WINDOW_DAYS;
     }
 
     /**
