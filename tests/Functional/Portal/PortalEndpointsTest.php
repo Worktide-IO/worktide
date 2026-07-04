@@ -33,6 +33,7 @@ use App\Entity\Workspace;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Uid\Uuid;
 
@@ -123,6 +124,34 @@ final class PortalEndpointsTest extends WebTestCase
         $ctx = $this->seed(); // monitoring is OFF in the seed
         $this->request('GET', '/v1/portal/systems', $this->token($ctx['portalUser']));
         self::assertSame(403, $this->client->getResponse()->getStatusCode());
+    }
+
+    public function testTicketAttachmentUploadListDownloadAndScoping(): void
+    {
+        $ctx = $this->seed();
+        $token = $this->token($ctx['portalUser']);
+
+        // Upload to an own, visible ticket.
+        $this->uploadFile('/v1/portal/tickets/' . $ctx['ownTaskId'] . '/attachments', $token, 'notiz.txt', 'geheimer inhalt');
+        self::assertSame(201, $this->client->getResponse()->getStatusCode());
+        $fileId = $this->json()['id'];
+        self::assertSame('notiz.txt', $this->json()['name']);
+
+        // It shows up in the ticket detail's attachments.
+        $this->request('GET', '/v1/portal/tickets/' . $ctx['ownTaskId'], $token);
+        self::assertSame(['notiz.txt'], array_column($this->json()['attachments'], 'name'));
+
+        // Download serves the file as an attachment (bytes stream out — the
+        // StreamedResponse body isn't capturable via BrowserKit, so assert the
+        // status + Content-Disposition which prove the right file is served).
+        $this->request('GET', '/v1/portal/tickets/' . $ctx['ownTaskId'] . '/attachments/' . $fileId . '/content', $token);
+        $response = $this->client->getResponse();
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString('notiz.txt', (string) $response->headers->get('Content-Disposition'));
+
+        // Uploading to a FOREIGN ticket is rejected (404, not visible).
+        $this->uploadFile('/v1/portal/tickets/' . $ctx['foreignTaskId'] . '/attachments', $token, 'x.txt', 'x');
+        self::assertSame(404, $this->client->getResponse()->getStatusCode());
     }
 
     public function testMonitoringExposesDerivedStatusAndOmitsSecrets(): void
@@ -247,6 +276,22 @@ final class PortalEndpointsTest extends WebTestCase
 
     // --- helpers ----------------------------------------------------
 
+    /** Multipart file upload — distinct from request() which sends JSON. */
+    private function uploadFile(string $uri, string $token, string $filename, string $contents): void
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'att');
+        file_put_contents($tmp, $contents);
+        $upload = new UploadedFile($tmp, $filename, 'text/plain', null, true);
+
+        $this->client->request(
+            'POST',
+            $uri,
+            [],
+            ['file' => $upload],
+            ['HTTP_HOST' => self::HOST, 'HTTP_AUTHORIZATION' => 'Bearer ' . $token],
+        );
+    }
+
     /** @param array<string, mixed>|null $body */
     private function request(string $method, string $uri, ?string $token = null, ?array $body = null): void
     {
@@ -275,7 +320,7 @@ final class PortalEndpointsTest extends WebTestCase
      * + a hidden ticket, a linked portal user + a staff user, and a SECOND
      * customer whose ticket must stay invisible.
      *
-     * @return array{portalUser: User, staff: User, foreignTaskId: string}
+     * @return array{portalUser: User, staff: User, ownTaskId: string, foreignTaskId: string}
      */
     private function seed(): array
     {
@@ -303,7 +348,7 @@ final class PortalEndpointsTest extends WebTestCase
             ->setEmail('portal.contact@example.test')->setLinkedUser($portalUser);
         $this->em->persist($contact);
         $project = $this->project($ws, $customer, 'OWN', $projectStatus);
-        $this->task($ws, $project, $status, 'OWN-1', false);
+        $ownTask = $this->task($ws, $project, $status, 'OWN-1', false);
         $this->task($ws, $project, $status, 'OWN-HIDDEN', true);
 
         // Foreign customer + project + ticket — must never be visible.
@@ -320,6 +365,7 @@ final class PortalEndpointsTest extends WebTestCase
         return [
             'portalUser' => $portalUser,
             'staff' => $staff,
+            'ownTaskId' => $ownTask->getId()?->toRfc4122() ?? '',
             'foreignTaskId' => $foreignTask->getId()?->toRfc4122() ?? '',
         ];
     }
