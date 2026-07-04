@@ -27,14 +27,13 @@ use Symfony\Component\Uid\Uuid;
  * Customer-portal "Angebote & Verträge" screen (wireframe screen 4).
  *
  * Read-only view of the customer's agreements (offers + contracts, by status,
- * with the offer/contract reference and whether a signed document exists) and
- * their recurring service subscriptions (hosting/maintenance/SLA, with price
- * and billing cadence).
+ * with the offer/contract reference, priced line-items + total, and whether a
+ * signed document exists) and their recurring service subscriptions
+ * (hosting/maintenance/SLA, with price and billing cadence).
  *
- * SCOPE: structured line-items, the digital-signing flow, and invoices are NOT
- * modelled as portal data — line-items live inside the agreement PDF, signing
- * is a legal/audit write-flow, and there is no Invoice entity. Those are
- * deferred; this ships what's truthfully backed. Gated by `agreements`.
+ * SCOPE: invoices are still NOT modelled as portal data (no Invoice entity yet)
+ * and are deferred. Line-items now come from {@see \App\Entity\AgreementLineItem}
+ * on the in-force revision. Gated by `agreements`.
  */
 final class PortalAgreementsController
 {
@@ -212,6 +211,27 @@ final class PortalAgreementsController
         $revision = $agreement->getCurrentRevision() ?? $agreement->getPendingRevision();
         $status = $agreement->getStatus()->value;
 
+        $lineItems = [];
+        $totalCents = 0;
+        $currency = 'EUR';
+        $hasRecurring = false;
+        $hasOneOff = false;
+        if ($revision instanceof CustomerAgreementRevision) {
+            foreach ($revision->getLineItems() as $item) {
+                $amount = $item->getAmountCents();
+                $totalCents += $amount;
+                $currency = $item->getCurrency();
+                $item->isRecurring() ? $hasRecurring = true : $hasOneOff = true;
+                $lineItems[] = [
+                    'description' => $item->getDescription(),
+                    'quantity' => $item->getQuantity(),
+                    'unitAmountCents' => $item->getUnitAmountCents(),
+                    'amountCents' => $amount,
+                    'isRecurring' => $item->isRecurring(),
+                ];
+            }
+        }
+
         return [
             'id' => $agreement->getId()?->toRfc4122(),
             'type' => $agreement->getType()->getName(),
@@ -225,6 +245,11 @@ final class PortalAgreementsController
             'hasDocument' => $revision instanceof CustomerAgreementRevision && $revision->getFile() !== null,
             'canSign' => $this->isSignable($agreement),
             'signedBy' => $agreement->getSignedByName(),
+            'lineItems' => $lineItems,
+            'totalCents' => $totalCents,
+            'currency' => $currency,
+            // Every priced line is monthly → the total is a monthly sum (no mix).
+            'totalIsRecurring' => $hasRecurring && !$hasOneOff,
         ];
     }
 
