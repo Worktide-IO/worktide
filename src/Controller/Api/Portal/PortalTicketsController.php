@@ -15,6 +15,7 @@ use App\Repository\CommentRepository;
 use App\Repository\TaskRepository;
 use App\Repository\TaskStatusRepository;
 use App\Service\Portal\PortalAccessResolver;
+use App\Service\Portal\PortalSlaCalculator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -44,6 +45,9 @@ final class PortalTicketsController
         'urgent' => 'Dringend',
     ];
 
+    /** Memoized per-request workspace SLA policy override. */
+    private ?array $slaPolicy = null;
+
     public function __construct(
         private readonly PortalAccessResolver $portal,
         private readonly TaskRepository $tasks,
@@ -51,6 +55,7 @@ final class PortalTicketsController
         private readonly CommentRepository $comments,
         private readonly EntityManagerInterface $em,
         private readonly Security $security,
+        private readonly PortalSlaCalculator $sla,
     ) {}
 
     #[Route(
@@ -253,7 +258,25 @@ final class PortalTicketsController
             'createdAt' => $task->getCreatedAt()?->format(\DateTimeInterface::ATOM),
             'updatedAt' => $task->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
             'projectName' => $task->getProject()?->getName(),
+            'sla' => $this->sla->describe($task, $this->slaPolicy(), new \DateTimeImmutable()),
         ];
+    }
+
+    /**
+     * Per-workspace SLA policy override ({priority: hours}) from
+     * settings.portal.sla, memoized for the request. Empty → defaults apply.
+     *
+     * @return array<string, mixed>
+     */
+    private function slaPolicy(): array
+    {
+        if ($this->slaPolicy === null) {
+            $portal = $this->portal->workspace()->getSettings()['portal'] ?? [];
+            $sla = (\is_array($portal) ? ($portal['sla'] ?? []) : []);
+            $this->slaPolicy = \is_array($sla) ? $sla : [];
+        }
+
+        return $this->slaPolicy;
     }
 
     /**
