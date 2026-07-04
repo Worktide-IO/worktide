@@ -6,6 +6,7 @@ namespace App\Tests\Functional\Portal;
 
 use App\Entity\AgreementLineItem;
 use App\Entity\AgreementType;
+use App\Entity\BrainstormNote;
 use App\Entity\Contact;
 use App\Entity\Customer;
 use App\Entity\CustomerAgreement;
@@ -13,6 +14,7 @@ use App\Entity\CustomerAgreementRevision;
 use App\Entity\CustomerSystem;
 use App\Entity\Enum\AgreementStatus;
 use App\Entity\Enum\CustomerStatus;
+use App\Entity\Enum\IdeaOrigin;
 use App\Entity\Enum\IncidentKind;
 use App\Entity\Enum\SystemEnvironment;
 use App\Entity\Enum\SystemType;
@@ -217,15 +219,43 @@ final class PortalEndpointsTest extends WebTestCase
         self::assertSame(10000, $qtyLine['amountCents']);
     }
 
+    public function testBrainstormBoardListsAndAppends(): void
+    {
+        $ctx = $this->seedBrainstorm();
+        $token = $this->token($ctx['portalUser']);
+
+        // The board starts with the seeded agency note (not mine).
+        $this->request('GET', '/v1/portal/brainstorm', $token);
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        $notes = $this->json()['notes'];
+        self::assertCount(1, $notes);
+        self::assertSame('agency', $notes[0]['origin']);
+        self::assertFalse($notes[0]['isMine']);
+
+        // Posting appends a customer note attributed to me.
+        $this->request('POST', '/v1/portal/brainstorm', $token, ['body' => 'Mein Beitrag']);
+        self::assertSame(201, $this->client->getResponse()->getStatusCode());
+        $created = $this->json();
+        self::assertSame('customer', $created['origin']);
+        self::assertTrue($created['isMine']);
+        self::assertSame('Alan Agr', $created['authorName']);
+
+        // And it now shows up in the list (chronological, appended).
+        $this->request('GET', '/v1/portal/brainstorm', $token);
+        self::assertCount(2, $this->json()['notes']);
+    }
+
     // --- helpers ----------------------------------------------------
 
-    private function request(string $method, string $uri, ?string $token = null): void
+    /** @param array<string, mixed>|null $body */
+    private function request(string $method, string $uri, ?string $token = null, ?array $body = null): void
     {
         $server = ['HTTP_HOST' => self::HOST, 'CONTENT_TYPE' => 'application/json'];
         if ($token !== null) {
             $server['HTTP_AUTHORIZATION'] = 'Bearer ' . $token;
         }
-        $this->client->request($method, $uri, [], [], $server);
+        $content = $body !== null ? json_encode($body, \JSON_THROW_ON_ERROR) : null;
+        $this->client->request($method, $uri, [], [], $server, $content);
     }
 
     /** @return array<string, mixed> */
@@ -438,6 +468,43 @@ final class PortalEndpointsTest extends WebTestCase
             ->addLineItem((new AgreementLineItem())->setDescription('Support 2 Std.')->setQuantity(2)->setUnitAmountCents(5000)->setIsRecurring(true)->setPosition(1));
         $this->em->persist($revision);
         $agreement->setCurrentRevision($revision);
+
+        $this->em->flush();
+        $this->em->clear();
+
+        return ['portalUser' => $portalUser];
+    }
+
+    /**
+     * A portal world with the ideas feature ON and one seeded agency
+     * brainstorming note.
+     *
+     * @return array{portalUser: User}
+     */
+    private function seedBrainstorm(): array
+    {
+        $ws = (new Workspace())
+            ->setName('Brain WS')
+            ->setSlug('brain-ws-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
+            ->setLocale('de')
+            ->setTimezone('Europe/Berlin')
+            ->setSettings(['portal' => ['enabled' => true, 'features' => ['tickets' => true, 'ideas' => true]]]);
+        $this->em->persist($ws);
+
+        $portalUser = $this->user('portal.brain@example.test', ['ROLE_PORTAL']);
+
+        $customer = $this->customer($ws, 'Brain GmbH');
+        $contact = (new Contact())->setCustomer($customer)->setFirstName('Alan')->setLastName('Agr')
+            ->setEmail('portal.brain@example.test')->setLinkedUser($portalUser);
+        $this->em->persist($contact);
+        $projectStatus = (new ProjectStatus())->setWorkspace($ws)->setName('Aktiv')->setColor('#888')->setPosition(0)->setIsCompleted(false)->setIsArchived(false);
+        $this->em->persist($projectStatus);
+        $this->project($ws, $customer, 'BRN', $projectStatus);
+
+        $this->em->persist(
+            (new BrainstormNote())->setCustomer($customer)->setBody('Vorschlag der Agentur')
+                ->setOrigin(IdeaOrigin::Agency)->setAuthorName('Lena (Agentur)'),
+        );
 
         $this->em->flush();
         $this->em->clear();
