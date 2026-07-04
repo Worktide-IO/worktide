@@ -116,11 +116,13 @@ services:
         arguments:
             $publicFormSubmitLimiter: '@limiter.public_form_submit'
 
-    # Password-reset service needs the SPA base (to build the reset link)
-    # and a system from-address. Both come from env.
+    # Password-reset service needs the SPA base (to build the reset link),
+    # the portal base (for the portal set-password link) and a system
+    # from-address. All come from env.
     App\Service\PasswordResetService:
         arguments:
             $spaBaseUrl: '%env(SPA_BASE_URL)%'
+            $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
             $mailFrom: '%env(MAILER_FROM)%'
 
     # Channel adapter registry (Phase C.2). Tags are produced by
