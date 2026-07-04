@@ -22,18 +22,6 @@ use Symfony\Component\Routing\Attribute\Route;
  */
 final class PortalMeController
 {
-    /** Canonical portal feature keys — one per wireframe screen. */
-    private const FEATURE_KEYS = [
-        'tickets',
-        'dashboard',
-        'monitoring',
-        'agreements',
-        'ideas',
-        'social',
-        'forms',
-        'documents',
-    ];
-
     public function __construct(
         private readonly PortalAccessResolver $portal,
     ) {}
@@ -64,26 +52,7 @@ final class PortalMeController
                 'name' => $customer->getName(),
             ],
             'workspaceName' => $workspace->getName(),
-            'features' => $this->features($workspace->getSettings()),
+            'features' => $this->portal->features(),
         ]);
-    }
-
-    /**
-     * @param array<string, mixed>|null $settings
-     * @return array<string, bool>
-     */
-    private function features(?array $settings): array
-    {
-        $stored = $settings['portal']['features'] ?? [];
-        $stored = \is_array($stored) ? $stored : [];
-
-        $features = [];
-        foreach (self::FEATURE_KEYS as $key) {
-            // `tickets` is live in P1 and on by default; everything else is
-            // off unless a workspace admin has explicitly enabled it.
-            $default = $key === 'tickets';
-            $features[$key] = ($stored[$key] ?? $default) === true;
-        }
-        return $features;
     }
 }
