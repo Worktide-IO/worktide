@@ -16,14 +16,17 @@ use App\Repository\CommentRepository;
 use App\Repository\FileRepository;
 use App\Repository\TaskRepository;
 use App\Repository\TaskStatusRepository;
+use App\Service\Llm\LlmException;
 use App\Service\Portal\PortalAccessResolver;
 use App\Service\Portal\PortalSlaCalculator;
+use App\Service\Portal\PortalTicketSuggester;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
@@ -59,6 +62,7 @@ final class PortalTicketsController
         private readonly EntityManagerInterface $em,
         private readonly Security $security,
         private readonly PortalSlaCalculator $sla,
+        private readonly PortalTicketSuggester $suggester,
     ) {}
 
     #[Route(
@@ -157,6 +161,50 @@ final class PortalTicketsController
         $this->em->flush();
 
         return new JsonResponse($this->ticketDto($task), 201);
+    }
+
+    #[Route(
+        path: '/v1/portal/tickets/suggest',
+        name: 'api_portal_tickets_suggest',
+        host: 'api.worktide.ddev.site',
+        methods: ['POST'],
+    )]
+    public function suggest(Request $request): JsonResponse
+    {
+        $this->portal->assertPortalEnabled();
+
+        if (!$this->suggester->isAvailable()) {
+            throw new ServiceUnavailableHttpException(null, 'KI-Vorschlag ist derzeit nicht verfügbar.');
+        }
+
+        $body = $this->body($request);
+        $description = \is_string($body['description'] ?? null) ? trim($body['description']) : '';
+        if ($description === '') {
+            throw new BadRequestHttpException('description required.');
+        }
+
+        $projects = $this->portal->allowedProjects();
+        try {
+            $suggestion = $this->suggester->suggest($description, $projects);
+        } catch (LlmException) {
+            throw new ServiceUnavailableHttpException(null, 'KI-Vorschlag fehlgeschlagen.');
+        }
+
+        $projectName = null;
+        foreach ($projects as $project) {
+            if ($project->getId()?->toRfc4122() === $suggestion['projectId']) {
+                $projectName = $project->getName();
+                break;
+            }
+        }
+
+        return new JsonResponse([
+            'title' => $suggestion['title'],
+            'priority' => $suggestion['priority'],
+            'priorityLabel' => self::PRIORITY_LABELS[$suggestion['priority']] ?? $suggestion['priority'],
+            'projectId' => $suggestion['projectId'],
+            'projectName' => $projectName,
+        ]);
     }
 
     #[Route(
