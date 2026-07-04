@@ -212,7 +212,8 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
                 // minutes for Task::estimatedMinutes.
                 'startOn' => $payload['start_date'] ?? null,
                 'dueOn' => $payload['due_date'] ?? null,
-                'estimatedMinutes' => isset($payload['estimated_hours']) && is_numeric($payload['estimated_hours'])
+                // Redmine sends estimated_hours: 0 for "unset" — treat as no estimate.
+                'estimatedMinutes' => isset($payload['estimated_hours']) && is_numeric($payload['estimated_hours']) && (float) $payload['estimated_hours'] > 0
                     ? (int) round(((float) $payload['estimated_hours']) * 60)
                     : null,
             ],
