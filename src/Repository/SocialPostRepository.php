@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Entity\Enum\SocialPostStatus;
+use App\Entity\Project;
 use App\Entity\SocialPost;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -17,6 +18,30 @@ class SocialPostRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, SocialPost::class);
+    }
+
+    /**
+     * A customer's non-deleted social posts across the given (already
+     * authorized) projects — for the portal Social-Freigabe screen. Newest/
+     * soonest first. Caller passes the contact's allowed projects.
+     *
+     * @param list<Project> $projects
+     * @return list<SocialPost>
+     */
+    public function findForPortalProjects(array $projects): array
+    {
+        if ($projects === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('p')
+            ->andWhere('p.project IN (:projects)')
+            ->andWhere('p.deletedAt IS NULL')
+            ->setParameter('projects', $projects)
+            ->orderBy('p.scheduledAt', 'DESC')
+            ->addOrderBy('p.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
     }
 
     /**
