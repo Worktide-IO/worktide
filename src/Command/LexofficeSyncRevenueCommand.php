@@ -61,7 +61,7 @@ final class LexofficeSyncRevenueCommand extends Command
         $this
             ->addOption('api-key-file', null, InputOption::VALUE_REQUIRED, 'File with the lexoffice API key (fallback if the channel has none)')
             ->addOption('workspace', null, InputOption::VALUE_REQUIRED, 'Workspace UUID (default: the awork CRM workspace)')
-            ->addOption('months', null, InputOption::VALUE_REQUIRED, 'Trailing window in months', '12')
+            ->addOption('months', null, InputOption::VALUE_REQUIRED, 'Trailing window in months (0 = all-time, the default)', '0')
             ->addOption('status', null, InputOption::VALUE_REQUIRED, 'lexoffice voucherStatus filter (comma-separated)', 'paid,open')
             ->addOption('apply', null, InputOption::VALUE_NONE, 'Write (default: dry-run)');
     }
@@ -70,7 +70,7 @@ final class LexofficeSyncRevenueCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $apply = (bool) $input->getOption('apply');
-        $months = max(1, (int) $input->getOption('months'));
+        $months = max(0, (int) $input->getOption('months'));
         $status = trim((string) $input->getOption('status')) ?: 'paid,open';
 
         $workspace = $this->resolveWorkspace($input, $io);
@@ -112,7 +112,8 @@ final class LexofficeSyncRevenueCommand extends Command
         }
         $io->writeln(sprintf('<info>%d mapped customers.</info>', \count($customerByContactId)));
 
-        $cutoff = (new \DateTimeImmutable())->modify(sprintf('-%d months', $months));
+        $cutoff = $months > 0 ? (new \DateTimeImmutable())->modify(sprintf('-%d months', $months)) : null;
+        $window = $months > 0 ? sprintf('last %d months', $months) : 'all-time';
 
         // Sum gross invoice totals per contact within the window.
         try {
@@ -121,7 +122,7 @@ final class LexofficeSyncRevenueCommand extends Command
             $io->error('lexoffice fetch failed: ' . $e->getMessage());
             return Command::FAILURE;
         }
-        $io->writeln(sprintf('<info>Invoices summed for %d contacts (window: last %d months, status: %s).</info>', \count($grossByContact), $months, $status));
+        $io->writeln(sprintf('<info>Invoices summed for %d contacts (window: %s, status: %s).</info>', \count($grossByContact), $window, $status));
 
         $withRevenue = 0;
         $reset = 0;
@@ -189,11 +190,45 @@ final class LexofficeSyncRevenueCommand extends Command
     /**
      * @return array<string, float> gross total per lexoffice contactId
      */
-    private function sumInvoices(string $apiKey, string $status, \DateTimeImmutable $cutoff): array
+    private function sumInvoices(string $apiKey, string $status, ?\DateTimeImmutable $cutoff): array
     {
         $gross = [];
         $page = 0;
         do {
+            $data = $this->fetchPage($apiKey, $status, $page);
+            foreach (($data['content'] ?? []) as $v) {
+                $contactId = (string) ($v['contactId'] ?? '');
+                if ($contactId === '') {
+                    continue;
+                }
+                // Filter per voucher (no reliance on server-side sort — robust
+                // even if lexoffice ignores the sort param). Null cutoff = all-time.
+                if ($cutoff !== null) {
+                    $date = $this->voucherDate($v['voucherDate'] ?? null);
+                    if ($date !== null && $date < $cutoff) {
+                        continue;
+                    }
+                }
+                $amount = (float) ($v['totalAmount'] ?? 0.0);
+                $gross[$contactId] = ($gross[$contactId] ?? 0.0) + $amount;
+            }
+            $last = (bool) ($data['last'] ?? true);
+            ++$page;
+        } while (!$last && $page < 1000);
+
+        return $gross;
+    }
+
+    /**
+     * One voucherlist page, throttled and 429-resilient (lexoffice allows ~2 req/s).
+     *
+     * @return array<string, mixed>
+     */
+    private function fetchPage(string $apiKey, string $status, int $page): array
+    {
+        for ($attempt = 0; ; ++$attempt) {
+            // Space out requests to stay under the rate limit.
+            usleep(600_000);
             $resp = $this->httpClient->request('GET', self::BASE_URL . '/voucherlist', [
                 'headers' => ['Authorization' => 'Bearer ' . $apiKey, 'Accept' => 'application/json'],
                 'query' => [
@@ -205,30 +240,17 @@ final class LexofficeSyncRevenueCommand extends Command
                 ],
                 'timeout' => 30,
             ]);
-            if ($resp->getStatusCode() >= 400) {
-                throw new \RuntimeException('HTTP ' . $resp->getStatusCode() . ' — ' . substr($resp->getContent(false), 0, 200));
+            $code = $resp->getStatusCode();
+            if ($code === 429 && $attempt < 5) {
+                sleep(2 << $attempt); // 2,4,8,16,32s backoff
+                continue;
             }
-            $data = $resp->toArray(false);
-            $stop = false;
-            foreach (($data['content'] ?? []) as $v) {
-                $contactId = (string) ($v['contactId'] ?? '');
-                if ($contactId === '') {
-                    continue;
-                }
-                $date = $this->voucherDate($v['voucherDate'] ?? null);
-                if ($date !== null && $date < $cutoff) {
-                    // Sorted DESC by date → everything after is older; stop paging.
-                    $stop = true;
-                    continue;
-                }
-                $amount = (float) ($v['totalAmount'] ?? 0.0);
-                $gross[$contactId] = ($gross[$contactId] ?? 0.0) + $amount;
+            if ($code >= 400) {
+                throw new \RuntimeException('HTTP ' . $code . ' — ' . substr($resp->getContent(false), 0, 200));
             }
-            $last = (bool) ($data['last'] ?? true);
-            ++$page;
-        } while (!$last && !$stop && $page < 1000);
 
-        return $gross;
+            return $resp->toArray(false);
+        }
     }
 
     private function voucherDate(mixed $raw): ?\DateTimeImmutable
