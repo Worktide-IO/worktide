@@ -13,6 +13,7 @@ use App\Entity\Product;
 use App\Entity\Project;
 use App\Entity\Task;
 use App\Entity\User;
+use App\Entity\Workspace;
 use App\Security\Voter\WorktidePermission;
 use App\Service\Ai\RecommendationApplier;
 use Doctrine\ORM\EntityManagerInterface;
@@ -164,6 +165,18 @@ final class RecommendationReviewController
                 throw new NotFoundHttpException();
             }
             if (!$this->security->isGranted(WorktidePermission::EDIT, $customer->getWorkspace())) {
+                throw new AccessDeniedHttpException();
+            }
+
+            return;
+        }
+
+        if ($recommendation->getTarget() === RecommendationTarget::Workspace) {
+            $workspace = $this->em->find(Workspace::class, $recommendation->getTargetId());
+            if (!$workspace instanceof Workspace) {
+                throw new NotFoundHttpException();
+            }
+            if (!$this->security->isGranted(WorktidePermission::EDIT, $workspace)) {
                 throw new AccessDeniedHttpException();
             }
 
