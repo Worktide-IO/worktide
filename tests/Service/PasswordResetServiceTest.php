@@ -33,6 +33,7 @@ use Symfony\Component\Uid\Uuid;
 final class PasswordResetServiceTest extends TestCase
 {
     private const SPA_BASE = 'https://app.example.test';
+    private const PORTAL_BASE = 'https://portal.example.test';
     private const MAIL_FROM = 'no-reply@example.test';
 
     // --- request() --------------------------------------------------
@@ -218,6 +219,7 @@ final class PasswordResetServiceTest extends TestCase
             new RequestStack(),
             new \App\Egress\EgressGuard('email_outbound'),
             self::SPA_BASE,
+            self::PORTAL_BASE,
             self::MAIL_FROM,
         );
     }

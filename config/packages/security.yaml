@@ -67,6 +67,12 @@ security:
         - { path: ^/v1/forms/,       roles: PUBLIC_ACCESS }   # public form schema + submission; slug IS the credential
         - { path: ^/v1/social/media/, roles: PUBLIC_ACCESS }   # signed short-lived media token IS the credential (Instagram fetch)
         - { path: ^/v1/$,            roles: PUBLIC_ACCESS }
+        # Portal endpoints require ROLE_PORTAL. Portal users have ONLY that role
+        # (User::getRoles() withholds the implicit ROLE_USER from them), so the
+        # ROLE_USER baseline below locks them out of every staff endpoint, and
+        # this rule keeps staff (ROLE_USER, no ROLE_PORTAL) out of the portal.
+        # MUST stay above the ^/v1 catch-all.
+        - { path: ^/v1/portal,       roles: ROLE_PORTAL }
         - { path: ^/v1,              roles: ROLE_USER }
 
 when@test:
