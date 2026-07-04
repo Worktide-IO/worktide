@@ -6,8 +6,10 @@ namespace App\Controller\Api\Portal;
 
 use App\Entity\CustomerAgreement;
 use App\Entity\CustomerAgreementRevision;
+use App\Entity\ProjectOffer;
 use App\Entity\ServiceSubscription;
 use App\Repository\CustomerAgreementRepository;
+use App\Repository\ProjectOfferRepository;
 use App\Repository\ServiceSubscriptionRepository;
 use App\Service\Portal\PortalAccessResolver;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -52,10 +54,17 @@ final class PortalAgreementsController
         'once' => 'einmalig',
     ];
 
+    private const OFFER_STATUS_LABELS = [
+        'open' => 'Offen',
+        'accepted' => 'Angenommen',
+        'declined' => 'Abgelehnt',
+    ];
+
     public function __construct(
         private readonly PortalAccessResolver $portal,
         private readonly CustomerAgreementRepository $agreements,
         private readonly ServiceSubscriptionRepository $subscriptions,
+        private readonly ProjectOfferRepository $offers,
     ) {}
 
     #[Route(
@@ -79,7 +88,31 @@ final class PortalAgreementsController
                 $this->subscriptionDto(...),
                 $this->subscriptions->findForPortalCustomer($customer),
             ),
+            // Offers generated from accepted proposals ("Ideen-Pitch → Angebot").
+            'projectOffers' => array_map(
+                $this->offerDto(...),
+                $this->offers->findForPortalCustomer($customer),
+            ),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function offerDto(ProjectOffer $offer): array
+    {
+        $status = $offer->getStatus()->value;
+
+        return [
+            'id' => $offer->getId()?->toRfc4122(),
+            'reference' => $offer->getReference(),
+            'title' => $offer->getTitle(),
+            'amountCents' => $offer->getAmountCents(),
+            'currency' => $offer->getCurrency(),
+            'status' => $status,
+            'statusLabel' => self::OFFER_STATUS_LABELS[$status] ?? $status,
+            'createdAt' => $offer->getCreatedAt()?->format('Y-m-d'),
+        ];
     }
 
     /**
