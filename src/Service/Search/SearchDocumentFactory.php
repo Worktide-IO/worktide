@@ -10,8 +10,10 @@ use App\Entity\Conversation;
 use App\Entity\Customer;
 use App\Entity\Document;
 use App\Entity\InboundEvent;
+use App\Entity\Lead;
 use App\Entity\OutboundMessage;
 use App\Entity\Project;
+use App\Entity\ResearchMission;
 use App\Entity\Task;
 use Symfony\Component\Uid\Uuid;
 
@@ -39,6 +41,8 @@ final class SearchDocumentFactory
         Project::class => ['project', 'projects'],
         Document::class => ['document', 'documents'],
         Comment::class => ['comment', 'comments'],
+        Lead::class => ['lead', 'leads'],
+        ResearchMission::class => ['research_mission', 'research_missions'],
     ];
 
     public function build(object $entity): ?SearchDocument
@@ -121,6 +125,8 @@ final class SearchDocumentFactory
             Project::class => [(string) $e->getName(), $this->join([$e->getNumber(), $e->getDescription()])],
             Document::class => [(string) $e->getName(), (string) $e->getBody()],
             Comment::class => [$this->clip($e->getContent(), 80), $e->getContent()],
+            Lead::class => [(string) $e->getName(), $this->join([$e->getEmail(), $e->getPhone(), $e->getWebsite(), $e->getRole(), $e->getIndustry(), $e->getRegion(), $e->getNotes()])],
+            ResearchMission::class => [$this->clip($e->getPrompt(), 500), $this->join([$e->getSummary(), $e->getBrief() !== null ? json_encode($e->getBrief(), \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES) : null])],
             default => ['', ''],
         };
     }

@@ -9,6 +9,7 @@ use App\Entity\Enum\LeadActivityType;
 use App\Entity\Enum\LeadSource;
 use App\Entity\Enum\LeadStage;
 use App\Entity\Enum\ResearchMissionStatus;
+use App\Entity\Enum\ResearchObjective;
 use App\Entity\Lead;
 use App\Entity\LeadActivity;
 use App\Entity\ResearchMission;
@@ -16,10 +17,12 @@ use App\Entity\Workspace;
 use App\Message\RunResearchMissionMessage;
 use App\Repository\CustomerRepository;
 use App\Repository\LeadRepository;
+use App\Service\Ai\LeadNameMatcher;
 use App\Service\Ai\ResearchAssistant;
 use App\Service\ExternalSearch\ExternalSearchQuery;
 use App\Service\ExternalSearch\ExternalSearchRegistry;
 use App\Service\ExternalSearch\ExternalSearchResult;
+use App\Service\Search\SearchProviderInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Mercure\HubInterface;
@@ -44,6 +47,8 @@ final class RunResearchMissionHandler
         private readonly ResearchAssistant $assistant,
         private readonly LeadRepository $leads,
         private readonly CustomerRepository $customers,
+        private readonly SearchProviderInterface $indexSearch,
+        private readonly LeadNameMatcher $nameMatcher,
         private readonly HubInterface $hub,
         private readonly LoggerInterface $logger,
     ) {}
@@ -61,14 +66,18 @@ final class RunResearchMissionHandler
         $this->em->flush();
 
         $brief = $mission->getBrief() ?? [];
+        $filters = array_filter([
+            'tech' => $this->hint($brief, 'tech'),
+            'region' => $this->hint($brief, 'region'),
+            'industry' => $this->hint($brief, 'industry'),
+        ], static fn (?string $v): bool => $v !== null && $v !== '');
+        // The internal (own-database) provider gates on the objective.
+        $filters['objective'] = $mission->getObjective()->value;
         $query = new ExternalSearchQuery(
             query: trim((string) ($brief['query'] ?? '')) ?: $mission->getPrompt(),
             limit: (int) ($brief['limit'] ?? 25),
-            filters: array_filter([
-                'tech' => $this->hint($brief, 'tech'),
-                'region' => $this->hint($brief, 'region'),
-                'industry' => $this->hint($brief, 'industry'),
-            ], static fn (?string $v): bool => $v !== null && $v !== ''),
+            filters: $filters,
+            workspaceId: $workspace->getId(),
         );
 
         $results = $this->search->searchAll($query);
@@ -83,9 +92,20 @@ final class RunResearchMissionHandler
         }
 
         $created = 0;
+        $seen = [];
         foreach ($extracted['leads'] as $l) {
             $dedupeKey = $this->dedupeKey($l);
             if ($dedupeKey !== null && $this->exists($workspace, $dedupeKey)) {
+                continue;
+            }
+            $norm = $this->nameMatcher->normalize((string) $l['name']);
+            // Within this batch two hits can be the same company; and fuzzy-match
+            // the name against existing customers/contacts/leads so we never
+            // re-add — or cold-pitch — someone we already know.
+            if ($norm !== '' && isset($seen[$norm])) {
+                continue;
+            }
+            if ($this->nameMatchesExisting($workspace, (string) $l['name'], $mission->getObjective())) {
                 continue;
             }
             $srcUrl = \is_string($l['sourceUrl'] ?? null) ? $l['sourceUrl'] : null;
@@ -118,6 +138,9 @@ final class RunResearchMissionHandler
                     ->setPayload(['provider' => $srcResult?->provider, 'url' => $srcUrl]),
             );
             ++$created;
+            if ($norm !== '') {
+                $seen[$norm] = true;
+            }
         }
 
         $mission->setFoundCount($mission->getFoundCount() + $created);
@@ -179,6 +202,42 @@ final class RunResearchMissionHandler
         // Only email keys can match a Customer directly.
         if (str_contains($dedupeKey, '@') && $this->customers->findOneBy(['workspace' => $workspace, 'email' => $dedupeKey]) !== null) {
             return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Typo-tolerant name dedup against already-known records via the search
+     * index. For lead_generation we also guard against existing customers/contacts
+     * (never cold-pitch a client); for partner/market research existing customers
+     * are valid candidates, so only prior leads are excluded. A Meilisearch hit
+     * alone is not enough — we confirm with a normalized-name equality / ≥90%
+     * similarity check to avoid false positives ("Probst Maschinenbau" vs
+     * "Probst Fenster"). Search failures never block persistence.
+     */
+    private function nameMatchesExisting(Workspace $workspace, string $name, ResearchObjective $objective): bool
+    {
+        $wsId = $workspace->getId();
+        if ($this->nameMatcher->normalize($name) === '' || $wsId === null) {
+            return false;
+        }
+        $types = $objective === ResearchObjective::LeadGeneration
+            ? ['customer', 'contact', 'lead']
+            : ['lead'];
+
+        try {
+            $hits = $this->indexSearch->search($name, $wsId, $types, 5);
+        } catch (\Throwable $e) {
+            $this->logger->debug('Fuzzy-dedup search failed; allowing lead.', ['error' => $e->getMessage()]);
+
+            return false;
+        }
+
+        foreach ($hits as $hit) {
+            if ($this->nameMatcher->matches($name, $hit->title)) {
+                return true;
+            }
         }
 
         return false;
