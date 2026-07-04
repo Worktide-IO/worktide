@@ -650,10 +650,12 @@ final class ProjectReportsController
 
         $sql = 'SELECT t.id AS id, t.priority AS priority, t.due_on AS dueOn, t.created_at AS createdAt,
                        t.estimated_minutes AS est, t.tracker_id AS trackerId,
-                       s.is_completed AS completed, p.is_retainer AS retainer, p.customer_id AS customerId
+                       s.is_completed AS completed, p.is_retainer AS retainer, p.customer_id AS customerId,
+                       cu.revenue_cents AS revenueCents
                 FROM tasks t
                 JOIN task_statuses s ON s.id = t.status_id
                 LEFT JOIN projects p ON p.id = t.project_id
+                LEFT JOIN customers cu ON cu.id = p.customer_id
                 WHERE t.workspace_id = :ws AND t.deleted_at IS NULL';
         $params = $wsParam;
         $types = $wsType;
@@ -689,6 +691,15 @@ final class ProjectReportsController
             $blocked[Uuid::fromBinary($r['sid'])->toRfc4122()] = true;
         }
 
+        // Revenue distribution across the workspace's customers → percentile
+        // ranking for the customer-value sub-score (falls back to a retainer
+        // proxy for customers without synced revenue).
+        $revenues = [];
+        foreach ($this->db->fetchFirstColumn('SELECT revenue_cents FROM customers WHERE workspace_id = :ws AND revenue_cents > 0', $wsParam, $wsType) as $v) {
+            $revenues[] = (int) $v;
+        }
+        sort($revenues);
+
         $settings = $workspace->getSettings() ?? [];
         $scoring = \is_array($settings['priorityScoring'] ?? null) ? $settings['priorityScoring'] : [];
         $weights = \is_array($scoring['weights'] ?? null) ? $scoring['weights'] : [];
@@ -708,7 +719,12 @@ final class ProjectReportsController
                 'createdAt' => new \DateTimeImmutable($r['createdAt']),
                 'estimatedMinutes' => $r['est'] !== null ? (int) $r['est'] : null,
                 'isOpen' => !(bool) $r['completed'],
-                'customerScore' => $r['retainer'] ? 70 : ($r['customerId'] !== null ? 45 : 30),
+                'customerScore' => $this->customerScore(
+                    $r['revenueCents'] !== null ? (int) $r['revenueCents'] : null,
+                    (bool) $r['retainer'],
+                    $r['customerId'] !== null,
+                    $revenues,
+                ),
                 'blocksOpenCount' => $blocks[$id] ?? 0,
                 'demandCount' => 0,
                 'isBlocked' => isset($blocked[$id]),
@@ -723,6 +739,32 @@ final class ProjectReportsController
         }
 
         return new JsonResponse(['scores' => $out]);
+    }
+
+    /**
+     * Customer-value sub-score (0–100): revenue percentile across the workspace
+     * (+10 for retainers). Falls back to a retainer/has-customer proxy for
+     * customers whose revenue hasn't been synced from lexoffice yet.
+     *
+     * @param list<int> $sortedRevenues ascending
+     */
+    private function customerScore(?int $revenueCents, bool $retainer, bool $hasCustomer, array $sortedRevenues): int
+    {
+        if ($revenueCents !== null && $revenueCents > 0 && $sortedRevenues !== []) {
+            $n = \count($sortedRevenues);
+            $le = 0;
+            foreach ($sortedRevenues as $v) {
+                if ($v <= $revenueCents) {
+                    ++$le;
+                } else {
+                    break; // ascending
+                }
+            }
+
+            return min(100, (int) round(($le / $n) * 100) + ($retainer ? 10 : 0));
+        }
+
+        return $retainer ? 70 : ($hasCustomer ? 45 : 30);
     }
 
     // --- helpers --------------------------------------------------------
