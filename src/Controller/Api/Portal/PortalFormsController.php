@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Controller\Api\Portal;
 
+use App\Entity\PortalFormDraft;
 use App\Entity\Project;
 use App\Entity\PublicForm;
+use App\Repository\PortalFormDraftRepository;
 use App\Repository\PublicFormRepository;
 use App\Service\Portal\PortalAccessResolver;
 use App\Service\PublicFormSubmissionService;
 use App\Service\PublicFormValidationException;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -37,6 +40,8 @@ final class PortalFormsController
         private readonly PortalAccessResolver $portal,
         private readonly PublicFormRepository $forms,
         private readonly PublicFormSubmissionService $submissions,
+        private readonly PortalFormDraftRepository $drafts,
+        private readonly EntityManagerInterface $em,
     ) {}
 
     #[Route(
@@ -73,6 +78,7 @@ final class PortalFormsController
         $this->portal->assertFeatureEnabled('forms');
 
         $form = $this->findFormOr404($id);
+        $draft = $this->drafts->findOneForContact($form, $this->portal->contact());
 
         // Public-safe field shape (mirrors PublicFormController::schema) plus an
         // optional `section` for grouped display. NEVER exposes `mapsTo`.
@@ -90,7 +96,33 @@ final class PortalFormsController
                 'placeholder' => $f['placeholder'] ?? null,
                 'section' => $f['section'] ?? null,
             ], $form->getFields()),
+            // Resume support: the contact's saved partial answers, if any.
+            'draft' => $draft?->getAnswers(),
+            'draftSavedAt' => $draft?->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
         ]);
+    }
+
+    #[Route(
+        path: '/v1/portal/forms/{id}/draft',
+        name: 'api_portal_forms_save_draft',
+        host: 'api.worktide.ddev.site',
+        requirements: ['id' => '[0-9a-fA-F-]{36}'],
+        methods: ['PUT'],
+    )]
+    public function saveDraft(string $id, Request $request): JsonResponse
+    {
+        $this->portal->assertFeatureEnabled('forms');
+
+        $form = $this->findFormOr404($id);
+        $contact = $this->portal->contact();
+
+        $draft = $this->drafts->findOneForContact($form, $contact)
+            ?? (new PortalFormDraft())->setForm($form)->setContact($contact);
+        $draft->setAnswers($this->body($request));
+        $this->em->persist($draft);
+        $this->em->flush();
+
+        return new JsonResponse(['savedAt' => $draft->getUpdatedAt()?->format(\DateTimeInterface::ATOM)]);
     }
 
     #[Route(
@@ -116,6 +148,13 @@ final class PortalFormsController
             $this->submissions->submit($form, $values, $request->getClientIp(), $request->headers->get('User-Agent'));
         } catch (PublicFormValidationException $e) {
             return new JsonResponse(['errors' => $e->getErrors()], 422);
+        }
+
+        // Submitted → discard any saved draft for this contact.
+        $draft = $this->drafts->findOneForContact($form, $this->portal->contact());
+        if ($draft !== null) {
+            $this->em->remove($draft);
+            $this->em->flush();
         }
 
         return new JsonResponse(['success' => true, 'message' => $form->getSuccessMessage()], 201);
