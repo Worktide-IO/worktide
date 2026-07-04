@@ -11,13 +11,16 @@ use App\Entity\Enum\CustomerStatus;
 use App\Entity\Enum\IncidentKind;
 use App\Entity\Enum\SystemEnvironment;
 use App\Entity\Enum\SystemType;
+use App\Entity\Enum\TaskDependencyType;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Project;
 use App\Entity\ProjectStatus;
 use App\Entity\SystemIncident;
 use App\Entity\SystemUptimeDay;
 use App\Entity\Task;
+use App\Entity\TaskDependency;
 use App\Entity\TaskStatus;
+use App\Entity\TimeEntry;
 use App\Entity\User;
 use App\Entity\Workspace;
 use Doctrine\ORM\EntityManagerInterface;
@@ -163,6 +166,32 @@ final class PortalEndpointsTest extends WebTestCase
         self::assertSame(30, $this->json()['windowDays']);
     }
 
+    public function testDashboardAggregatesRealData(): void
+    {
+        $ctx = $this->seedDashboard();
+        $this->request('GET', '/v1/portal/dashboard', $this->token($ctx['portalUser']));
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        $data = $this->json();
+
+        self::assertSame('Dash GmbH', $data['customerName']);
+
+        // Retainer budget: 300 tracked minutes this month vs. 600 budget = 50 %.
+        self::assertNotNull($data['budget']);
+        self::assertSame(50, $data['budget']['pct']);
+        self::assertSame(300, $data['budget']['consumedMinutes']);
+        self::assertSame(600, $data['budget']['budgetMinutes']);
+
+        // The successor task has an open predecessor → shows up as a blocker.
+        self::assertSame(['DASH-2'], array_column($data['blockers'], 'identifier'));
+
+        // Activity is curated: actor is redacted to Sie/Agentur, never staff PII.
+        self::assertNotEmpty($data['activity']);
+        foreach ($data['activity'] as $event) {
+            self::assertContains($event['actor'], ['Sie', 'Agentur']);
+            self::assertArrayNotHasKey('payload', $event);
+        }
+    }
+
     // --- helpers ----------------------------------------------------
 
     private function request(string $method, string $uri, ?string $token = null): void
@@ -287,6 +316,56 @@ final class PortalEndpointsTest extends WebTestCase
         $incident = (new SystemIncident())->setSystem($system)->setKind(IncidentKind::Outage)
             ->setTitle('Shop nicht erreichbar')->setStartedAt(new \DateTimeImmutable('-1 hour'));
         $this->em->persist($incident);
+
+        $this->em->flush();
+        $this->em->clear();
+
+        return ['portalUser' => $portalUser];
+    }
+
+    /**
+     * A portal world with the dashboard feature ON: a retainer project with a
+     * 600-min budget + 300 tracked minutes this month, and two tickets wired
+     * predecessor→successor so the successor is BLOCKED.
+     *
+     * @return array{portalUser: User}
+     */
+    private function seedDashboard(): array
+    {
+        $ws = (new Workspace())
+            ->setName('Dash WS')
+            ->setSlug('dash-ws-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
+            ->setLocale('de')
+            ->setTimezone('Europe/Berlin')
+            ->setSettings(['portal' => ['enabled' => true, 'features' => ['tickets' => true, 'dashboard' => true]]]);
+        $this->em->persist($ws);
+
+        $status = (new TaskStatus())->setWorkspace($ws)->setName('Offen')->setColor('#888')->setPosition(0)->setIsCompleted(false)->setIsDefault(true);
+        $this->em->persist($status);
+        $projectStatus = (new ProjectStatus())->setWorkspace($ws)->setName('Aktiv')->setColor('#888')->setPosition(0)->setIsCompleted(false)->setIsArchived(false);
+        $this->em->persist($projectStatus);
+
+        $portalUser = $this->user('portal.dash@example.test', ['ROLE_PORTAL']);
+        $staff = $this->user('portal.dashstaff@example.test', []);
+
+        $customer = $this->customer($ws, 'Dash GmbH');
+        $contact = (new Contact())->setCustomer($customer)->setFirstName('Dora')->setLastName('Dash')
+            ->setEmail('portal.dash@example.test')->setLinkedUser($portalUser);
+        $this->em->persist($contact);
+
+        $project = $this->project($ws, $customer, 'DASH', $projectStatus);
+        $project->setIsRetainer(true)->setBudgetMinutes(600);
+
+        $predecessor = $this->task($ws, $project, $status, 'DASH-1', false);
+        $blocked = $this->task($ws, $project, $status, 'DASH-2', false);
+        $this->em->persist(
+            (new TaskDependency())->setWorkspace($ws)->setPredecessor($predecessor)->setSuccessor($blocked)->setType(TaskDependencyType::Blocks),
+        );
+
+        $entry = (new TimeEntry())->setWorkspace($ws)->setUser($staff)->setProject($project)
+            ->setStartsAt(new \DateTimeImmutable('first day of this month 09:00'))
+            ->setDurationMinutes(300)->setIsBillable(true)->setIsBilled(false)->setIsExternal(false);
+        $this->em->persist($entry);
 
         $this->em->flush();
         $this->em->clear();
