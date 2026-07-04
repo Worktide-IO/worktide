@@ -13,6 +13,7 @@ use App\Entity\User;
 use App\Entity\Workspace;
 use App\Entity\WorkspaceMember;
 use App\Security\Voter\WorktidePermission;
+use App\Service\Priority\PriorityScorer;
 use App\Service\Reports\CumulativeFlowReconstructor;
 use App\Service\Reports\CycleTimeCalculator;
 use Doctrine\DBAL\Connection;
@@ -63,6 +64,7 @@ final class ProjectReportsController
         private readonly Connection $db,
         private readonly CumulativeFlowReconstructor $cumulativeFlow,
         private readonly CycleTimeCalculator $cycleTimeCalc,
+        private readonly PriorityScorer $priorityScorer,
     ) {}
 
     #[Route(
@@ -613,6 +615,114 @@ final class ProjectReportsController
         }
 
         return new JsonResponse(['counts' => $counts]);
+    }
+
+    /**
+     * Internal priority score (0–100) per task + explainable breakdown. A
+     * separate signal that complements the human priority — see PriorityScorer.
+     * Weights live in Workspace.settings.priorityScoring (tunable per workspace).
+     */
+    #[Route(
+        path: '/v1/reports/priority-scores',
+        name: 'api_report_priority_scores',
+        host: 'api.worktide.ddev.site',
+        methods: ['GET'],
+    )]
+    public function priorityScores(Request $request): JsonResponse
+    {
+        $user = $this->requireUser();
+        $workspace = $this->resolveWorkspace($request, $user)
+            ?? throw new BadRequestHttpException('Workspace could not be determined.');
+
+        $projectBin = null;
+        $projectId = $request->query->get('project');
+        if ($projectId) {
+            $project = $this->loadEntity(Project::class, $projectId);
+            if ($project->getWorkspace()->getId()?->toRfc4122() !== $workspace->getId()?->toRfc4122()
+                || !$this->security->isGranted(WorktidePermission::VIEW, $project)) {
+                throw new AccessDeniedHttpException();
+            }
+            $projectBin = $project->getId()?->toBinary();
+        }
+
+        $wsParam = ['ws' => $workspace->getId()?->toBinary()];
+        $wsType = ['ws' => ParameterType::BINARY];
+
+        $sql = 'SELECT t.id AS id, t.priority AS priority, t.due_on AS dueOn, t.created_at AS createdAt,
+                       t.estimated_minutes AS est, t.tracker_id AS trackerId,
+                       s.is_completed AS completed, p.is_retainer AS retainer, p.customer_id AS customerId
+                FROM tasks t
+                JOIN task_statuses s ON s.id = t.status_id
+                LEFT JOIN projects p ON p.id = t.project_id
+                WHERE t.workspace_id = :ws AND t.deleted_at IS NULL';
+        $params = $wsParam;
+        $types = $wsType;
+        if ($projectBin !== null) {
+            $sql .= ' AND t.project_id = :project';
+            $params['project'] = $projectBin;
+            $types['project'] = ParameterType::BINARY;
+        }
+        $rows = $this->db->fetchAllAssociative($sql, $params, $types);
+        if ($rows === []) {
+            return new JsonResponse(['scores' => new \stdClass()]);
+        }
+
+        // "Blocks" leverage: open successors per predecessor task.
+        $blocks = [];
+        $blockSql = 'SELECT d.predecessor_id AS pid, COUNT(*) AS c
+                     FROM task_dependencies d
+                     JOIN tasks st ON st.id = d.successor_id AND st.deleted_at IS NULL
+                     JOIN task_statuses ss ON ss.id = st.status_id
+                     WHERE d.workspace_id = :ws AND ss.is_completed = 0
+                     GROUP BY d.predecessor_id';
+        foreach ($this->db->fetchAllAssociative($blockSql, $wsParam, $wsType) as $r) {
+            $blocks[Uuid::fromBinary($r['pid'])->toRfc4122()] = (int) $r['c'];
+        }
+        // "Is blocked": task has an open predecessor.
+        $blocked = [];
+        $blockedSql = 'SELECT DISTINCT d.successor_id AS sid
+                       FROM task_dependencies d
+                       JOIN tasks pt ON pt.id = d.predecessor_id AND pt.deleted_at IS NULL
+                       JOIN task_statuses ps ON ps.id = pt.status_id
+                       WHERE d.workspace_id = :ws AND ps.is_completed = 0';
+        foreach ($this->db->fetchAllAssociative($blockedSql, $wsParam, $wsType) as $r) {
+            $blocked[Uuid::fromBinary($r['sid'])->toRfc4122()] = true;
+        }
+
+        $settings = $workspace->getSettings() ?? [];
+        $scoring = \is_array($settings['priorityScoring'] ?? null) ? $settings['priorityScoring'] : [];
+        $weights = \is_array($scoring['weights'] ?? null) ? $scoring['weights'] : [];
+        $trackerWeights = \is_array($scoring['trackerWeights'] ?? null) ? $scoring['trackerWeights'] : [];
+
+        $tickets = [];
+        foreach ($rows as $r) {
+            $id = Uuid::fromBinary($r['id'])->toRfc4122();
+            $trackerIri = $r['trackerId'] !== null ? '/v1/trackers/' . Uuid::fromBinary($r['trackerId'])->toRfc4122() : null;
+            $tw = $trackerIri !== null && is_numeric($trackerWeights[$trackerIri] ?? null)
+                ? (float) $trackerWeights[$trackerIri]
+                : 1.0;
+            $tickets[] = [
+                'id' => $id,
+                'priority' => $r['priority'] !== null ? (string) $r['priority'] : null,
+                'dueOn' => $r['dueOn'] !== null ? new \DateTimeImmutable($r['dueOn']) : null,
+                'createdAt' => new \DateTimeImmutable($r['createdAt']),
+                'estimatedMinutes' => $r['est'] !== null ? (int) $r['est'] : null,
+                'isOpen' => !(bool) $r['completed'],
+                'customerScore' => $r['retainer'] ? 70 : ($r['customerId'] !== null ? 45 : 30),
+                'blocksOpenCount' => $blocks[$id] ?? 0,
+                'demandCount' => 0,
+                'isBlocked' => isset($blocked[$id]),
+                'trackerWeight' => $tw,
+            ];
+        }
+
+        $scores = $this->priorityScorer->score($tickets, $weights, new \DateTimeImmutable());
+        $out = [];
+        foreach ($scores as $taskUuid => $data) {
+            $out['/v1/tasks/' . $taskUuid] = $data;
+        }
+
+        return new JsonResponse(['scores' => $out]);
     }
 
     // --- helpers --------------------------------------------------------
