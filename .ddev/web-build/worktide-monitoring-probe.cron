@@ -1,0 +1,13 @@
+# Monitoring probe: HTTP-check every active CustomerSystem that has a URL and
+# roll the result into today's SystemUptimeDay (uptime %, avg latency), auto-
+# opening/resolving Outage/Degraded SystemIncidents. This feeds the portal
+# Monitoring screen (GET /v1/portal/systems).
+#
+# UNLIKE the other crons this one DOES make outbound HTTP requests — but only
+# to the customer systems being monitored (that is the whole point of an uptime
+# probe), never to third parties, so it is outside the EgressGuard's scope of
+# concern. Timeout is 8s per system.
+#
+# Every 5 minutes: 24h / 5min = 288 checks/day, which is exactly the per-day
+# sampleCount the rollup is dimensioned for. Distinct from :00 by design.
+*/5 * * * * cd /var/www/html && php bin/console app:monitoring:probe >> /var/www/html/var/log/cron-monitoring-probe.log 2>&1
