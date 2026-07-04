@@ -124,6 +124,15 @@ class CustomerAgreement
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
+    /** Typed signature name captured on portal digital signing. */
+    #[ORM\Column(length: 160, nullable: true)]
+    private ?string $signedByName = null;
+
+    /** The contact who signed via the portal. */
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Contact $signedByContact = null;
+
     public function __construct()
     {
         $this->revisions = new ArrayCollection();
@@ -176,6 +185,12 @@ class CustomerAgreement
 
     public function getNotes(): ?string { return $this->notes; }
     public function setNotes(?string $n): self { $this->notes = $n; return $this; }
+
+    public function getSignedByName(): ?string { return $this->signedByName; }
+    public function setSignedByName(?string $n): self { $this->signedByName = $n; return $this; }
+
+    public function getSignedByContact(): ?Contact { return $this->signedByContact; }
+    public function setSignedByContact(?Contact $c): self { $this->signedByContact = $c; return $this; }
 
     /** Read-only convenience flag for the overview. */
     #[ApiProperty(writable: false)]

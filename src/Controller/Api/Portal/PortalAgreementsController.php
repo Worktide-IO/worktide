@@ -6,14 +6,22 @@ namespace App\Controller\Api\Portal;
 
 use App\Entity\CustomerAgreement;
 use App\Entity\CustomerAgreementRevision;
+use App\Entity\Enum\AgreementStatus;
 use App\Entity\ProjectOffer;
 use App\Entity\ServiceSubscription;
 use App\Repository\CustomerAgreementRepository;
 use App\Repository\ProjectOfferRepository;
 use App\Repository\ServiceSubscriptionRepository;
+use App\Service\Crm\AgreementService;
 use App\Service\Portal\PortalAccessResolver;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * Customer-portal "Angebote & Verträge" screen (wireframe screen 4).
@@ -65,7 +73,86 @@ final class PortalAgreementsController
         private readonly CustomerAgreementRepository $agreements,
         private readonly ServiceSubscriptionRepository $subscriptions,
         private readonly ProjectOfferRepository $offers,
+        private readonly AgreementService $agreementService,
+        private readonly EntityManagerInterface $em,
     ) {}
+
+    #[Route(
+        path: '/v1/portal/agreements/{id}/sign',
+        name: 'api_portal_agreements_sign',
+        host: 'api.worktide.ddev.site',
+        requirements: ['id' => '[0-9a-fA-F-]{36}'],
+        methods: ['POST'],
+    )]
+    public function sign(string $id, Request $request): JsonResponse
+    {
+        $this->portal->assertFeatureEnabled('agreements');
+        $customer = $this->portal->customer();
+
+        $head = $this->agreements->find(Uuid::fromString($id));
+        if (
+            !$head instanceof CustomerAgreement
+            || $head->getDeletedAt() !== null
+            || $head->getCustomer()->getId()?->toRfc4122() !== $customer->getId()?->toRfc4122()
+        ) {
+            throw new NotFoundHttpException('Agreement not found.');
+        }
+        if (!$this->isSignable($head)) {
+            throw new ConflictHttpException('This agreement is not open for signing.');
+        }
+
+        $fullName = \is_string($this->body($request)['fullName'] ?? null) ? trim($this->body($request)['fullName']) : '';
+        if ($fullName === '') {
+            throw new BadRequestHttpException('fullName (signature) required.');
+        }
+
+        // Carry the offer's reference/validity onto the signed version.
+        $offerRevision = $head->getPendingRevision() ?? $head->getCurrentRevision();
+        $now = new \DateTimeImmutable();
+
+        // Canonical transition: creates a Signed revision + recomputes the head.
+        $this->agreementService->set(
+            $customer,
+            $head->getTypeSlug(),
+            AgreementStatus::Signed,
+            $now,
+            $offerRevision?->getValidUntil(),
+            $offerRevision?->getReference(),
+            null,
+            null,
+            $this->portal->contact()->getLinkedUser(),
+        );
+
+        // Record the digital signature on the head.
+        $head->setSignedByName($fullName)->setSignedByContact($this->portal->contact());
+        $this->em->flush();
+
+        return new JsonResponse($this->agreementDto($head));
+    }
+
+    private function isSignable(CustomerAgreement $head): bool
+    {
+        return !$head->getIsSigned()
+            && \in_array($head->getStatus(), [AgreementStatus::None, AgreementStatus::Draft, AgreementStatus::InNegotiation], true)
+            && ($head->getPendingRevision() ?? $head->getCurrentRevision()) !== null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function body(Request $request): array
+    {
+        $raw = $request->getContent();
+        if (!\is_string($raw) || $raw === '') {
+            return [];
+        }
+        try {
+            $decoded = json_decode($raw, true, 32, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            throw new BadRequestHttpException('Body must be valid JSON.');
+        }
+        return \is_array($decoded) ? $decoded : [];
+    }
 
     #[Route(
         path: '/v1/portal/agreements',
@@ -136,6 +223,8 @@ final class PortalAgreementsController
             'signedOn' => $agreement->getSignedOn()?->format('Y-m-d'),
             'validUntil' => $agreement->getValidUntil()?->format('Y-m-d'),
             'hasDocument' => $revision instanceof CustomerAgreementRevision && $revision->getFile() !== null,
+            'canSign' => $this->isSignable($agreement),
+            'signedBy' => $agreement->getSignedByName(),
         ];
     }
 
