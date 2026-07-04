@@ -27,6 +27,28 @@ class CustomerAgreementRepository extends ServiceEntityRepository
     }
 
     /**
+     * Agreements visible in a customer's portal: their non-deleted agreements
+     * that have progressed past the empty `None` placeholder (drafts, offers,
+     * signed contracts, expired/terminated). Signed first, then by type.
+     * The caller passes the portal contact's OWN customer (authorization there).
+     *
+     * @return list<CustomerAgreement>
+     */
+    public function findForPortalCustomer(Customer $customer): array
+    {
+        return $this->createQueryBuilder('a')
+            ->andWhere('a.customer = :customer')
+            ->andWhere('a.status != :none')
+            ->andWhere('a.deletedAt IS NULL')
+            ->setParameter('customer', $customer)
+            ->setParameter('none', AgreementStatus::None)
+            ->orderBy('a.signedOn', 'DESC')
+            ->addOrderBy('a.typeSlug', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Heads whose in-force version has lapsed — used by the expiry command.
      *
      * @return list<CustomerAgreement>
