@@ -6,10 +6,16 @@ namespace App\Tests\Functional\Portal;
 
 use App\Entity\Contact;
 use App\Entity\Customer;
+use App\Entity\CustomerSystem;
 use App\Entity\Enum\CustomerStatus;
+use App\Entity\Enum\IncidentKind;
+use App\Entity\Enum\SystemEnvironment;
+use App\Entity\Enum\SystemType;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Project;
 use App\Entity\ProjectStatus;
+use App\Entity\SystemIncident;
+use App\Entity\SystemUptimeDay;
 use App\Entity\Task;
 use App\Entity\TaskStatus;
 use App\Entity\User;
@@ -109,6 +115,36 @@ final class PortalEndpointsTest extends WebTestCase
         self::assertSame(403, $this->client->getResponse()->getStatusCode());
     }
 
+    public function testMonitoringExposesDerivedStatusAndOmitsSecrets(): void
+    {
+        $ctx = $this->seedMonitoring();
+        $this->request('GET', '/v1/portal/systems', $this->token($ctx['portalUser']));
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        $data = $this->json();
+
+        self::assertCount(1, $data['systems']);
+        $system = $data['systems'][0];
+
+        // Live status is derived from the open Outage incident.
+        self::assertSame('down', $system['status']);
+        self::assertSame('Störung', $system['statusLabel']);
+        // Uptime aggregate + sparkline come from the seeded rollup day.
+        self::assertEquals(95.0, $system['uptimePct']);
+        self::assertSame(420, $system['avgResponseMs']);
+        self::assertCount(1, $system['uptimeDays']);
+
+        // SECURITY: internal fields must never leak to the customer.
+        self::assertArrayNotHasKey('credentialsNotes', $system);
+        self::assertArrayNotHasKey('notes', $system);
+        self::assertArrayNotHasKey('adminLoginUrl', $system);
+        self::assertArrayNotHasKey('stagingUrl', $system);
+
+        // The open incident shows up in "Vorfälle & Wartung".
+        self::assertCount(1, $data['incidents']);
+        self::assertTrue($data['incidents'][0]['open']);
+        self::assertSame('Störung', $data['incidents'][0]['kindLabel']);
+    }
+
     // --- helpers ----------------------------------------------------
 
     private function request(string $method, string $uri, ?string $token = null): void
@@ -184,6 +220,60 @@ final class PortalEndpointsTest extends WebTestCase
             'staff' => $staff,
             'foreignTaskId' => $foreignTask->getId()?->toRfc4122() ?? '',
         ];
+    }
+
+    /**
+     * A portal world with monitoring ON: one active {@see CustomerSystem} that
+     * has a seeded uptime rollup day and an OPEN Outage incident (→ status
+     * "Störung"). The system also carries secret fields that must NOT leak.
+     *
+     * @return array{portalUser: User}
+     */
+    private function seedMonitoring(): array
+    {
+        $ws = (new Workspace())
+            ->setName('Mon WS')
+            ->setSlug('mon-ws-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
+            ->setLocale('de')
+            ->setTimezone('Europe/Berlin')
+            ->setSettings(['portal' => ['enabled' => true, 'features' => ['tickets' => true, 'monitoring' => true]]]);
+        $this->em->persist($ws);
+
+        $portalUser = $this->user('portal.mon@example.test', ['ROLE_PORTAL']);
+
+        $customer = $this->customer($ws, 'Mon GmbH');
+        $contact = (new Contact())->setCustomer($customer)->setFirstName('Mona')->setLastName('Monitor')
+            ->setEmail('portal.mon@example.test')->setLinkedUser($portalUser);
+        $this->em->persist($contact);
+        // An external project so the customer resolves through allowedProjects().
+        $projectStatus = (new ProjectStatus())->setWorkspace($ws)->setName('Aktiv')->setColor('#888')->setPosition(0)->setIsCompleted(false)->setIsArchived(false);
+        $this->em->persist($projectStatus);
+        $this->project($ws, $customer, 'MON', $projectStatus);
+
+        $system = (new CustomerSystem())
+            ->setCustomer($customer)
+            ->setName('shop.mon.test')
+            ->setType(SystemType::Shopware)
+            ->setEnvironment(SystemEnvironment::Production)
+            ->setUrl('https://shop.mon.test')
+            ->setIsActive(true)
+            ->setCredentialsNotes('SECRET admin:hunter2')
+            ->setNotes('internal ops note')
+            ->setAdminLoginUrl('https://shop.mon.test/admin');
+        $this->em->persist($system);
+
+        $day = (new SystemUptimeDay())->setSystem($system)->setDay(new \DateTimeImmutable('today'))
+            ->setUptimePct(95.0)->setAvgResponseMs(420)->setSampleCount(288);
+        $this->em->persist($day);
+
+        $incident = (new SystemIncident())->setSystem($system)->setKind(IncidentKind::Outage)
+            ->setTitle('Shop nicht erreichbar')->setStartedAt(new \DateTimeImmutable('-1 hour'));
+        $this->em->persist($incident);
+
+        $this->em->flush();
+        $this->em->clear();
+
+        return ['portalUser' => $portalUser];
     }
 
     /** @param list<string> $roles */
