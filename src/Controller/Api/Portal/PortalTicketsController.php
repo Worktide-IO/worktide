@@ -8,10 +8,12 @@ use App\Entity\Comment;
 use App\Entity\Enum\CommentTarget;
 use App\Entity\Enum\TaskCreatedVia;
 use App\Entity\Enum\TaskPriority;
+use App\Entity\File;
 use App\Entity\Project;
 use App\Entity\Task;
 use App\Entity\User;
 use App\Repository\CommentRepository;
+use App\Repository\FileRepository;
 use App\Repository\TaskRepository;
 use App\Repository\TaskStatusRepository;
 use App\Service\Portal\PortalAccessResolver;
@@ -53,6 +55,7 @@ final class PortalTicketsController
         private readonly TaskRepository $tasks,
         private readonly TaskStatusRepository $taskStatuses,
         private readonly CommentRepository $comments,
+        private readonly FileRepository $files,
         private readonly EntityManagerInterface $em,
         private readonly Security $security,
         private readonly PortalSlaCalculator $sla,
@@ -107,6 +110,13 @@ final class PortalTicketsController
                 'content' => $c->getContent(),
                 'createdAt' => $c->getCreatedAt()?->format(\DateTimeInterface::ATOM),
             ], $comments),
+            'attachments' => array_map(static fn (File $f): array => [
+                'id' => $f->getId()?->toRfc4122(),
+                'name' => $f->getName(),
+                'mimeType' => $f->getMimeType(),
+                'size' => $f->getSize(),
+                'uploadedAt' => $f->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+            ], $this->files->findVisibleForTask($task)),
         ]);
     }
 
