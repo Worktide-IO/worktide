@@ -164,6 +164,17 @@ class Customer
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
+    /**
+     * Trailing-12-months invoiced revenue in cents, synced from lexoffice
+     * ({@see \App\Command\LexofficeSyncRevenueCommand}). Feeds the customer-value
+     * component of the internal priority score. Null = not synced yet.
+     */
+    #[ORM\Column(type: 'integer', nullable: true)]
+    private ?int $revenueCents = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $revenueSyncedAt = null;
+
     /** Picks the primary engagement owner / account manager for this customer. */
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -280,6 +291,12 @@ class Customer
 
     public function getNotes(): ?string { return $this->notes; }
     public function setNotes(?string $v): self { $this->notes = $v; return $this; }
+
+    public function getRevenueCents(): ?int { return $this->revenueCents; }
+    public function setRevenueCents(?int $v): self { $this->revenueCents = $v; return $this; }
+
+    public function getRevenueSyncedAt(): ?\DateTimeImmutable { return $this->revenueSyncedAt; }
+    public function setRevenueSyncedAt(?\DateTimeImmutable $v): self { $this->revenueSyncedAt = $v; return $this; }
 
     public function getAccountManager(): ?User { return $this->accountManager; }
     public function setAccountManager(?User $u): self { $this->accountManager = $u; return $this; }
