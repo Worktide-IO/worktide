@@ -128,6 +128,11 @@ class ProjectProposal
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?CustomerAgreement $convertedAgreement = null;
 
+    /** The lightweight offer generated when this proposal was accepted. */
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?ProjectOffer $convertedOffer = null;
+
     #[ORM\Column]
     private int $position = 0;
 
@@ -180,6 +185,9 @@ class ProjectProposal
 
     public function getConvertedAgreement(): ?CustomerAgreement { return $this->convertedAgreement; }
     public function setConvertedAgreement(?CustomerAgreement $v): self { $this->convertedAgreement = $v; return $this; }
+
+    public function getConvertedOffer(): ?ProjectOffer { return $this->convertedOffer; }
+    public function setConvertedOffer(?ProjectOffer $v): self { $this->convertedOffer = $v; return $this; }
 
     public function getPosition(): int { return $this->position; }
     public function setPosition(int $v): self { $this->position = $v; return $this; }

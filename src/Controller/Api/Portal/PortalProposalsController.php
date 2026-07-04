@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Controller\Api\Portal;
 
+use App\Entity\Enum\OfferStatus;
 use App\Entity\Enum\ProposalStatus;
 use App\Entity\Enum\TaskCreatedVia;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Project;
+use App\Entity\ProjectOffer;
 use App\Entity\ProjectProposal;
 use App\Entity\Task;
 use App\Entity\TaskStatus;
@@ -110,10 +112,32 @@ final class PortalProposalsController
         }
 
         $task = $this->createTaskFromProposal($proposal);
-        $proposal->setStatus(ProposalStatus::Accepted)->setConvertedTask($task);
+        $offer = $this->createOfferFromProposal($proposal);
+        $proposal->setStatus(ProposalStatus::Accepted)->setConvertedTask($task)->setConvertedOffer($offer);
         $this->em->flush();
 
         return new JsonResponse($this->proposalDto($proposal));
+    }
+
+    /**
+     * "Annehmen → Angebot": snapshot the agreed scope + price into a
+     * lightweight ProjectOffer that surfaces in the Angebote & Verträge screen.
+     */
+    private function createOfferFromProposal(ProjectProposal $proposal): ProjectOffer
+    {
+        $offer = (new ProjectOffer())
+            ->setCustomer($this->portal->customer())
+            ->setProject($proposal->getProject())
+            ->setSourceProposal($proposal)
+            ->setReference('A-' . date('Y') . '-' . dechex(random_int(0x1000, 0xFFFF)))
+            ->setTitle($proposal->getTitle())
+            ->setAmountCents($proposal->getCostCents() ?? 0)
+            ->setCurrency($proposal->getCurrency())
+            ->setStatus(OfferStatus::Open);
+
+        $this->em->persist($offer);
+
+        return $offer;
     }
 
     #[Route(
@@ -250,6 +274,7 @@ final class PortalProposalsController
             'variants' => $p->getVariants(),
             'customerFeedback' => $p->getCustomerFeedback(),
             'ticketIdentifier' => $p->getConvertedTask()?->getIdentifier(),
+            'offerReference' => $p->getConvertedOffer()?->getReference(),
         ];
     }
 
