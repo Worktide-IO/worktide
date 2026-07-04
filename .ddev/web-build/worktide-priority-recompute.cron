@@ -1,0 +1,11 @@
+# Nightly priority-score recompute: materialize the internal WSJF-lite score
+# onto every task (all workspaces). The score has time-dependent inputs (card
+# aging, due-date criticality) and cross-task inputs (blocker leverage, customer
+# revenue percentile), so a full nightly pass keeps stored values fresh.
+# Read-only to the outside world (no egress) — pure local recompute + UPDATE.
+#
+# 03:27 nightly: off-peak, distinct minute (avoids the :00 thundering herd), and
+# late enough to follow any nightly data imports. If a Lexoffice revenue sync
+# (app:lexoffice:sync-revenue) is later scheduled, run it BEFORE this so the
+# customer-value percentile reflects the newest revenue.
+27 3 * * * cd /var/www/html && php bin/console worktide:priority:recompute >> /var/www/html/var/log/cron-priority-recompute.log 2>&1
