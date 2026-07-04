@@ -80,6 +80,10 @@ Kundenportal pro Workspace. CRM-Kontakte werden freigeschaltet und erhalten eine
 
 - **SEO-Audit-Fragebogen** – mehrteiliger Self-Service-Fragebogen (Ziele & KPIs, Zielgruppe, Keywords/Wettbewerb, technische Zugänge, Inhalte & Probleme), Speicherstand über mehrere Sitzungen, Antworten fließen in ein Audit-Ticket/-Projekt
 - Generischer Formular-/Fragebogen-Baustein als Basis – SEO ist nur die erste Vorlage (Performance, Accessibility, Security folgen)
+- **Formular-Engine à la Tally** – der generische Baustein wird zu einer vollwertigen Form-Engine ausgebaut, mit der sich **komplexe Entscheidungen** abbilden und dem Kunden im Portal bereitstellen lassen. Referenz zum Nachbauen: [tally.so/help/api](https://tally.so/help/api) (REST, `api.tally.so`, Bearer-Token, 100 req/min, Webhooks statt Polling).
+  - **Datenmodell:** Form → Pages → Blocks; reiche Feldtypen (Text, Auswahl/Dropdown, Rating, Datei-Upload, …); **bedingte Logik / Branching** (Sichtbarkeit + Sprünge nach Antworten) als Kern für „komplexe Entscheidungen"; **Calculations**/berechnete Felder; Hidden-/Prefill-Felder.
+  - **Bausteine:** Builder (intern), Renderer (Portal) und Submission-API + Webhooks bei Abschluss. Baut auf dem vorhandenen Forms-Slice auf (Backend `^/v1/forms/*`, Portal `FormsPage`/`FormFillPage`).
+  - **Portal-Nutzen:** geführte, mehrstufige Entscheidungs-/Konfigurations-Formulare (z.B. Leistungs-/Paketwahl, Audit-Fragebögen); Antworten fließen in Ticket/Projekt/Angebot.
 
 ## 11. KI-Funktionen (Schwerpunkt)
 
