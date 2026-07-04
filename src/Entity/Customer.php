@@ -8,6 +8,7 @@ use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
 use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use App\ApiPlatform\Filter\UuidExactFilter;
 use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Delete;
@@ -68,6 +69,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     // collection IRI for a wildcard match or to a single-customer IRI.
     mercure: true,
 )]
+#[ApiFilter(UuidExactFilter::class, properties: ['id'])]
 #[ApiFilter(SearchFilter::class, properties: [
     'workspace' => 'exact',
     'name' => 'partial',
@@ -161,6 +163,17 @@ class Customer
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
+
+    /**
+     * Trailing-12-months invoiced revenue in cents, synced from lexoffice
+     * ({@see \App\Command\LexofficeSyncRevenueCommand}). Feeds the customer-value
+     * component of the internal priority score. Null = not synced yet.
+     */
+    #[ORM\Column(type: 'integer', nullable: true)]
+    private ?int $revenueCents = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $revenueSyncedAt = null;
 
     /** Picks the primary engagement owner / account manager for this customer. */
     #[ORM\ManyToOne]
@@ -278,6 +291,12 @@ class Customer
 
     public function getNotes(): ?string { return $this->notes; }
     public function setNotes(?string $v): self { $this->notes = $v; return $this; }
+
+    public function getRevenueCents(): ?int { return $this->revenueCents; }
+    public function setRevenueCents(?int $v): self { $this->revenueCents = $v; return $this; }
+
+    public function getRevenueSyncedAt(): ?\DateTimeImmutable { return $this->revenueSyncedAt; }
+    public function setRevenueSyncedAt(?\DateTimeImmutable $v): self { $this->revenueSyncedAt = $v; return $this; }
 
     public function getAccountManager(): ?User { return $this->accountManager; }
     public function setAccountManager(?User $u): self { $this->accountManager = $u; return $this; }

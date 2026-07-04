@@ -53,6 +53,9 @@ final class SyncProvisionChannelCommand extends Command
             ->addOption('api-key-file', null, InputOption::VALUE_REQUIRED, 'Path to a file containing the API key / PAT')
             ->addOption('api-key', null, InputOption::VALUE_REQUIRED, 'API key / PAT inline (prefer --api-key-file)')
             ->addOption('project-id', null, InputOption::VALUE_REQUIRED, 'Redmine numeric projectId / Jira projectKey (omit = all)')
+            ->addOption('tracker-id', null, InputOption::VALUE_REQUIRED, 'Redmine: only issues of this tracker id (omit = all)')
+            ->addOption('assigned-to-id', null, InputOption::VALUE_REQUIRED, 'Redmine: only issues assigned to this user — "me" or a numeric id (omit = all)')
+            ->addOption('read-only', null, InputOption::VALUE_NONE, 'Inbound-only: import tickets, never push local changes back')
             ->addOption('jira-email', null, InputOption::VALUE_REQUIRED, 'Jira Cloud account email (enables Basic auth)')
             ->addOption('api-version', null, InputOption::VALUE_REQUIRED, 'Jira REST API version (2=Server/DC default, 3=Cloud)');
     }
@@ -84,6 +87,7 @@ final class SyncProvisionChannelCommand extends Command
         }
 
         $projectId = $input->getOption('project-id');
+        $readOnly = (bool) $input->getOption('read-only');
         $inbound = ['baseUrl' => $baseUrl];
         if ($adapter === 'jira') {
             $inbound['apiVersion'] = (string) ($input->getOption('api-version') ?? '2');
@@ -98,6 +102,14 @@ final class SyncProvisionChannelCommand extends Command
             if ($projectId !== null) {
                 $inbound['projectId'] = (string) $projectId;
             }
+            $trackerId = $input->getOption('tracker-id');
+            if ($trackerId !== null && $trackerId !== '') {
+                $inbound['trackerId'] = (string) $trackerId;
+            }
+            $assignedToId = $input->getOption('assigned-to-id');
+            if ($assignedToId !== null && $assignedToId !== '') {
+                $inbound['assignedToId'] = (string) $assignedToId;
+            }
             $auth = ['apiKey' => $apiKey];
         }
 
@@ -106,7 +118,9 @@ final class SyncProvisionChannelCommand extends Command
 
         $channel
             ->setAdapterCode($adapter)
-            ->setCapabilities([ChannelCapability::Inbound, ChannelCapability::Outbound])
+            ->setCapabilities($readOnly
+                ? [ChannelCapability::Inbound]
+                : [ChannelCapability::Inbound, ChannelCapability::Outbound])
             ->setEntityTypes(['task'])
             ->setInboundConfig($inbound)
             ->setOutboundConfig(['baseUrl' => $baseUrl])

@@ -152,13 +152,24 @@ services:
         arguments:
             $allow: '%env(default::EGRESS_ALLOW)%'
 
-    # LLM provider (Anthropic) behind LlmProviderInterface. Model defaults to
-    # claude-opus-4-8 when ANTHROPIC_MODEL is unset.
+    # LLM providers behind LlmProviderInterface. Anthropic (Claude, default) and
+    # Infomaniak (Swiss/EU-hosted, OpenAI-compatible) are both wired; LLM_PROVIDER
+    # selects the active one (default: anthropic). Models default per provider.
     App\Service\Llm\AnthropicLlmProvider:
         arguments:
             $apiKey: '%env(default::ANTHROPIC_API_KEY)%'
             $model: '%env(default::ANTHROPIC_MODEL)%'
-    App\Service\Llm\LlmProviderInterface: '@App\Service\Llm\AnthropicLlmProvider'
+    App\Service\Llm\InfomaniakLlmProvider:
+        arguments:
+            $apiToken: '%env(default::INFOMANIAK_API_TOKEN)%'
+            $productId: '%env(default::INFOMANIAK_PRODUCT_ID)%'
+            $model: '%env(default::INFOMANIAK_MODEL)%'
+            $apiBase: '%env(default::INFOMANIAK_API_BASE)%'
+    App\Service\Llm\LlmProviderFactory:
+        arguments:
+            $providerName: '%env(default::LLM_PROVIDER)%'
+    App\Service\Llm\LlmProviderInterface:
+        factory: ['@App\Service\Llm\LlmProviderFactory', 'create']
 
     # Signed, short-lived public media URLs (Instagram pulls image_url itself).
     App\Service\Social\SocialMediaUrlSigner:

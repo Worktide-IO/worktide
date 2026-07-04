@@ -8,6 +8,8 @@ use App\Channels\AdapterRegistry;
 use App\Channels\EntitySnapshot;
 use App\Channels\SyncReentryGuard;
 use App\Entity\Channel;
+use App\Entity\Enum\ChannelCapability;
+use App\Entity\Enum\SyncMode;
 use App\Entity\Enum\TaskCreatedVia;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\EntitySync;
@@ -177,7 +179,7 @@ final class SyncSeedImporter
         $title = (string) ($s->fields['title'] ?? '');
         $description = $s->fields['description'] ?? null;
 
-        return (new Task())
+        $task = (new Task())
             ->setWorkspace($project->getWorkspace())
             ->setProject($project)
             ->setTitle($title !== '' ? $title : ('Imported ' . $s->externalId))
@@ -187,6 +189,10 @@ final class SyncSeedImporter
             ->setCreatedVia(TaskCreatedVia::Import)
             // 6 hex digits (~16M space) keeps bulk-import identifier collisions negligible.
             ->setIdentifier($project->getKey() . '-' . dechex(random_int(0x100000, 0xFFFFFF)));
+
+        DiscoveredRecordImporter::applyScheduleFields($task, $s->fields);
+
+        return $task;
     }
 
     private function mapping(EntitySnapshot $s, Channel $channel, Project $project, \Symfony\Component\Uid\Uuid $entityId): EntitySync
@@ -198,7 +204,14 @@ final class SyncSeedImporter
             ->setEntityId($entityId)
             ->setExternalId($s->externalId)
             ->setExternalUrl($s->externalUrl)
-            ->setSourceMetadata($s->sourceMetadata); // retain redmine status/priority/assignee ids
+            ->setSourceMetadata($s->sourceMetadata) // retain redmine status/priority/assignee ids
+            // Read-only source (channel without the `outbound` capability) →
+            // inbound-only mapping so local edits are never pushed back.
+            ->setSyncMode(
+                $channel->supports(ChannelCapability::Outbound)
+                    ? SyncMode::Bidirectional
+                    : SyncMode::Inbound,
+            );
         if ($s->externalUpdatedAt !== null) {
             $mapping->setExternalUpdatedAt($s->externalUpdatedAt);
         }
