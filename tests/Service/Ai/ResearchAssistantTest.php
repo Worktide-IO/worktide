@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Service\Ai;
 
 use App\Entity\Enum\LeadSource;
+use App\Entity\Enum\ResearchObjective;
 use App\Entity\ResearchMission;
 use App\Service\Ai\ResearchAssistant;
 use App\Service\ExternalSearch\ExternalSearchResult;
@@ -59,6 +60,68 @@ final class ResearchAssistantTest extends TestCase
         $out = (new ResearchAssistant($llm))->extractLeads($this->mission(), [$this->hit()]);
         self::assertCount(1, $out['leads']);
         self::assertSame('Real GmbH', $out['leads'][0]['name']);
+    }
+
+    public function testClarifyTreatsNoQuestionsAsReady(): void
+    {
+        $llm = $this->createStub(LlmProviderInterface::class);
+        $llm->method('completeJson')->willReturn(['ready' => false, 'questions' => []]);
+
+        $out = (new ResearchAssistant($llm))->clarify($this->mission(), []);
+        self::assertTrue($out['ready']);           // no questions ⇒ ready
+        self::assertSame([], $out['questions']);
+    }
+
+    public function testClarifyNormalizesQuestionsAndBrief(): void
+    {
+        $llm = $this->createStub(LlmProviderInterface::class);
+        $llm->method('completeJson')->willReturn([
+            'ready' => false,
+            'questions' => [['question' => 'Welche Region?', 'options' => ['DACH', 'EU', '', 'US']]],
+            'brief' => ['query' => 'TYPO3 agencies', 'targetCount' => '1000', 'foo' => 'dropped'],
+        ]);
+
+        $out = (new ResearchAssistant($llm))->clarify($this->mission(), []);
+        self::assertFalse($out['ready']);
+        self::assertCount(1, $out['questions']);
+        self::assertSame('q1', $out['questions'][0]['key']);              // key defaulted
+        self::assertSame(['DACH', 'EU', 'US'], $out['questions'][0]['options']); // empty dropped
+        self::assertSame(1000, $out['brief']['targetCount']);            // coerced to int
+        self::assertArrayNotHasKey('foo', $out['brief']);               // unknown key dropped
+    }
+
+    public function testClarifyReadyReturnsObjectiveAndClearsQuestions(): void
+    {
+        $llm = $this->createStub(LlmProviderInterface::class);
+        $llm->method('completeJson')->willReturn([
+            'ready' => true,
+            'objective' => 'partner_search',
+            'questions' => [['question' => 'ignored once ready']],
+            'brief' => ['query' => 'partner candidates'],
+        ]);
+
+        $out = (new ResearchAssistant($llm))->clarify($this->mission(), []);
+        self::assertTrue($out['ready']);
+        self::assertSame(ResearchObjective::PartnerSearch, $out['objective']);
+        self::assertSame([], $out['questions']);
+    }
+
+    public function testSuggestMissionsValidatesAndCaps(): void
+    {
+        $llm = $this->createStub(LlmProviderInterface::class);
+        $llm->method('completeJson')->willReturn(['suggestions' => [
+            ['prompt' => 'A', 'objective' => 'lead_generation', 'targetCount' => '50', 'brief' => ['query' => 'x']],
+            ['objective' => 'partner_search'],                       // no prompt → dropped
+            ['prompt' => 'B', 'objective' => 'nonsense'],            // bad objective → general
+            ['prompt' => 'C'],
+            ['prompt' => 'D'],                                       // beyond cap of 3
+        ]]);
+
+        $out = (new ResearchAssistant($llm))->suggestMissions('# snapshot');
+        self::assertCount(3, $out);
+        self::assertSame('A', $out[0]['prompt']);
+        self::assertSame(50, $out[0]['targetCount']);
+        self::assertSame('general', $out[1]['objective']);          // 'nonsense' → general
     }
 
     private function mission(): ResearchMission
