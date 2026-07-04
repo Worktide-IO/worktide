@@ -87,6 +87,50 @@ final class PortalAccessResolver
         return ($workspace->getSettings()['portal']['enabled'] ?? false) === true;
     }
 
+    /** Canonical portal feature keys — one per wireframe screen. */
+    public const FEATURE_KEYS = [
+        'tickets',
+        'dashboard',
+        'monitoring',
+        'agreements',
+        'ideas',
+        'social',
+        'forms',
+        'documents',
+    ];
+
+    /**
+     * Per-workspace feature flags from `settings.portal.features`. `tickets` is
+     * live (P1) and on by default; every other screen is off unless a workspace
+     * admin has flipped it. Drives the portal navigation and per-feature gates.
+     *
+     * @return array<string, bool>
+     */
+    public function features(): array
+    {
+        $stored = $this->workspace()->getSettings()['portal']['features'] ?? [];
+        $stored = \is_array($stored) ? $stored : [];
+
+        $features = [];
+        foreach (self::FEATURE_KEYS as $key) {
+            $features[$key] = ($stored[$key] ?? ($key === 'tickets')) === true;
+        }
+        return $features;
+    }
+
+    /**
+     * Gate an endpoint behind both the portal toggle and a specific feature
+     * flag, so a customer can't reach e.g. /portal/systems when monitoring is
+     * off for their workspace even if they craft the request by hand.
+     */
+    public function assertFeatureEnabled(string $key): void
+    {
+        $this->assertPortalEnabled();
+        if (($this->features()[$key] ?? false) !== true) {
+            throw new AccessDeniedHttpException(sprintf('Portal feature "%s" is not enabled.', $key));
+        }
+    }
+
     /**
      * The projects a portal contact may see: their customer's external,
      * non-archived projects.
