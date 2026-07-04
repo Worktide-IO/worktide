@@ -41,6 +41,7 @@ final class PasswordResetService
         private readonly RequestStack $requestStack,
         private readonly EgressGuard $egress,
         private readonly string $spaBaseUrl,
+        private readonly string $portalBaseUrl,
         private readonly string $mailFrom,
     ) {}
 
@@ -85,6 +86,49 @@ final class PasswordResetService
         // Routed async via Messenger (SendEmailMessage: async).
         // Default-deny egress gate: the reset token is always issued, but the
         // email only leaves the system when email_outbound is approved (EGRESS_ALLOW).
+        if (!$this->egress->isAllowed(EgressModule::EmailOutbound)) {
+            return;
+        }
+        $this->mailer->send($mail);
+    }
+
+    /**
+     * Issue a "set your password" link for a freshly-provisioned portal user
+     * and mail it. Unlike {@see request()} this is NOT user-triggered and NOT
+     * enumeration-sensitive — it is called by the staff grant-portal-access
+     * action for a User we just created, so it takes the User directly and the
+     * link points at the customer portal (not the staff SPA).
+     *
+     * Reuses the same single-use token machinery; the portal's
+     * `/set-password?token=` page posts back to the shared
+     * `POST /v1/auth/reset-password`.
+     */
+    public function sendPortalSetPasswordLink(User $user): void
+    {
+        // Only ever one live token per user.
+        $this->tokens->deleteForUser($user);
+
+        $plaintext = bin2hex(random_bytes(32));
+        $token = (new PasswordResetToken())
+            ->setUser($user)
+            ->setTokenHash(hash('sha256', $plaintext));
+        $this->em->persist($token);
+        $this->em->flush();
+
+        $setPasswordUrl = rtrim($this->portalBaseUrl, '/') . '/set-password?token=' . $plaintext;
+
+        $mail = (new TemplatedEmail())
+            ->from($this->mailFrom)
+            ->to($user->getEmail())
+            ->subject('Ihr Zugang zum Kundenportal')
+            ->htmlTemplate('email/portal_set_password.html.twig')
+            ->textTemplate('email/portal_set_password.txt.twig')
+            ->context([
+                'setPasswordUrl' => $setPasswordUrl,
+                'firstName' => $user->getFirstName(),
+                'expiresAt' => $token->getExpiresAt(),
+            ]);
+
         if (!$this->egress->isAllowed(EgressModule::EmailOutbound)) {
             return;
         }

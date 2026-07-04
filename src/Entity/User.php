@@ -107,7 +107,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getRoles(): array
     {
         $roles = $this->roles;
-        $roles[] = 'ROLE_USER';
+        // Portal users (external CRM contacts) are deliberately NOT ROLE_USER:
+        // the `^/v1 → ROLE_USER` firewall baseline must lock them out of every
+        // staff endpoint. Granting the implicit ROLE_USER here would defeat
+        // that boundary. Everyone else keeps the historical implicit ROLE_USER.
+        if (!\in_array('ROLE_PORTAL', $roles, true)) {
+            $roles[] = 'ROLE_USER';
+        }
         return array_values(array_unique($roles));
     }
 
