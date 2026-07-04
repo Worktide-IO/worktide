@@ -90,7 +90,63 @@ final class PortalAccessResolverTest extends TestCase
         $resolver->findTicketOr404($foreignTask->getId());
     }
 
+    public function testFeaturesDefaultsTicketsOnEverythingElseOff(): void
+    {
+        $resolver = $this->resolverForWorkspace(new Workspace()); // no settings
+
+        $features = $resolver->features();
+        self::assertTrue($features['tickets']);
+        self::assertFalse($features['monitoring']);
+        self::assertFalse($features['proposals']);
+        // Every canonical key is present.
+        self::assertSame(PortalAccessResolver::FEATURE_KEYS, array_keys($features));
+    }
+
+    public function testFeaturesReflectWorkspaceSettings(): void
+    {
+        $ws = (new Workspace())->setSettings(['portal' => ['features' => ['monitoring' => true]]]);
+        $resolver = $this->resolverForWorkspace($ws);
+
+        self::assertTrue($resolver->features()['monitoring']);
+        self::assertFalse($resolver->features()['social']);
+    }
+
+    public function testAssertPortalEnabledThrowsWhenDisabled(): void
+    {
+        $resolver = $this->resolverForWorkspace(new Workspace()); // enabled not set
+
+        $this->expectException(AccessDeniedHttpException::class);
+        $resolver->assertPortalEnabled();
+    }
+
+    public function testAssertFeatureEnabledGate(): void
+    {
+        $ws = (new Workspace())->setSettings(['portal' => ['enabled' => true, 'features' => ['monitoring' => true]]]);
+        $resolver = $this->resolverForWorkspace($ws);
+
+        $resolver->assertFeatureEnabled('monitoring'); // enabled → no throw
+
+        $this->expectException(AccessDeniedHttpException::class);
+        $resolver->assertFeatureEnabled('social'); // off → 403
+    }
+
+    public function testIsPortalEnabledStatic(): void
+    {
+        self::assertFalse(PortalAccessResolver::isPortalEnabled(new Workspace()));
+        self::assertTrue(PortalAccessResolver::isPortalEnabled(
+            (new Workspace())->setSettings(['portal' => ['enabled' => true]]),
+        ));
+    }
+
     // --- helpers ----------------------------------------------------
+
+    private function resolverForWorkspace(Workspace $workspace): PortalAccessResolver
+    {
+        $customer = (new Customer())->setWorkspace($workspace);
+        $user = new User();
+        $contact = (new Contact())->setCustomer($customer)->setLinkedUser($user);
+        return $this->resolver($user, $contact);
+    }
 
     /**
      * @return array{0: User, 1: Contact}
