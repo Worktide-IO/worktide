@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Portal;
 
+use App\Entity\AgreementLineItem;
+use App\Entity\AgreementType;
 use App\Entity\Contact;
 use App\Entity\Customer;
+use App\Entity\CustomerAgreement;
+use App\Entity\CustomerAgreementRevision;
 use App\Entity\CustomerSystem;
+use App\Entity\Enum\AgreementStatus;
 use App\Entity\Enum\CustomerStatus;
 use App\Entity\Enum\IncidentKind;
 use App\Entity\Enum\SystemEnvironment;
@@ -192,6 +197,26 @@ final class PortalEndpointsTest extends WebTestCase
         }
     }
 
+    public function testAgreementExposesLineItemsAndTotal(): void
+    {
+        $ctx = $this->seedAgreements();
+        $this->request('GET', '/v1/portal/agreements', $this->token($ctx['portalUser']));
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        $data = $this->json();
+
+        self::assertCount(1, $data['agreements']);
+        $agreement = $data['agreements'][0];
+
+        // Two lines: 1×10000 + 2×5000 = 20000, all recurring → monthly total.
+        self::assertCount(2, $agreement['lineItems']);
+        self::assertSame(20000, $agreement['totalCents']);
+        self::assertTrue($agreement['totalIsRecurring']);
+
+        // Quantity math: the 2×5000 line reports a 10000 line total.
+        $qtyLine = array_values(array_filter($agreement['lineItems'], static fn ($l) => $l['quantity'] == 2.0))[0];
+        self::assertSame(10000, $qtyLine['amountCents']);
+    }
+
     // --- helpers ----------------------------------------------------
 
     private function request(string $method, string $uri, ?string $token = null): void
@@ -366,6 +391,53 @@ final class PortalEndpointsTest extends WebTestCase
             ->setStartsAt(new \DateTimeImmutable('first day of this month 09:00'))
             ->setDurationMinutes(300)->setIsBillable(true)->setIsBilled(false)->setIsExternal(false);
         $this->em->persist($entry);
+
+        $this->em->flush();
+        $this->em->clear();
+
+        return ['portalUser' => $portalUser];
+    }
+
+    /**
+     * A portal world with the agreements feature ON: one signed agreement whose
+     * in-force revision carries two recurring line items (1×10000 + 2×5000).
+     *
+     * @return array{portalUser: User}
+     */
+    private function seedAgreements(): array
+    {
+        $ws = (new Workspace())
+            ->setName('Agr WS')
+            ->setSlug('agr-ws-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
+            ->setLocale('de')
+            ->setTimezone('Europe/Berlin')
+            ->setSettings(['portal' => ['enabled' => true, 'features' => ['tickets' => true, 'agreements' => true]]]);
+        $this->em->persist($ws);
+
+        $portalUser = $this->user('portal.agr@example.test', ['ROLE_PORTAL']);
+
+        $customer = $this->customer($ws, 'Agr GmbH');
+        $contact = (new Contact())->setCustomer($customer)->setFirstName('Alan')->setLastName('Agr')
+            ->setEmail('portal.agr@example.test')->setLinkedUser($portalUser);
+        $this->em->persist($contact);
+        $projectStatus = (new ProjectStatus())->setWorkspace($ws)->setName('Aktiv')->setColor('#888')->setPosition(0)->setIsCompleted(false)->setIsArchived(false);
+        $this->em->persist($projectStatus);
+        $this->project($ws, $customer, 'AGR', $projectStatus);
+
+        $type = (new AgreementType())->setName('Website-Wartung')->setSlug('wartung');
+        $type->setWorkspace($ws);
+        $this->em->persist($type);
+
+        $agreement = (new CustomerAgreement())->setCustomer($customer)->setType($type)->setStatus(AgreementStatus::Signed);
+        $this->em->persist($agreement);
+
+        $revision = (new CustomerAgreementRevision())->setAgreement($agreement)->setVersionNo(1)
+            ->setStatus(AgreementStatus::Signed)->setReference('A-2026-999');
+        $revision
+            ->addLineItem((new AgreementLineItem())->setDescription('Wartung')->setQuantity(1)->setUnitAmountCents(10000)->setIsRecurring(true)->setPosition(0))
+            ->addLineItem((new AgreementLineItem())->setDescription('Support 2 Std.')->setQuantity(2)->setUnitAmountCents(5000)->setIsRecurring(true)->setPosition(1));
+        $this->em->persist($revision);
+        $agreement->setCurrentRevision($revision);
 
         $this->em->flush();
         $this->em->clear();

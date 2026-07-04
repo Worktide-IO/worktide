@@ -17,6 +17,8 @@ use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\CustomerAgreementRevisionRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -82,6 +84,16 @@ class CustomerAgreementRevision
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
+    /** @var Collection<int, AgreementLineItem> */
+    #[ORM\OneToMany(mappedBy: 'revision', targetEntity: AgreementLineItem::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['position' => 'ASC'])]
+    private Collection $lineItems;
+
+    public function __construct()
+    {
+        $this->lineItems = new ArrayCollection();
+    }
+
     public function getAgreement(): CustomerAgreement { return $this->agreement; }
     public function setAgreement(CustomerAgreement $a): self
     {
@@ -110,6 +122,24 @@ class CustomerAgreementRevision
 
     public function getNotes(): ?string { return $this->notes; }
     public function setNotes(?string $n): self { $this->notes = $n; return $this; }
+
+    /** @return Collection<int, AgreementLineItem> */
+    public function getLineItems(): Collection { return $this->lineItems; }
+
+    public function addLineItem(AgreementLineItem $item): self
+    {
+        if (!$this->lineItems->contains($item)) {
+            $this->lineItems->add($item);
+            $item->setRevision($this);
+        }
+        return $this;
+    }
+
+    public function removeLineItem(AgreementLineItem $item): self
+    {
+        $this->lineItems->removeElement($item);
+        return $this;
+    }
 
     /** Convenience read-only IRI-free flag for clients. */
     #[ApiProperty(writable: false)]
