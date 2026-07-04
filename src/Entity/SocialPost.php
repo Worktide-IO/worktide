@@ -108,6 +108,20 @@ class SocialPost
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $publishedAt = null;
 
+    /**
+     * Optional owning project. Lets the customer portal scope posts to a
+     * customer (via the project's customer + isExternal), the same way tickets
+     * / documents / proposals are scoped. Null = workspace-level, not shown in
+     * any portal.
+     */
+    #[ORM\ManyToOne(targetEntity: Project::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Project $project = null;
+
+    /** Latest change the customer requested from the portal ("Änderung anfordern"). */
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $changeRequestNote = null;
+
     /** @var Collection<int, SocialPostTarget> */
     #[ORM\OneToMany(mappedBy: 'socialPost', targetEntity: SocialPostTarget::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $targets;
@@ -139,6 +153,12 @@ class SocialPost
 
     public function getPublishedAt(): ?\DateTimeImmutable { return $this->publishedAt; }
     public function setPublishedAt(?\DateTimeImmutable $t): self { $this->publishedAt = $t; return $this; }
+
+    public function getProject(): ?Project { return $this->project; }
+    public function setProject(?Project $project): self { $this->project = $project; return $this; }
+
+    public function getChangeRequestNote(): ?string { return $this->changeRequestNote; }
+    public function setChangeRequestNote(?string $note): self { $this->changeRequestNote = $note; return $this; }
 
     /** @return Collection<int, SocialPostTarget> */
     public function getTargets(): Collection { return $this->targets; }
