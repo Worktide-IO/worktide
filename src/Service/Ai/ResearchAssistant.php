@@ -46,7 +46,10 @@ final class ResearchAssistant
             return ['leads' => [], 'reasoning' => null];
         }
 
-        $raw = $this->llm->completeJson($this->systemPrompt(), $this->buildContext($mission, $results));
+        // Extraction can emit up to MAX_LEADS structured leads; the default
+        // 2048-token budget truncates that JSON (→ parse failure) once many
+        // results come in. Give it real headroom.
+        $raw = $this->llm->completeJson($this->systemPrompt(), $this->buildContext($mission, $results), 8192);
 
         $leads = [];
         foreach ($this->asList($raw['leads'] ?? null) as $item) {

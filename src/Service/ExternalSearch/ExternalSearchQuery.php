@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Service\ExternalSearch;
 
+use Symfony\Component\Uid\Uuid;
+
 /**
  * A normalized query the research agent hands to every external-search provider.
  * `filters` carries provider-specific hints (e.g. tech=TYPO3, region=DACH,
- * industry=…) that adapters use as they can and ignore otherwise.
+ * industry=…, objective=…) that adapters use as they can and ignore otherwise.
+ * `workspaceId` is the tenant scope the internal (own-database) provider needs;
+ * the external web adapters ignore it.
  */
 final readonly class ExternalSearchQuery
 {
@@ -18,5 +22,6 @@ final readonly class ExternalSearchQuery
         public string $query,
         public int $limit = 20,
         public array $filters = [],
+        public ?Uuid $workspaceId = null,
     ) {}
 }

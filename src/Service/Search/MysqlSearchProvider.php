@@ -31,6 +31,8 @@ final class MysqlSearchProvider implements SearchProviderInterface
         'project' => ['name', 'number', 'description'],
         'document' => ['name', 'body'],
         'comment' => ['content'],
+        'lead' => ['name', 'email', 'website', 'role', 'industry', 'region', 'notes'],
+        'research_mission' => ['prompt', 'summary'],
     ];
 
     public function __construct(

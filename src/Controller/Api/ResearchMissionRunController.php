@@ -66,11 +66,12 @@ final class ResearchMissionRunController
         if (!$this->egress->isAllowed(EgressModule::Llm)) {
             throw new ConflictHttpException('LLM egress is not approved (add "llm" to EGRESS_ALLOW).');
         }
+        // At least one search source must be usable. The internal (own-database)
+        // provider is always available, so this normally passes; external web
+        // adapters self-gate on the external_search egress module and are skipped
+        // by the registry when it isn't approved — an internal-only run is fine.
         if (!$this->search->isAvailable()) {
-            throw new ConflictHttpException('No external-search provider configured (set e.g. TAVILY_API_KEY).');
-        }
-        if (!$this->egress->isAllowed(EgressModule::ExternalSearch)) {
-            throw new ConflictHttpException('External search egress is not approved (add "external_search" to EGRESS_ALLOW).');
+            throw new ConflictHttpException('No search provider available.');
         }
 
         $this->bus->dispatch(new RunResearchMissionMessage($mission->getId() ?? throw new NotFoundHttpException()));
