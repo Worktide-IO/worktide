@@ -97,6 +97,7 @@ final class PortalAccessResolver
         'social',
         'forms',
         'documents',
+        'proposals',
     ];
 
     /**
