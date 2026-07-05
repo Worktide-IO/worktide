@@ -129,6 +129,43 @@ final class PortalAgreementsController
         return new JsonResponse($this->agreementDto($head));
     }
 
+    #[Route(
+        path: '/v1/portal/agreements/{id}/inquiry',
+        name: 'api_portal_agreements_inquiry',
+        host: 'api.worktide.ddev.site',
+        requirements: ['id' => '[0-9a-fA-F-]{36}'],
+        methods: ['POST'],
+    )]
+    public function inquiry(string $id, Request $request): JsonResponse
+    {
+        $this->portal->assertFeatureEnabled('agreements');
+        $customer = $this->portal->customer();
+
+        $head = $this->agreements->find(Uuid::fromString($id));
+        if (
+            !$head instanceof CustomerAgreement
+            || $head->getDeletedAt() !== null
+            || $head->getCustomer()->getId()?->toRfc4122() !== $customer->getId()?->toRfc4122()
+        ) {
+            throw new NotFoundHttpException('Agreement not found.');
+        }
+        if (!$this->isSignable($head)) {
+            throw new ConflictHttpException('This agreement is not open for a query.');
+        }
+
+        $message = \is_string($this->body($request)['message'] ?? null) ? trim($this->body($request)['message']) : '';
+        if ($message === '') {
+            throw new BadRequestHttpException('message required.');
+        }
+
+        // A query records a note for the agency; the offer stays open (no status
+        // change — the customer hasn't decided). Staff follow up out-of-band.
+        $head->setCustomerInquiry($message)->setInquiredAt(new \DateTimeImmutable());
+        $this->em->flush();
+
+        return new JsonResponse($this->agreementDto($head));
+    }
+
     private function isSignable(CustomerAgreement $head): bool
     {
         return !$head->getIsSigned()
@@ -245,6 +282,8 @@ final class PortalAgreementsController
             'hasDocument' => $revision instanceof CustomerAgreementRevision && $revision->getFile() !== null,
             'canSign' => $this->isSignable($agreement),
             'signedBy' => $agreement->getSignedByName(),
+            'inquiry' => $agreement->getCustomerInquiry(),
+            'inquiredAt' => $agreement->getInquiredAt()?->format(\DateTimeInterface::ATOM),
             'lineItems' => $lineItems,
             'totalCents' => $totalCents,
             'currency' => $currency,
