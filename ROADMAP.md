@@ -1,6 +1,6 @@
 # Worktide Roadmap
 
-Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (via bluemine), Asana, Jira und FreeScout.
+Stand 2026-07-05. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (via bluemine), Asana, Jira und FreeScout.
 
 ## Bereits gebaut
 
@@ -29,6 +29,15 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 - **CSV-Import-Wizard** (3-Step)
 - Profile- + Workspace-Settings
 - **WatchButton** für Projekte (analog für Tasks/Documents möglich)
+- **Research-/Akquise-Agent**: Missions-Liste + konversationelle Freitext-Erstellung mit Rückfrage-Dialog, Lead-Pipeline (Stage-Wechsel, In-Kunde-Umwandlung), Lead-Aktivitäts-Timeline (+ manuelle Notizen), Vorschlags-Inbox
+- **KI-Agenten-Übersicht** (`/ki-agenten`): Empfehlungs-Inbox (Accept/Reject/Filter) + Trigger für Marketing-Draft, Upgrade-Outreach und „Verteilung planen"
+
+### KI-Agenten, Research/Akquise & universelles Agent-Action-Fundament
+Realisiert die Phase-D-Infrastruktur und macht sie generisch (Details in den Phasen D / D⁺):
+- **Human-in-the-Loop-Seam** produktiv: `AIRecommendation` (polymorph target/kind/status/suggestion) + `RecommendationApplier` + Accept/Reject-Endpoints; `LlmProviderInterface` (Anthropic default / Infomaniak) mit `completeJson`; eigener `ai_agents`-Messenger-Transport; `EgressGuard`/`EgressModule` (default-deny) als Outbound-Gate über alle Kanäle.
+- **Agenten**: Ticket-Triage, Ticket-aus-Konversation, Marketing-Social-Draft, Customer-Upgrade-Outreach, **Research/Akquise** (Missionen + Rückfragen + externe Suche Tavily/BuiltWith + Lead-Extraktion, proaktive Vorschläge), **Distribution-Planner**.
+- **Universelles Agent-Action-Fundament**: statt eines bespoke Stacks pro Fähigkeit erarbeitet der LLM die Empfehlungen selbst (`AgentActionPlanner` über einen `CapabilityCatalog` aus den verbundenen Kanälen), und ein **einziger** generischer Applier-Zweig führt sie aus — Dispatch nach Archetyp (`social_post` / `outbound_message`), Connector aus der `AdapterRegistry` (unbegrenzt). Neue Fähigkeit = „Connector registrieren". Beweis: `DiscourseForumAdapter` (Foren-Verbreitung ohne Spezialcode, reitet die egress-gated Social-Pipeline; Permalink = Verbreitungs-Nachweis).
+- **Separate Noch-nicht-Kunden-Daten**: `ResearchMission` (resümierbarer `state`) + `ResearchMissionMessage` (Dialog) + `Lead` (source/stage/fitScore/dedupeKey/convertedCustomer) + `LeadActivity` (append-only Historie). Priority-Scoring (WSJF-lite) mit Lexoffice-Umsatz als Signal.
 
 ---
 
@@ -122,6 +131,13 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 
 **Ziel:** Worktide wird vom Verwalter zum aktiven Vorschlager.
 
+> **Status: Fundament realisiert** (siehe „Bereits gebaut → KI-Agenten"). Der Human-in-the-Loop-Seam
+> (`AIRecommendation` + `RecommendationApplier` + Accept/Reject), `LlmProviderInterface`, der `ai_agents`-Transport,
+> das `EgressGuard`-Outbound-Gate und mehrere Agenten (Triage, Marketing, Upgrade-Outreach, Research/Akquise,
+> Distribution-Planner) laufen produktiv — inkl. eines **generischen Agent-Action-Layers** (Connector-Katalog →
+> LLM-Plan → ein generischer Applier-Zweig). Offen: Ollama/EU-Routing-Policy, breiter InboundEvent-Pipeline-Ausbau,
+> Prompt-Caching, autonomer Schritt-für-Schritt-`AgentRun`-Trace.
+
 ### Schicht 1 — Infrastruktur
 - **`AIRecommendation`-Entity**: suggestion, reasoning (Markdown), appliesTo polymorph (Task/Project), status (pending/accepted/rejected), source
 - **`LlmProviderInterface`** + Anthropic-Claude-Implementierung (default, `src/Service/Llm/AnthropicLlmProvider.php` als Keim vorhanden) + Ollama-Adapter für datenschutzsensible Workspaces
@@ -175,6 +191,8 @@ Stand 2026-06-25. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (vi
 ## Phase D⁺ — Such-Service (optional)
 
 **Ziel:** Skalierbare Volltextsuche sobald die MySQL-`LIKE`-Variante an ihre Grenzen stößt. Vor Phase C (Mail-Bodies) selten gerechtfertigt; danach typischerweise mit dem ersten 100k+-Workspace fällig.
+
+> **Status: realisiert.** `SearchProviderInterface` mit `MysqlSearchProvider` (Default) + `MeilisearchProvider` (Drop-in via `SEARCH_PROVIDER`), globale `/v1/search` + Cmd+/ in der SPA, Auto-Indexing (Doctrine-Listener → `ai`-… `SyncSearchIndexMessage`) + `worktide:search:reindex`. Indexiert u. a. conversation/task/customer/contact/project/document/comment **sowie `lead`/`research_mission`**. Der Research-Agent nutzt den Index zusätzlich als interne „aus-der-eigenen-DB"-Quelle + für typo-tolerante Lead-Dedup. Offen: per-Workspace-Toggle, Typesense-Adapter, Hybrid-/Vektor-Suche, MySQL-Query-Tokenisierung (verbose Queries).
 
 **Wann lohnt es sich?**
 - Mail-Bodies / Conversation-Threads sollen volltext-durchsucht werden mit Ranking + Highlighting
