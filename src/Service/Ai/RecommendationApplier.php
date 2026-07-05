@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Service\Ai;
 
+use App\Channels\AdapterRegistry;
 use App\Entity\AIRecommendation;
+use App\Entity\Channel;
 use App\Entity\Comment;
 use App\Entity\Conversation;
 use App\Entity\ConversationNote;
@@ -55,6 +57,7 @@ final class RecommendationApplier
         private readonly TagRepository $tags,
         private readonly ConversationTaskConverter $taskConverter,
         private readonly ChannelRepository $channels,
+        private readonly AdapterRegistry $adapters,
     ) {}
 
     /**
@@ -82,7 +85,11 @@ final class RecommendationApplier
         }
 
         if ($recommendation->getTarget() === RecommendationTarget::Workspace) {
-            $this->applyResearchSuggestion($recommendation);
+            if ($recommendation->getKind() === RecommendationKind::AgentAction) {
+                $this->applyAgentAction($recommendation, $reviewer);
+            } else {
+                $this->applyResearchSuggestion($recommendation);
+            }
 
             return;
         }
@@ -140,6 +147,7 @@ final class RecommendationApplier
                 continue;
             }
             $target = new SocialPostTarget();
+            $target->setWorkspace($workspace);
             $target->setChannel($channelByCode[$code]);
             $target->setBodyOverride($body);
             $post->addTarget($target);
@@ -202,6 +210,88 @@ final class RecommendationApplier
      * (dispatch the run endpoint), otherwise Draft (needs clarification first).
      * The reviewer becomes the mission's author via the auditable subscriber.
      */
+    /**
+     * Generic agent action: the LLM planner proposed an outbound action against
+     * a connected channel; accepting it materialises the SAME kind of egress-gated
+     * draft the bespoke branches create — but driven by connectorCode, not
+     * hard-wired. Dispatch is by archetype (a small fixed set), while the concrete
+     * connector within each archetype comes from {@see AdapterRegistry} (unbounded).
+     * So adding a new channel/forum needs no new branch here.
+     *
+     * @throws \DomainException on an unresolvable/blocked action (→ 409 on accept)
+     */
+    private function applyAgentAction(AIRecommendation $recommendation, User $reviewer): void
+    {
+        $workspace = $this->em->find(Workspace::class, $recommendation->getTargetId());
+        if (!$workspace instanceof Workspace) {
+            return;
+        }
+        $s = $recommendation->getSuggestion();
+        $archetype = \is_string($s['archetype'] ?? null) ? $s['archetype'] : '';
+        $connectorCode = \is_string($s['connectorCode'] ?? null) ? $s['connectorCode'] : '';
+        $channelId = \is_string($s['channelId'] ?? null) ? $s['channelId'] : '';
+        $payload = \is_array($s['payload'] ?? null) ? $s['payload'] : [];
+        if ($connectorCode === '' || $channelId === '') {
+            throw new \DomainException('Agent-Aktion ohne Connector oder Kanal.');
+        }
+
+        try {
+            $channel = $this->em->find(Channel::class, Uuid::fromString($channelId));
+        } catch (\InvalidArgumentException) {
+            throw new \DomainException('Ungültige Kanal-Referenz.');
+        }
+        if (!$channel instanceof Channel
+            || !$channel->getWorkspace()->getId()?->equals($workspace->getId())
+            || !$channel->isEnabled()
+            || $channel->getAdapterCode() !== $connectorCode) {
+            throw new \DomainException('Der gewählte Kanal ist für diese Aktion nicht verfügbar.');
+        }
+
+        $body = \is_string($payload['body'] ?? null) ? trim((string) $payload['body']) : '';
+
+        if ($archetype === 'social_post') {
+            if ($this->adapters->trySocial($connectorCode) === null) {
+                throw new \DomainException(sprintf('Kein Publisher für "%s".', $connectorCode));
+            }
+            if ($body === '') {
+                throw new \DomainException('Social-Aktion ohne Text.');
+            }
+            $post = (new SocialPost())->setWorkspace($workspace)->setBody($body);
+            $post->addTarget(
+                (new SocialPostTarget())->setWorkspace($workspace)->setChannel($channel)->setBodyOverride($body),
+            );
+            $this->em->persist($post);
+
+            return;
+        }
+
+        if ($archetype === 'outbound_message') {
+            if ($this->adapters->tryOutbound($connectorCode) === null) {
+                throw new \DomainException(sprintf('Kein Outbound-Adapter für "%s".', $connectorCode));
+            }
+            $recipient = \is_string($payload['recipient'] ?? null) ? trim((string) $payload['recipient']) : '';
+            if ($recipient === '' || $body === '') {
+                throw new \DomainException('Outbound-Aktion braucht Empfänger und Text.');
+            }
+            $subject = \is_string($payload['subject'] ?? null) ? trim((string) $payload['subject']) : '';
+            $message = (new OutboundMessage())
+                ->setWorkspace($workspace)
+                ->setChannel($channel)
+                ->setRecipientRaw($recipient)
+                ->setSubject($subject !== '' ? $subject : null)
+                ->setBody($body)
+                ->setKind(OutboundMessageKind::Reply)
+                ->setStatus(OutboundMessageStatus::Queued)
+                ->setCreatedByUser($reviewer)
+                ->setCreatedByRecommendationId($recommendation->getId());
+            $this->em->persist($message);
+
+            return;
+        }
+
+        throw new \DomainException(sprintf('Unbekannter Agent-Action-Archetyp "%s".', $archetype));
+    }
+
     private function applyResearchSuggestion(AIRecommendation $recommendation): void
     {
         $workspace = $this->em->find(Workspace::class, $recommendation->getTargetId());
