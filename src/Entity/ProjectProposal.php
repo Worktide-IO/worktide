@@ -114,6 +114,21 @@ class ProjectProposal
     #[ORM\Column(type: 'json')]
     private array $variants = [];
 
+    /**
+     * Before/after mockup images for the pitch ("Vorher/Nachher-Mockup").
+     * Agency-hosted image URLs (their asset host / CDN); rendered read-only in
+     * the portal. Either may be null (e.g. only a proposed "after" design).
+     */
+    #[ORM\Column(length: 1024, nullable: true)]
+    #[Assert\Url]
+    #[Assert\Length(max: 1024)]
+    private ?string $mockupBeforeUrl = null;
+
+    #[ORM\Column(length: 1024, nullable: true)]
+    #[Assert\Url]
+    #[Assert\Length(max: 1024)]
+    private ?string $mockupAfterUrl = null;
+
     /** Latest customer question/feedback ("Rückfrage"); sets status to InReview. */
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $customerFeedback = null;
@@ -176,6 +191,12 @@ class ProjectProposal
 
     /** @param list<array<string, mixed>> $variants */
     public function setVariants(array $variants): self { $this->variants = $variants; return $this; }
+
+    public function getMockupBeforeUrl(): ?string { return $this->mockupBeforeUrl; }
+    public function setMockupBeforeUrl(?string $v): self { $this->mockupBeforeUrl = $v; return $this; }
+
+    public function getMockupAfterUrl(): ?string { return $this->mockupAfterUrl; }
+    public function setMockupAfterUrl(?string $v): self { $this->mockupAfterUrl = $v; return $this; }
 
     public function getCustomerFeedback(): ?string { return $this->customerFeedback; }
     public function setCustomerFeedback(?string $v): self { $this->customerFeedback = $v; return $this; }
