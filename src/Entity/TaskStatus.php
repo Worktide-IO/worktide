@@ -70,6 +70,9 @@ class TaskStatus
 
     public function isWaitingForCustomer(): bool { return $this->isWaitingForCustomer; }
     public function setIsWaitingForCustomer(bool $v): self { $this->isWaitingForCustomer = $v; return $this; }
+    // Serializer strips the `is` prefix → the exposed property is `waitingForCustomer`;
+    // PropertyAccess needs a matching mutator for the API to accept writes.
+    public function setWaitingForCustomer(bool $v): self { return $this->setIsWaitingForCustomer($v); }
 
     public function getName(): string
     {
