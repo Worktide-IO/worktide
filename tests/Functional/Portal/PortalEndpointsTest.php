@@ -7,7 +7,9 @@ namespace App\Tests\Functional\Portal;
 use App\Entity\AgreementLineItem;
 use App\Entity\AgreementType;
 use App\Entity\BrainstormNote;
+use App\Entity\Comment;
 use App\Entity\Contact;
+use App\Entity\Enum\CommentTarget;
 use App\Entity\Customer;
 use App\Entity\CustomerAgreement;
 use App\Entity\CustomerAgreementRevision;
@@ -272,6 +274,39 @@ final class PortalEndpointsTest extends WebTestCase
         // And it now shows up in the list (chronological, appended).
         $this->request('GET', '/v1/portal/brainstorm', $token);
         self::assertCount(2, $this->json()['notes']);
+    }
+
+    public function testNotificationsSurfaceAgencyReplyAndMarkRead(): void
+    {
+        $ctx = $this->seed();
+        $token = $this->token($ctx['portalUser']);
+
+        // An agency (staff-authored) comment on the customer's visible ticket.
+        $task = $this->em->getRepository(Task::class)->find(Uuid::fromString($ctx['ownTaskId']));
+        $staff = $this->em->getRepository(User::class)->findOneBy(['email' => 'portal.staff@example.test']);
+        self::assertNotNull($task);
+        $this->em->persist(
+            (new Comment())->setWorkspace($task->getWorkspace())->setTarget(CommentTarget::Task)
+                ->setTargetId($task->getId())->setAuthor($staff)->setContent('Antwort der Agentur')
+                ->setIsHiddenForConnectUsers(false),
+        );
+        $this->em->flush();
+
+        // It surfaces as an unread ticket_reply notification.
+        $this->request('GET', '/v1/portal/notifications', $token);
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        $data = $this->json();
+        self::assertSame(1, $data['unreadCount']);
+        self::assertSame('ticket_reply', $data['items'][0]['type']);
+        self::assertFalse($data['items'][0]['read']);
+
+        // Marking read clears the badge and flips the item to read.
+        $this->request('POST', '/v1/portal/notifications/mark-read', $token);
+        self::assertSame(0, $this->json()['unreadCount']);
+        $this->request('GET', '/v1/portal/notifications', $token);
+        $after = $this->json();
+        self::assertSame(0, $after['unreadCount']);
+        self::assertTrue($after['items'][0]['read']);
     }
 
     // --- helpers ----------------------------------------------------
