@@ -28,6 +28,14 @@ deepening + Docs + AI groundwork) underway.** Late-2026 the data model has
 been validated against a real awork account (10 projects, 218 tasks
 round-tripped through the public API with voter isolation + webhook delivery).
 
+**AI agents are live (human-in-the-loop):** an `AIRecommendation` seam +
+`RecommendationApplier` + a pluggable `LlmProviderInterface` power ticket
+triage, marketing drafts, upgrade outreach, a **research/acquisition agent**
+(missions → clarifying dialog → external search → lead pipeline) and a
+**universal agent-action layer** (the LLM plans actions, one generic executor
+runs them via the connector registry, every outbound call gated by
+`EgressGuard`). Global full-text search runs on Meilisearch (MySQL fallback).
+
 | Block | Feature | Status |
 |---|---|---|
 | Phase 1 | Workspace/Project/Task/TimeEntry foundations, JWT auth, voters | ✓ |
@@ -183,6 +191,9 @@ ddev exec php bin/console debug:router            # all routes
 ddev exec php bin/console doctrine:schema:validate
 ddev exec php bin/console app:tasks:run-schedules # materialise due TaskSchedules
 ddev exec php bin/console app:autopilots:evaluate # fire alert rules
+ddev exec php bin/console worktide:priority:recompute        # WSJF-lite ticket scores (nightly)
+ddev exec php bin/console worktide:search:reindex            # rebuild the Meilisearch index
+ddev exec php bin/console worktide:research:suggest          # proactive research-mission suggestions
 ```
 
 ## Roadmap
@@ -190,7 +201,7 @@ ddev exec php bin/console app:autopilots:evaluate # fire alert rules
 Short-term:
 - Document Backlinks ("This page is referenced by …") + Mentions
 - Inline-comments on a text selection in the wiki
-- Global search (needs FTS engine — Meilisearch / Typesense)
+- ✓ Global search (Meilisearch + MySQL fallback, `SearchProviderInterface`, Cmd+/)
 - TypeScript / Dart OpenAPI clients published from CI
 
 Phase 3 (CRM + Integrations):
@@ -205,6 +216,15 @@ Phase 3 (CRM + Integrations):
 - OAuth-per-workspace external system links (Lexoffice, GitLab, …)
 
 Phase 4 (AI-driven Project Management):
+
+Shipped: the human-in-the-loop `AIRecommendation` seam + `RecommendationApplier`,
+a pluggable `LlmProviderInterface`, the `ai_agents` worker, the `EgressGuard`
+default-deny outbound gate, and agents for triage, marketing drafts, upgrade
+outreach, a **research/acquisition agent** (missions, clarifying dialog,
+external search via Tavily/BuiltWith, lead pipeline, proactive suggestions), and
+a **universal agent-action layer** — the LLM plans actions over a capability
+catalog and one generic applier branch executes them via the connector registry
+(a forum is just a registered connector). Still ahead:
 
 The big vision is a **source-agnostic InboundEvent pipeline** — Email,
 Slack/Teams, Voice transcripts, Monitoring alerts (Zabbix / Prometheus /
