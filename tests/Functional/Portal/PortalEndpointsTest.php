@@ -333,6 +333,27 @@ final class PortalEndpointsTest extends WebTestCase
         self::assertSame(403, $this->client->getResponse()->getStatusCode());
     }
 
+    public function testPerContactGatingHidesAnEnabledFeature(): void
+    {
+        $ctx = $this->seedMonitoring(); // monitoring ON for the workspace
+        $token = $this->token($ctx['portalUser']);
+
+        // Baseline: the workspace feature is visible + reachable.
+        $this->request('GET', '/v1/portal/me', $token);
+        self::assertTrue($this->json()['features']['monitoring']);
+
+        // Hide monitoring for THIS contact only.
+        $contact = $this->em->getRepository(Contact::class)->findOneBy(['email' => 'portal.mon@example.test']);
+        $contact->setPortalHiddenFeatures(['monitoring']);
+        $this->em->flush();
+
+        // Now absent from /me and the endpoint is gated, though the workspace still has it on.
+        $this->request('GET', '/v1/portal/me', $token);
+        self::assertFalse($this->json()['features']['monitoring']);
+        $this->request('GET', '/v1/portal/systems', $token);
+        self::assertSame(403, $this->client->getResponse()->getStatusCode());
+    }
+
     // --- helpers ----------------------------------------------------
 
     /** Multipart file upload — distinct from request() which sends JSON. */
