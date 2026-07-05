@@ -272,6 +272,8 @@ final class PortalProposalsController
             'origin' => $origin,
             'originLabel' => self::ORIGIN_LABELS[$origin] ?? $origin,
             'variants' => $p->getVariants(),
+            'mockupBeforeUrl' => $p->getMockupBeforeUrl(),
+            'mockupAfterUrl' => $p->getMockupAfterUrl(),
             'customerFeedback' => $p->getCustomerFeedback(),
             'ticketIdentifier' => $p->getConvertedTask()?->getIdentifier(),
             'offerReference' => $p->getConvertedOffer()?->getReference(),
