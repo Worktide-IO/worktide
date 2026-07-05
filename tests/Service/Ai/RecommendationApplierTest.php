@@ -23,6 +23,7 @@ use App\Entity\OutboundMessage;
 use App\Entity\Product;
 use App\Entity\SocialPost;
 use App\Entity\Workspace;
+use App\Channels\AdapterRegistry;
 use App\Repository\ChannelRepository;
 use App\Repository\TagRepository;
 use App\Repository\TrackerRepository;
@@ -58,7 +59,7 @@ final class RecommendationApplierTest extends TestCase
         $tags = $this->createStub(TagRepository::class);
         $tags->method('findBy')->willReturn([$tag]);
 
-        $applier = new RecommendationApplier($em, $trackers, $tags, $this->createStub(ConversationTaskConverter::class), $this->createStub(ChannelRepository::class));
+        $applier = new RecommendationApplier($em, $trackers, $tags, $this->createStub(ConversationTaskConverter::class), $this->createStub(ChannelRepository::class), new AdapterRegistry([], [], []));
 
         $applier->apply($this->taskRecommendation([
             'summary' => 'Login wirft 500.',
@@ -90,7 +91,7 @@ final class RecommendationApplierTest extends TestCase
         $tags = $this->createStub(TagRepository::class);
         $tags->method('findBy')->willReturn([]);
 
-        $applier = new RecommendationApplier($em, $trackers, $tags, $this->createStub(ConversationTaskConverter::class), $this->createStub(ChannelRepository::class));
+        $applier = new RecommendationApplier($em, $trackers, $tags, $this->createStub(ConversationTaskConverter::class), $this->createStub(ChannelRepository::class), new AdapterRegistry([], [], []));
 
         $applier->apply($this->taskRecommendation([
             'summary' => '',
@@ -129,6 +130,7 @@ final class RecommendationApplierTest extends TestCase
             $this->createStub(TagRepository::class),
             $converter,
             $this->createStub(ChannelRepository::class),
+            new AdapterRegistry([], [], []),
         );
 
         $applier->apply($this->ticketRecommendation([
@@ -156,6 +158,7 @@ final class RecommendationApplierTest extends TestCase
             $this->createStub(TagRepository::class),
             $converter,
             $this->createStub(ChannelRepository::class),
+            new AdapterRegistry([], [], []),
         );
 
         $this->expectException(\DomainException::class);
@@ -187,6 +190,7 @@ final class RecommendationApplierTest extends TestCase
             $this->createStub(TagRepository::class),
             $this->createStub(ConversationTaskConverter::class),
             $channels,
+            new AdapterRegistry([], [], []),
         );
 
         $applier->apply($this->productRecommendation([
@@ -230,6 +234,7 @@ final class RecommendationApplierTest extends TestCase
             $this->createStub(TagRepository::class),
             $this->createStub(ConversationTaskConverter::class),
             $channels,
+            new AdapterRegistry([], [], []),
         );
 
         $reviewer = new User();
