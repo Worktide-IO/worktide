@@ -354,6 +354,25 @@ final class PortalEndpointsTest extends WebTestCase
         self::assertSame(403, $this->client->getResponse()->getStatusCode());
     }
 
+    public function testAgreementInquiryRecordsQueryOnOpenOffer(): void
+    {
+        $ctx = $this->seedInquirableAgreement();
+        $token = $this->token($ctx['portalUser']);
+        $uri = '/v1/portal/agreements/' . $ctx['agreementId'] . '/inquiry';
+
+        // Empty message rejected.
+        $this->request('POST', $uri, $token, ['message' => '   ']);
+        self::assertSame(400, $this->client->getResponse()->getStatusCode());
+
+        // A valid query is recorded; the offer stays open (canSign still true).
+        $this->request('POST', $uri, $token, ['message' => 'Gilt der Preis auch 2027?']);
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        $data = $this->json();
+        self::assertSame('Gilt der Preis auch 2027?', $data['inquiry']);
+        self::assertNotNull($data['inquiredAt']);
+        self::assertTrue($data['canSign']);
+    }
+
     // --- helpers ----------------------------------------------------
 
     /** Multipart file upload — distinct from request() which sends JSON. */
@@ -678,6 +697,49 @@ final class PortalEndpointsTest extends WebTestCase
         $this->em->clear();
 
         return ['portalUser' => $portalUser];
+    }
+
+    /**
+     * A portal world with the agreements feature ON and one OPEN offer
+     * (InNegotiation + a revision → signable) for the Rückfrage test.
+     *
+     * @return array{portalUser: User, agreementId: string}
+     */
+    private function seedInquirableAgreement(): array
+    {
+        $ws = (new Workspace())
+            ->setName('Inq WS')
+            ->setSlug('inq-ws-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
+            ->setLocale('de')
+            ->setTimezone('Europe/Berlin')
+            ->setSettings(['portal' => ['enabled' => true, 'features' => ['tickets' => true, 'agreements' => true]]]);
+        $this->em->persist($ws);
+
+        $portalUser = $this->user('portal.inq@example.test', ['ROLE_PORTAL']);
+        $customer = $this->customer($ws, 'Inq GmbH');
+        $contact = (new Contact())->setCustomer($customer)->setFirstName('Ina')->setLastName('Inq')
+            ->setEmail('portal.inq@example.test')->setLinkedUser($portalUser);
+        $this->em->persist($contact);
+        $projectStatus = (new ProjectStatus())->setWorkspace($ws)->setName('Aktiv')->setColor('#888')->setPosition(0)->setIsCompleted(false)->setIsArchived(false);
+        $this->em->persist($projectStatus);
+        $this->project($ws, $customer, 'INQ', $projectStatus);
+
+        $type = (new AgreementType())->setName('Angebot')->setSlug('angebot');
+        $type->setWorkspace($ws);
+        $this->em->persist($type);
+
+        $agreement = (new CustomerAgreement())->setCustomer($customer)->setType($type)->setStatus(AgreementStatus::InNegotiation);
+        $this->em->persist($agreement);
+        $revision = (new CustomerAgreementRevision())->setAgreement($agreement)->setVersionNo(1)
+            ->setStatus(AgreementStatus::InNegotiation)->setReference('A-9');
+        $this->em->persist($revision);
+        $agreement->setCurrentRevision($revision);
+
+        $this->em->flush();
+        $agreementId = $agreement->getId()?->toRfc4122() ?? '';
+        $this->em->clear();
+
+        return ['portalUser' => $portalUser, 'agreementId' => $agreementId];
     }
 
     /** @param list<string> $roles */
