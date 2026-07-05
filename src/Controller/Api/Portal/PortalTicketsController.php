@@ -315,6 +315,7 @@ final class PortalTicketsController
             'identifier' => $task->getIdentifier(),
             'title' => $task->getTitle(),
             'statusLabel' => $task->getStatus()->getName(),
+            'waitingForYou' => $task->getStatus()->isWaitingForCustomer(),
             'priority' => $priority,
             'priorityLabel' => self::PRIORITY_LABELS[$priority] ?? $priority,
             'dueOn' => $task->getDueOn()?->format(\DateTimeInterface::ATOM),
