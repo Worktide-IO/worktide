@@ -10,6 +10,8 @@ use App\Entity\BrainstormNote;
 use App\Entity\Comment;
 use App\Entity\Contact;
 use App\Entity\Enum\CommentTarget;
+use App\Entity\Enum\InvoiceStatus;
+use App\Entity\Invoice;
 use App\Entity\Customer;
 use App\Entity\CustomerAgreement;
 use App\Entity\CustomerAgreementRevision;
@@ -309,6 +311,28 @@ final class PortalEndpointsTest extends WebTestCase
         self::assertTrue($after['items'][0]['read']);
     }
 
+    public function testInvoicesListWithDerivedOverdue(): void
+    {
+        $ctx = $this->seedInvoices();
+        $this->request('GET', '/v1/portal/invoices', $this->token($ctx['portalUser']));
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        $invoices = $this->json()['invoices'];
+
+        self::assertCount(2, $invoices);
+        // Newest first: the open (issued -20d) precedes the paid (issued -30d).
+        self::assertSame('overdue', $invoices[0]['status']); // Open + past due → derived overdue
+        self::assertSame('Überfällig', $invoices[0]['statusLabel']);
+        self::assertSame('paid', $invoices[1]['status']);
+        self::assertSame(5000, $invoices[0]['totalCents']);
+    }
+
+    public function testInvoicesRequireFeature(): void
+    {
+        $ctx = $this->seed(); // invoices flag OFF
+        $this->request('GET', '/v1/portal/invoices', $this->token($ctx['portalUser']));
+        self::assertSame(403, $this->client->getResponse()->getStatusCode());
+    }
+
     // --- helpers ----------------------------------------------------
 
     /** Multipart file upload — distinct from request() which sends JSON. */
@@ -585,6 +609,48 @@ final class PortalEndpointsTest extends WebTestCase
         $this->em->persist(
             (new BrainstormNote())->setCustomer($customer)->setBody('Vorschlag der Agentur')
                 ->setOrigin(IdeaOrigin::Agency)->setAuthorName('Lena (Agentur)'),
+        );
+
+        $this->em->flush();
+        $this->em->clear();
+
+        return ['portalUser' => $portalUser];
+    }
+
+    /**
+     * A portal world with the invoices feature ON and two mirrored invoices:
+     * a paid one (older) and an open+past-due one (newer → derived overdue).
+     *
+     * @return array{portalUser: User}
+     */
+    private function seedInvoices(): array
+    {
+        $ws = (new Workspace())
+            ->setName('Inv WS')
+            ->setSlug('inv-ws-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
+            ->setLocale('de')
+            ->setTimezone('Europe/Berlin')
+            ->setSettings(['portal' => ['enabled' => true, 'features' => ['tickets' => true, 'invoices' => true]]]);
+        $this->em->persist($ws);
+
+        $portalUser = $this->user('portal.inv@example.test', ['ROLE_PORTAL']);
+        $customer = $this->customer($ws, 'Inv GmbH');
+        $contact = (new Contact())->setCustomer($customer)->setFirstName('Ida')->setLastName('Invoice')
+            ->setEmail('portal.inv@example.test')->setLinkedUser($portalUser);
+        $this->em->persist($contact);
+        $projectStatus = (new ProjectStatus())->setWorkspace($ws)->setName('Aktiv')->setColor('#888')->setPosition(0)->setIsCompleted(false)->setIsArchived(false);
+        $this->em->persist($projectStatus);
+        $this->project($ws, $customer, 'INV', $projectStatus);
+
+        $this->em->persist(
+            (new Invoice())->setCustomer($customer)->setLexofficeId('lx-t-1')->setNumber('RE-1')
+                ->setIssuedOn(new \DateTimeImmutable('-30 days'))->setDueOn(new \DateTimeImmutable('-16 days'))
+                ->setTotalCents(10000)->setOpenCents(0)->setStatus(InvoiceStatus::Paid),
+        );
+        $this->em->persist(
+            (new Invoice())->setCustomer($customer)->setLexofficeId('lx-t-2')->setNumber('RE-2')
+                ->setIssuedOn(new \DateTimeImmutable('-20 days'))->setDueOn(new \DateTimeImmutable('-6 days'))
+                ->setTotalCents(5000)->setOpenCents(5000)->setStatus(InvoiceStatus::Open),
         );
 
         $this->em->flush();
