@@ -133,6 +133,19 @@ class CustomerAgreement
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Contact $signedByContact = null;
 
+    /** Latest customer query ("Rückfrage") raised on the offer via the portal. */
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $customerInquiry = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $inquiredAt = null;
+
+    public function getCustomerInquiry(): ?string { return $this->customerInquiry; }
+    public function setCustomerInquiry(?string $t): self { $this->customerInquiry = $t; return $this; }
+
+    public function getInquiredAt(): ?\DateTimeImmutable { return $this->inquiredAt; }
+    public function setInquiredAt(?\DateTimeImmutable $t): self { $this->inquiredAt = $t; return $this; }
+
     public function __construct()
     {
         $this->revisions = new ArrayCollection();
