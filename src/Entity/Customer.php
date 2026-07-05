@@ -172,6 +172,21 @@ class Customer
     #[ORM\Column(type: 'integer', nullable: true)]
     private ?int $revenueCents = null;
 
+    /**
+     * Per-customer portal SLA override ({priority: {response, resolution}} hours),
+     * layered over the workspace default. Null = inherit workspace/defaults.
+     *
+     * @var array<string, mixed>|null
+     */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $slaPolicy = null;
+
+    /** @return array<string, mixed> */
+    public function getSlaPolicy(): array { return $this->slaPolicy ?? []; }
+
+    /** @param array<string, mixed>|null $p */
+    public function setSlaPolicy(?array $p): self { $this->slaPolicy = $p === null || $p === [] ? null : $p; return $this; }
+
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $revenueSyncedAt = null;
 
