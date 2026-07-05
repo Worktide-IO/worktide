@@ -50,8 +50,11 @@ final class PortalTicketsController
         'urgent' => 'Dringend',
     ];
 
-    /** Memoized per-request workspace SLA policy override. */
+    /** Memoized per-request effective SLA policy (customer over workspace). */
     private ?array $slaPolicy = null;
+
+    /** task-id (rfc4122) → first agency-reply time, for the SLA response leg. */
+    private array $firstReplyByTask = [];
 
     public function __construct(
         private readonly PortalAccessResolver $portal,
@@ -76,6 +79,7 @@ final class PortalTicketsController
         $this->portal->assertPortalEnabled();
 
         $tickets = $this->tasks->findVisiblePortalTickets($this->portal->allowedProjects());
+        $this->loadFirstReplies($tickets);
 
         return new JsonResponse([
             'tickets' => array_map($this->ticketDto(...), $tickets),
@@ -94,6 +98,7 @@ final class PortalTicketsController
         $this->portal->assertPortalEnabled();
 
         $task = $this->portal->findTicketOr404(Uuid::fromString($id));
+        $this->loadFirstReplies([$task]);
 
         $comments = $this->comments->findBy(
             [
@@ -316,13 +321,18 @@ final class PortalTicketsController
             'createdAt' => $task->getCreatedAt()?->format(\DateTimeInterface::ATOM),
             'updatedAt' => $task->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
             'projectName' => $task->getProject()?->getName(),
-            'sla' => $this->sla->describe($task, $this->slaPolicy(), new \DateTimeImmutable()),
+            'sla' => $this->sla->describe(
+                $task,
+                $this->slaPolicy(),
+                $this->firstReplyByTask[$task->getId()?->toRfc4122() ?? ''] ?? null,
+                new \DateTimeImmutable(),
+            ),
         ];
     }
 
     /**
-     * Per-workspace SLA policy override ({priority: hours}) from
-     * settings.portal.sla, memoized for the request. Empty → defaults apply.
+     * Effective SLA policy = workspace `settings.portal.sla` with the customer's
+     * `slaPolicy` overlaid per priority (customer wins). Memoized per request.
      *
      * @return array<string, mixed>
      */
@@ -330,11 +340,25 @@ final class PortalTicketsController
     {
         if ($this->slaPolicy === null) {
             $portal = $this->portal->workspace()->getSettings()['portal'] ?? [];
-            $sla = (\is_array($portal) ? ($portal['sla'] ?? []) : []);
-            $this->slaPolicy = \is_array($sla) ? $sla : [];
+            $ws = (\is_array($portal) ? ($portal['sla'] ?? []) : []);
+            $ws = \is_array($ws) ? $ws : [];
+            $this->slaPolicy = array_replace($ws, $this->portal->customer()->getSlaPolicy());
         }
 
         return $this->slaPolicy;
+    }
+
+    /**
+     * Load the first-agency-reply time for a set of tickets (SLA response leg),
+     * excluding the customer's own comments. Memoized into $firstReplyByTask.
+     *
+     * @param list<Task> $tasks
+     */
+    private function loadFirstReplies(array $tasks): void
+    {
+        $ids = array_values(array_filter(array_map(static fn (Task $t) => $t->getId(), $tasks)));
+        $selfUserId = $this->portal->contact()->getLinkedUser()?->getId()?->toRfc4122();
+        $this->firstReplyByTask = $this->comments->firstAgencyReplyByTask($ids, $selfUserId);
     }
 
     /**
