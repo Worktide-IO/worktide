@@ -143,8 +143,28 @@ class Contact
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $portalNotificationsSeenAt = null;
 
+    /**
+     * Per-contact feature gating: portal feature keys HIDDEN from this contact,
+     * even when the workspace has them on (the Capability×Role matrix, screen 1).
+     * Absence = visible; the effective set is workspace-features minus these.
+     *
+     * @var list<string>|null
+     */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $portalHiddenFeatures = null;
+
     public function getPortalNotificationsSeenAt(): ?\DateTimeImmutable { return $this->portalNotificationsSeenAt; }
     public function setPortalNotificationsSeenAt(?\DateTimeImmutable $t): self { $this->portalNotificationsSeenAt = $t; return $this; }
+
+    /** @return list<string> */
+    public function getPortalHiddenFeatures(): array { return $this->portalHiddenFeatures ?? []; }
+
+    /** @param list<string>|null $keys */
+    public function setPortalHiddenFeatures(?array $keys): self
+    {
+        $this->portalHiddenFeatures = $keys === null || $keys === [] ? null : array_values(array_unique($keys));
+        return $this;
+    }
 
     public function getCustomer(): Customer { return $this->customer; }
     public function setCustomer(Customer $c): self

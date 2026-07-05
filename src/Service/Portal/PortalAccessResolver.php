@@ -113,9 +113,14 @@ final class PortalAccessResolver
         $stored = $this->workspace()->getSettings()['portal']['features'] ?? [];
         $stored = \is_array($stored) ? $stored : [];
 
+        // Per-contact gating (Capability×Role matrix): features this contact has
+        // hidden are forced off, even when the workspace enables them.
+        $hidden = $this->contact()->getPortalHiddenFeatures();
+
         $features = [];
         foreach (self::FEATURE_KEYS as $key) {
-            $features[$key] = ($stored[$key] ?? ($key === 'tickets')) === true;
+            $features[$key] = ($stored[$key] ?? ($key === 'tickets')) === true
+                && !\in_array($key, $hidden, true);
         }
         return $features;
     }
