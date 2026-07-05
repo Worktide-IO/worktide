@@ -51,6 +51,15 @@ final class PortalMeController
                 'id' => $customer->getId()?->toRfc4122(),
                 'name' => $customer->getName(),
             ],
+            // The customer's visible (external, non-archived) projects — drives the
+            // project picker when a customer files a ticket across several projects.
+            'projects' => array_values(array_map(
+                static fn ($project) => [
+                    'id' => $project->getId()?->toRfc4122(),
+                    'name' => $project->getName(),
+                ],
+                $this->portal->allowedProjects(),
+            )),
             'workspaceName' => $workspace->getName(),
             'features' => $this->portal->features(),
         ]);
