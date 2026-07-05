@@ -98,6 +98,7 @@ final class PortalAccessResolver
         'forms',
         'documents',
         'proposals',
+        'invoices',
     ];
 
     /**
