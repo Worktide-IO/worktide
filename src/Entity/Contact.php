@@ -139,6 +139,13 @@ class Contact
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?User $linkedUser = null;
 
+    /** When this portal contact last marked their notifications read (drives the unread badge). */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $portalNotificationsSeenAt = null;
+
+    public function getPortalNotificationsSeenAt(): ?\DateTimeImmutable { return $this->portalNotificationsSeenAt; }
+    public function setPortalNotificationsSeenAt(?\DateTimeImmutable $t): self { $this->portalNotificationsSeenAt = $t; return $this; }
+
     public function getCustomer(): Customer { return $this->customer; }
     public function setCustomer(Customer $c): self
     {
