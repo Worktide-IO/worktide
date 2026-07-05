@@ -63,6 +63,7 @@ framework:
             App\Message\GenerateMarketingCopyMessage: ai_agents
             App\Message\GenerateUpgradeOutreachMessage: ai_agents
             App\Message\RunResearchMissionMessage: ai_agents
+            App\Message\PlanDistributionMessage: ai_agents
             App\Message\SyncSearchIndexMessage: search
 
             # Mercure live-update publishing — off the request thread so a slow
