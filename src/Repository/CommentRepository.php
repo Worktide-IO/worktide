@@ -46,4 +46,45 @@ class CommentRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * Earliest NON-hidden agency reply per task — i.e. the first visible comment
+     * NOT authored by the customer's own portal user. Drives the SLA "response"
+     * leg. Returns a map of task-id (rfc4122) → first-reply DateTimeImmutable.
+     *
+     * @param list<Uuid> $taskIds
+     * @param ?string $excludeUserId the portal user's id (their comments aren't "replies")
+     * @return array<string, \DateTimeImmutable>
+     */
+    public function firstAgencyReplyByTask(array $taskIds, ?string $excludeUserId): array
+    {
+        if ($taskIds === []) {
+            return [];
+        }
+
+        $qb = $this->createQueryBuilder('c')
+            ->select('c.targetId AS targetId', 'MIN(c.createdAt) AS firstAt')
+            ->andWhere('c.target = :target')
+            ->andWhere('c.targetId IN (:ids)')
+            ->andWhere('c.isHiddenForConnectUsers = false')
+            ->setParameter('target', CommentTarget::Task)
+            ->setParameter('ids', array_map(static fn (Uuid $id) => $id->toBinary(), $taskIds), ArrayParameterType::BINARY)
+            ->groupBy('c.targetId');
+
+        if ($excludeUserId !== null) {
+            $qb->join('c.author', 'a')->andWhere('a.id != :self')
+                ->setParameter('self', Uuid::fromString($excludeUserId)->toBinary());
+        }
+
+        $out = [];
+        foreach ($qb->getQuery()->getResult() as $row) {
+            $id = $row['targetId'];
+            $rfc = $id instanceof Uuid ? $id->toRfc4122() : (string) $id;
+            $out[$rfc] = $row['firstAt'] instanceof \DateTimeImmutable
+                ? $row['firstAt']
+                : new \DateTimeImmutable((string) $row['firstAt']);
+        }
+
+        return $out;
+    }
 }

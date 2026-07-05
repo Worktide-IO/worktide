@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 
 final class PortalSlaCalculatorTest extends TestCase
 {
-    private const NOW = '2026-07-04 12:00:00';
+    private const NOW = '2026-07-05 12:00:00';
 
     private PortalSlaCalculator $calc;
 
@@ -21,64 +21,74 @@ final class PortalSlaCalculatorTest extends TestCase
         $this->calc = new PortalSlaCalculator();
     }
 
-    public function testOpenTicketShowsRemainingTime(): void
+    public function testResponseAndResolutionLegsForOpenTicket(): void
     {
-        // high = 4h SLA, created 1h ago → 3h left.
-        $task = $this->task(TaskPriority::High, '-1 hour', false);
-        $sla = $this->calc->describe($task, [], $this->now());
+        // normal defaults: response 8h, resolution 48h. Created 2h ago, no reply.
+        $sla = $this->calc->describe($this->task(TaskPriority::Normal, '-2 hours'), [], null, $this->now());
 
-        self::assertSame('due', $sla['status']);
-        self::assertSame('in 3 Std.', $sla['label']);
+        self::assertFalse($sla['paused']);
+        self::assertSame('due', $sla['response']['status']);
+        self::assertSame('in 6 Std.', $sla['response']['label']); // 8h target, 2h elapsed
+        self::assertSame('due', $sla['resolution']['status']);
+        self::assertSame('in 2 Tagen', $sla['resolution']['label']); // 48h target
     }
 
-    public function testOpenTicketPastDeadlineIsOverdue(): void
+    public function testResponseMetOnceAgencyReplied(): void
     {
-        // high = 4h SLA, created 5h ago → overdue.
-        $task = $this->task(TaskPriority::High, '-5 hours', false);
-        $sla = $this->calc->describe($task, [], $this->now());
+        $task = $this->task(TaskPriority::Normal, '-2 hours');
+        $sla = $this->calc->describe($task, [], $this->now()->modify('-1 hour'), $this->now());
 
-        self::assertSame('overdue', $sla['status']);
-        self::assertSame('überschritten', $sla['label']);
+        self::assertSame('met', $sla['response']['status']); // replied within 8h
+        self::assertSame('due', $sla['resolution']['status']); // still open
     }
 
-    public function testCompletedWithinDeadlineIsMet(): void
+    public function testResolutionMissedWhenClosedLate(): void
     {
-        // normal = 24h SLA, created 10h ago, closed 2h ago → met.
-        $task = $this->task(TaskPriority::Normal, '-10 hours', true, '-2 hours');
-        $sla = $this->calc->describe($task, [], $this->now());
+        // resolution 48h; created 60h ago, closed 1h ago → past deadline.
+        $task = $this->task(TaskPriority::Normal, '-60 hours', completed: true, closedMod: '-1 hour');
+        $sla = $this->calc->describe($task, [], $this->now()->modify('-59 hours'), $this->now());
 
-        self::assertSame('met', $sla['status']);
-        self::assertSame('erfüllt', $sla['label']);
+        self::assertSame('missed', $sla['resolution']['status']);
+        self::assertSame('met', $sla['response']['status']); // replied 1h after creation, within 8h
     }
 
-    public function testCompletedAfterDeadlineIsMissed(): void
+    public function testPausedWhileWaitingOnCustomer(): void
     {
-        // normal = 24h SLA, created 30h ago, closed 1h ago (well past due) → missed.
-        $task = $this->task(TaskPriority::Normal, '-30 hours', true, '-1 hour');
-        $sla = $this->calc->describe($task, [], $this->now());
+        $task = $this->task(TaskPriority::Normal, '-2 hours', waiting: true);
+        $sla = $this->calc->describe($task, [], null, $this->now());
 
-        self::assertSame('missed', $sla['status']);
-        self::assertSame('überschritten', $sla['label']);
+        self::assertTrue($sla['paused']);
+        self::assertSame('paused', $sla['response']['status']);
+        self::assertSame('paused', $sla['resolution']['status']);
+        self::assertSame('pausiert', $sla['resolution']['label']);
     }
 
-    public function testWorkspaceOverrideDisablesSla(): void
+    public function testStructuredOverridePerPriority(): void
     {
-        // Override maps high → 0 → no SLA.
-        $task = $this->task(TaskPriority::High, '-1 hour', false);
-        $sla = $this->calc->describe($task, ['high' => 0], $this->now());
+        $policy = ['high' => ['response' => 1, 'resolution' => 2]];
+        $task = $this->task(TaskPriority::High, '-30 minutes');
+        $sla = $this->calc->describe($task, $policy, null, $this->now());
 
-        self::assertSame('none', $sla['status']);
-        self::assertSame('—', $sla['label']);
+        self::assertSame('in 30 Min.', $sla['response']['label']); // 1h target, 30min elapsed
+        self::assertSame('in 2 Std.', $sla['resolution']['label']); // 2h target, 30min elapsed
     }
 
-    public function testMultiDayRemainingLabel(): void
+    public function testBareNumberOverrideIsResolutionOnly(): void
     {
-        // low = 72h SLA, just created → "in 3 Tagen".
-        $task = $this->task(TaskPriority::Low, 'now', false);
-        $sla = $this->calc->describe($task, [], $this->now());
+        // A flat number override applies to resolution; response keeps its default.
+        $sla = $this->calc->describe($this->task(TaskPriority::Normal, '-1 hour'), ['normal' => 4], null, $this->now());
 
-        self::assertSame('due', $sla['status']);
-        self::assertSame('in 3 Tagen', $sla['label']);
+        self::assertSame('in 3 Std.', $sla['resolution']['label']); // 4h override
+        self::assertSame('in 7 Std.', $sla['response']['label']); // 8h default kept
+    }
+
+    public function testZeroDisablesALeg(): void
+    {
+        $policy = ['normal' => ['response' => 0, 'resolution' => 0]];
+        $sla = $this->calc->describe($this->task(TaskPriority::Normal, '-1 hour'), $policy, null, $this->now());
+
+        self::assertSame('none', $sla['response']['status']);
+        self::assertSame('none', $sla['resolution']['status']);
     }
 
     private function now(): \DateTimeImmutable
@@ -86,18 +96,14 @@ final class PortalSlaCalculatorTest extends TestCase
         return new \DateTimeImmutable(self::NOW);
     }
 
-    private function task(TaskPriority $priority, string $createdModifier, bool $completed, ?string $closedModifier = null): Task
+    private function task(TaskPriority $priority, string $createdMod, bool $completed = false, ?string $closedMod = null, bool $waiting = false): Task
     {
-        $task = (new Task())
-            ->setPriority($priority)
-            ->setStatus((new TaskStatus())->setIsCompleted($completed));
+        $status = (new TaskStatus())->setIsCompleted($completed)->setIsWaitingForCustomer($waiting);
+        $task = (new Task())->setPriority($priority)->setStatus($status);
 
-        $createdAt = $this->now()->modify($createdModifier);
-        $ref = new \ReflectionProperty(Task::class, 'createdAt');
-        $ref->setValue($task, $createdAt);
-
-        if ($closedModifier !== null) {
-            $task->setClosedOn($this->now()->modify($closedModifier));
+        (new \ReflectionProperty(Task::class, 'createdAt'))->setValue($task, $this->now()->modify($createdMod));
+        if ($closedMod !== null) {
+            $task->setClosedOn($this->now()->modify($closedMod));
         }
 
         return $task;

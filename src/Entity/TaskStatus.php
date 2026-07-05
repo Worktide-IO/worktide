@@ -64,6 +64,13 @@ class TaskStatus
     #[ORM\Column]
     private bool $isDefault = false;
 
+    /** Tickets in this status are waiting on the customer → the portal SLA clock pauses. */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $isWaitingForCustomer = false;
+
+    public function isWaitingForCustomer(): bool { return $this->isWaitingForCustomer; }
+    public function setIsWaitingForCustomer(bool $v): self { $this->isWaitingForCustomer = $v; return $this; }
+
     public function getName(): string
     {
         return $this->name;
