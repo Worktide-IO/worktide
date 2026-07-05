@@ -88,7 +88,10 @@ class AppFixtures extends Fixture
             ->setName('Wappler Systems')
             ->setSlug('wappler-systems')
             ->setLocale('de')
-            ->setTimezone('Europe/Berlin');
+            ->setTimezone('Europe/Berlin')
+            // Customer portal enabled for the demo (see the portal block at the
+            // end of load() — a ready-to-use portal contact login).
+            ->setSettings(['portal' => ['enabled' => true]]);
         $om->persist($workspace);
 
         // ---- Users --------------------------------------------------------
@@ -1046,6 +1049,88 @@ MD)
                 $comment->pin($users[0]);
             }
             $om->persist($comment);
+        }
+
+        // ---- Customer portal demo -----------------------------------------
+        // A ready-to-use portal login so others can develop the portal against
+        // real data. Contact "Lena Brandt" logs into the customer portal with
+        // kontakt@nordlicht-medien.example / "portal-demo" and sees the external
+        // project's non-hidden tickets. The hidden task/comment prove the
+        // isHiddenForConnectUsers gating.
+        $portalCustomer = (new Customer())
+            ->setWorkspace($workspace)
+            ->setName('Nordlicht Medien GmbH')
+            ->setIsCompany(true)
+            ->setEmail('info@nordlicht-medien.example')
+            ->setStatus(CustomerStatus::Active)
+            ->setAccountManager($users[0])
+            ->setNotes('Demo-Kunde für das Kundenportal.');
+        $om->persist($portalCustomer);
+
+        $portalProject = (new Project())
+            ->setWorkspace($workspace)
+            ->setName('Website-Betreuung')
+            ->setKey('PORT')
+            ->setDescription('Laufende Pflege der Unternehmenswebsite.')
+            ->setColor('#0ea5e9')
+            ->setStatus($projectStatuses[1])
+            ->setOwner($users[0])
+            ->setCustomer($portalCustomer)
+            ->setIsExternal(true); // visible to the customer portal
+        $om->persist($portalProject);
+
+        $portalTasks = [
+            ['PORT-1', 'Startseite: neues Hero-Bild einpflegen', 1, false],
+            ['PORT-2', 'Kontaktformular: DSGVO-Hinweis ergänzen', 0, false],
+            ['PORT-3', 'Interner Hinweis: Server-Migration planen', 1, true], // hidden from portal
+        ];
+        $portalTaskByKey = [];
+        foreach ($portalTasks as [$ident, $title, $statusIdx, $hidden]) {
+            $t = (new Task())
+                ->setWorkspace($workspace)
+                ->setProject($portalProject)
+                ->setIdentifier($ident)
+                ->setTitle($title)
+                ->setStatus($taskStatuses[$statusIdx])
+                ->setCreatedVia(\App\Entity\Enum\TaskCreatedVia::Portal)
+                ->setIsHiddenForConnectUsers($hidden);
+            $om->persist($t);
+            $portalTaskByKey[$ident] = $t;
+        }
+
+        $portalUser = (new User())
+            ->setEmail('kontakt@nordlicht-medien.example')
+            ->setFirstName('Lena')
+            ->setLastName('Brandt')
+            ->setRoles(['ROLE_PORTAL']);
+        $portalUser->setPassword($this->hasher->hashPassword($portalUser, 'portal-demo'));
+        $om->persist($portalUser);
+
+        $portalContact = (new Contact())
+            ->setCustomer($portalCustomer)
+            ->setFirstName('Lena')
+            ->setLastName('Brandt')
+            ->setEmail('kontakt@nordlicht-medien.example')
+            ->setIsActive(true)
+            ->setLinkedUser($portalUser);
+        $portalContact->setWorkspace($workspace);
+        $om->persist($portalContact);
+
+        // Public thread on PORT-1 (visible to the portal) + one internal note (hidden).
+        foreach ([
+            [$users[0], 'Wir haben ein paar Bildvorschläge vorbereitet — schauen Sie gern rein.', false],
+            [$portalUser, 'Danke! Variante 2 gefällt uns am besten.', false],
+            [$users[0], 'Intern: Lizenz des Stockfotos noch prüfen.', true],
+        ] as [$author, $content, $hidden]) {
+            $c = (new Comment())
+                ->setTarget(CommentTarget::Task)
+                ->setTargetId($portalTaskByKey['PORT-1']->getId())
+                ->setAuthor($author)
+                ->setContent($content)
+                ->setIsResolved(false)
+                ->setIsHiddenForConnectUsers($hidden);
+            $c->setWorkspace($workspace);
+            $om->persist($c);
         }
 
         $om->flush();
