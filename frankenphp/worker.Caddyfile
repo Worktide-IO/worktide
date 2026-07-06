@@ -1,0 +1,7 @@
+worker {
+	file ./public/index.php
+	env APP_RUNTIME Runtime\FrankenPhpSymfony\Runtime
+	# Number of FrankenPHP worker processes. Tune to available CPU/RAM.
+	# Comment out `num` to let FrankenPHP pick (2 * CPU cores).
+	#num 4
+}

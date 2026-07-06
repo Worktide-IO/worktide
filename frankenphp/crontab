@@ -1,0 +1,35 @@
+# Worktide scheduler crontab — run by supercronic in the `scheduler` container.
+# 5-field cron (min hour dom mon dow), TZ from the container (Europe/Berlin).
+# TUNE the cadences to your load. Each line is one console command.
+#
+# NOTE: heavy/async work is dispatched to Messenger and executed by the
+# `worker` container — these cron lines only *enqueue* / materialise due work.
+
+# Materialise recurring tasks whose TaskSchedule.nextRunAt has elapsed
+* * * * * cd /app && php bin/console app:tasks:run-schedules
+
+# Drain the entity-change outbox (fan-out to external syncs)
+* * * * * cd /app && php bin/console worktide:entity-sync:process --limit=50
+
+# Publish social posts that are due
+* * * * * cd /app && php bin/console app:social:publish-due
+
+# Pull inbound mail / channels (IMAP etc.) — one batch per channel
+*/2 * * * * cd /app && php bin/console worktide:channel:pull
+
+# Recompute task priority scores
+*/15 * * * * cd /app && php bin/console worktide:priority:recompute
+
+# Probe monitored customer systems (uptime/latency)
+*/5 * * * * cd /app && php bin/console app:monitoring:probe
+
+# Lock time entries past the lock window (hourly)
+7 * * * * cd /app && php bin/console app:time:auto-lock
+
+# Expire CRM agreements past their end date (daily 03:11)
+11 3 * * * cd /app && php bin/console app:crm:agreements:expire
+
+# --- Disabled by default: need per-workspace setup / --apply ---------------
+# lexoffice syncs default to dry-run and require an API key on the channel:
+#*/30 * * * * cd /app && php bin/console app:lexoffice:sync-invoices --apply
+#*/30 * * * * cd /app && php bin/console app:lexoffice:sync-contacts --apply
