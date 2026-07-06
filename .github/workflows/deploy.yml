@@ -1,0 +1,31 @@
+name: Deploy to Coolify
+
+# Auto-deploy on published GitHub Release (tagged release).
+# Coolify pulls the tagged commit, rebuilds the image and redeploys.
+# Manual runs are also possible via the Actions tab.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Coolify deployment
+        # Secrets (Settings → Secrets and variables → Actions):
+        #   COOLIFY_DEPLOY_WEBHOOK  full deploy URL incl. ?uuid=<resource-uuid>
+        #   COOLIFY_API_TOKEN       Coolify API token (Bearer)
+        run: |
+          set -euo pipefail
+          echo "Deploying ${{ github.ref_name }} ..."
+          http_code=$(curl -s -o /tmp/resp.json -w '%{http_code}' \
+            --request GET "${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}" \
+            --header "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}")
+          echo "HTTP $http_code"
+          cat /tmp/resp.json || true
+          test "$http_code" -ge 200 && test "$http_code" -lt 300
