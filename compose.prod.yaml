@@ -23,6 +23,14 @@ x-app: &app
   # Named volume keeps the generated JWT keypair stable across restarts.
   volumes:
     - jwt_keys:/app/config/jwt
+  # Join the shared `coolify` network so the app can reach the managed MySQL
+  # database and the Mercure hub (both live there), and so Coolify's Traefik
+  # (also on `coolify`) can route to the `app` service. Without this the
+  # compose stack is isolated on its own per-resource network and cannot reach
+  # the managed database → migrations fail → the web container crash-loops.
+  networks:
+    - default
+    - coolify
 
 services:
   # ---- HTTP (FrankenPHP) ---------------------------------------------------
@@ -79,3 +87,10 @@ services:
 
 volumes:
   jwt_keys:
+
+networks:
+  # Coolify's shared predefined network (Traefik + managed DB + Mercure live here).
+  coolify:
+    external: true
+  # Internal network for inter-service traffic within this stack.
+  default:
