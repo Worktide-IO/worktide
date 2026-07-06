@@ -1,0 +1,81 @@
+# Production stack for the Worktide API — consumed by Coolify (Docker Compose
+# buildpack). One image, three roles.
+#
+# MySQL and the Mercure hub are SEPARATE Coolify resources (not defined here) —
+# wire them in through the env vars below (DATABASE_URL, MERCURE_URL, ...).
+#
+# Coolify injects all secrets/env from its UI. The values here are only
+# safe non-secret defaults / role toggles.
+
+x-app: &app
+  build:
+    context: .
+    target: frankenphp_prod
+  restart: unless-stopped
+  environment: &app-env
+    APP_ENV: prod
+    # Set these in Coolify (secrets): APP_SECRET, DATABASE_URL, JWT_PASSPHRASE,
+    # MERCURE_URL, MERCURE_PUBLIC_URL, MERCURE_JWT_SECRET, ANTHROPIC_API_KEY,
+    # S3_* , OAUTH_* , CORS_ALLOW_ORIGIN, TAVILY_API_KEY, BUILTWITH_API_KEY ...
+    FILE_STORAGE_ADAPTER: s3
+    SEARCH_PROVIDER: mysql
+    MESSENGER_TRANSPORT_DSN: doctrine://default?auto_setup=0
+  # Named volume keeps the generated JWT keypair stable across restarts.
+  volumes:
+    - jwt_keys:/app/config/jwt
+
+services:
+  # ---- HTTP (FrankenPHP) ---------------------------------------------------
+  app:
+    <<: *app
+    environment:
+      <<: *app-env
+      # Only the web container runs migrations on boot (no worker race).
+      AUTO_MIGRATE: "1"
+      # Coolify maps the domain to this service:port. Traefik terminates TLS.
+      SERVER_NAME: ":80"
+    # Tell Coolify which domain + port serves this service (or set it in the UI).
+    # Replace with the value from Coolify's "Domains" field:
+    #   SERVICE_FQDN_APP: https://api.worktide.wappler.systems
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2019/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ---- Messenger worker ----------------------------------------------------
+  worker:
+    <<: *app
+    command:
+      - php
+      - bin/console
+      - messenger:consume
+      - async
+      - ai_agents
+      - search
+      - "--time-limit=3600"
+      - "--memory-limit=256M"
+      - "-vv"
+    environment:
+      <<: *app-env
+      AUTO_MIGRATE: "0"
+    healthcheck:
+      test: ["CMD", "php", "bin/console", "messenger:stats"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ---- Scheduler (supercronic) --------------------------------------------
+  scheduler:
+    <<: *app
+    command: ["supercronic", "/etc/crontab"]
+    environment:
+      <<: *app-env
+      AUTO_MIGRATE: "0"
+
+volumes:
+  jwt_keys:
