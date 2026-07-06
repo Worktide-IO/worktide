@@ -1,0 +1,32 @@
+{
+	{$CADDY_GLOBAL_OPTIONS}
+
+	frankenphp {
+		{$FRANKENPHP_CONFIG}
+	}
+}
+
+{$CADDY_EXTRA_CONFIG}
+
+# Coolify's proxy (Traefik) terminates TLS and forwards plain HTTP on :80,
+# so we bind http:// via SERVER_NAME and let Coolify manage the cert for
+# api.worktide.wappler.systems. Mercure runs as its own Coolify service
+# (worktide-mercure.wappler.systems), so no mercure/vulcain directive here.
+{$SERVER_NAME::80} {
+	log {
+		format filter {
+			request>uri query {
+				replace authorization REDACTED
+			}
+		}
+	}
+
+	root /app/public
+	encode zstd br gzip
+
+	{$CADDY_SERVER_EXTRA_DIRECTIVES}
+
+	header ?Permissions-Policy "browsing-topics=()"
+
+	php_server
+}
