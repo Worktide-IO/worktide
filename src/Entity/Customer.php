@@ -127,6 +127,10 @@ class Customer
     #[ORM\Column(length: 40, nullable: true)]
     private ?string $vatId = null;
 
+    /** Human customer number, synced from lexoffice (roles.customer.number). */
+    #[ORM\Column(length: 40, nullable: true)]
+    private ?string $customerNumber = null;
+
     #[ORM\Column(length: 254, nullable: true)]
     #[Assert\Email(mode: Assert\Email::VALIDATION_MODE_STRICT)]
     private ?string $email = null;
@@ -258,6 +262,9 @@ class Customer
 
     public function getVatId(): ?string { return $this->vatId; }
     public function setVatId(?string $v): self { $this->vatId = $v; return $this; }
+
+    public function getCustomerNumber(): ?string { return $this->customerNumber; }
+    public function setCustomerNumber(?string $v): self { $this->customerNumber = $v; return $this; }
 
     public function getEmail(): ?string { return $this->email; }
     public function setEmail(?string $v): self { $this->email = $v === null ? null : mb_strtolower(trim($v)); return $this; }
