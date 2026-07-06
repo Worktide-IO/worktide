@@ -396,6 +396,14 @@ final class LexofficeSyncContactsCommand extends Command
         } else {
             $c->setIsCustomer($c->isCustomer() || $isCust)->setIsVendor($c->isVendor() || $isVend);
         }
+
+        // lexoffice assigns a human customer number once a contact has the
+        // customer role (roles.customer.number). Mirror it regardless of the
+        // record's origin slot so awork-matched customers also show it.
+        $number = $lx['roles']['customer']['number'] ?? null;
+        if (is_numeric($number) || (\is_string($number) && trim($number) !== '')) {
+            $c->setCustomerNumber((string) $number);
+        }
     }
 
     /** @param array<string, mixed> $lx */
