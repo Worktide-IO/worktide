@@ -50,7 +50,6 @@ final class LinkResolverController
     #[Route(
         path: '/v1/links/resolve',
         name: 'api_links_resolve',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function __invoke(Request $request): JsonResponse

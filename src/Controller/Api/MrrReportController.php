@@ -55,7 +55,6 @@ final class MrrReportController
     #[Route(
         path: '/v1/reports/mrr',
         name: 'api_report_mrr',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function __invoke(Request $request): JsonResponse

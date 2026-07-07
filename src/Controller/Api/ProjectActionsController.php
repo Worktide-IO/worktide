@@ -46,7 +46,6 @@ final class ProjectActionsController
     #[Route(
         path: '/v1/projects/{id}/change-status',
         name: 'api_project_change_status',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -75,7 +74,6 @@ final class ProjectActionsController
     #[Route(
         path: '/v1/projects/{id}/change-project-type',
         name: 'api_project_change_project_type',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -106,7 +104,6 @@ final class ProjectActionsController
     #[Route(
         path: '/v1/projects/{id}/set-key',
         name: 'api_project_set_key',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -126,7 +123,6 @@ final class ProjectActionsController
     #[Route(
         path: '/v1/projects/{id}/close',
         name: 'api_project_close',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -144,7 +140,6 @@ final class ProjectActionsController
     #[Route(
         path: '/v1/projects/{id}/reopen',
         name: 'api_project_reopen',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -159,7 +154,6 @@ final class ProjectActionsController
     #[Route(
         path: '/v1/projects/by-key/{key}',
         name: 'api_project_by_key',
-        host: 'api.worktide.ddev.site',
         requirements: ['key' => '[A-Z][A-Z0-9-]{0,15}'],
         methods: ['GET'],
     )]

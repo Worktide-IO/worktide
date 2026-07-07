@@ -35,7 +35,6 @@ final class SocialPostSubmitController
     #[Route(
         path: '/v1/social_posts/{id}/submit',
         name: 'api_social_post_submit',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

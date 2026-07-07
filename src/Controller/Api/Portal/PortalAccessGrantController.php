@@ -47,7 +47,6 @@ final class PortalAccessGrantController
     #[Route(
         path: '/v1/contacts/{id}/grant-portal-access',
         name: 'api_contacts_grant_portal_access',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]
@@ -94,7 +93,6 @@ final class PortalAccessGrantController
     #[Route(
         path: '/v1/contacts/{id}/revoke-portal-access',
         name: 'api_contacts_revoke_portal_access',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]

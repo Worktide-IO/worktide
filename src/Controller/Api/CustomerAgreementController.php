@@ -47,7 +47,6 @@ final class CustomerAgreementController
     #[Route(
         path: '/v1/customers/{id}/agreements/{slug}',
         name: 'api_customer_agreement_get',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7, 'slug' => '[a-z0-9][a-z0-9_-]*'],
         methods: ['GET'],
     )]
@@ -85,7 +84,6 @@ final class CustomerAgreementController
     #[Route(
         path: '/v1/customers/{id}/agreements/{slug}',
         name: 'api_customer_agreement_put',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7, 'slug' => '[a-z0-9][a-z0-9_-]*'],
         methods: ['PUT'],
     )]

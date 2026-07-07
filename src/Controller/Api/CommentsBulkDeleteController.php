@@ -43,7 +43,6 @@ final class CommentsBulkDeleteController
     #[Route(
         path: '/v1/projects/{id}/comments',
         name: 'api_project_comments_bulk_delete',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['DELETE'],
     )]
@@ -62,7 +61,6 @@ final class CommentsBulkDeleteController
     #[Route(
         path: '/v1/tasks/{id}/comments',
         name: 'api_task_comments_bulk_delete',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['DELETE'],
     )]

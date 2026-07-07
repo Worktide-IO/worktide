@@ -48,7 +48,6 @@ final class RecommendationReviewController
     #[Route(
         path: '/v1/ai_recommendations/{id}/accept',
         name: 'api_ai_recommendation_accept',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -89,7 +88,6 @@ final class RecommendationReviewController
     #[Route(
         path: '/v1/ai_recommendations/{id}/reject',
         name: 'api_ai_recommendation_reject',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

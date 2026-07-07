@@ -46,7 +46,6 @@ final class UpgradeOutreachController
     #[Route(
         path: '/v1/customers/{id}/ai-upgrade-outreach',
         name: 'api_customer_ai_upgrade_outreach',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

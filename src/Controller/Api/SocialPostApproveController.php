@@ -39,7 +39,6 @@ final class SocialPostApproveController
     #[Route(
         path: '/v1/social_posts/{id}/approve',
         name: 'api_social_post_approve',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

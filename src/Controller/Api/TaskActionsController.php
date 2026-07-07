@@ -47,7 +47,7 @@ final class TaskActionsController
         private readonly EntityManagerInterface $em,
     ) {}
 
-    #[Route('/v1/tasks/{id}/change-status', name: 'api_task_change_status', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/tasks/{id}/change-status', name: 'api_task_change_status', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function changeStatus(string $id, Request $request): JsonResponse
     {
         $task = $this->ownedTask($id, WorktidePermission::EDIT);
@@ -77,7 +77,7 @@ final class TaskActionsController
         return new JsonResponse(['id' => $task->getId()?->toRfc4122(), 'statusId' => $status->getId()?->toRfc4122()]);
     }
 
-    #[Route('/v1/tasks/{id}/set-priority', name: 'api_task_set_priority', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/tasks/{id}/set-priority', name: 'api_task_set_priority', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function setPriority(string $id, Request $request): JsonResponse
     {
         $task = $this->ownedTask($id, WorktidePermission::EDIT);
@@ -95,7 +95,7 @@ final class TaskActionsController
         return new JsonResponse(['id' => $task->getId()?->toRfc4122(), 'priority' => $priority->value]);
     }
 
-    #[Route('/v1/tasks/{id}/set-prio-flag', name: 'api_task_set_prio_flag', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/tasks/{id}/set-prio-flag', name: 'api_task_set_prio_flag', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function setPrioFlag(string $id, Request $request): JsonResponse
     {
         $task = $this->ownedTask($id, WorktidePermission::EDIT);
@@ -105,7 +105,7 @@ final class TaskActionsController
         return new JsonResponse(['id' => $task->getId()?->toRfc4122(), 'isPrio' => $task->isPrio()]);
     }
 
-    #[Route('/v1/tasks/{id}/set-assignees', name: 'api_task_set_assignees', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/tasks/{id}/set-assignees', name: 'api_task_set_assignees', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function setAssignees(string $id, Request $request): JsonResponse
     {
         $task = $this->ownedTask($id, WorktidePermission::EDIT);
@@ -185,7 +185,7 @@ final class TaskActionsController
         ]);
     }
 
-    #[Route('/v1/tasks/{id}/copy', name: 'api_task_copy', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/tasks/{id}/copy', name: 'api_task_copy', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function copy(string $id): JsonResponse
     {
         $source = $this->ownedTask($id, WorktidePermission::VIEW);
@@ -232,7 +232,7 @@ final class TaskActionsController
         );
     }
 
-    #[Route('/v1/tasks/{id}/close', name: 'api_task_close', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/tasks/{id}/close', name: 'api_task_close', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function close(string $id): JsonResponse
     {
         $task = $this->ownedTask($id, WorktidePermission::EDIT);
@@ -244,7 +244,7 @@ final class TaskActionsController
         return new JsonResponse(['id' => $task->getId()?->toRfc4122(), 'closedOn' => $task->getClosedOn()?->format(\DateTimeInterface::ATOM)]);
     }
 
-    #[Route('/v1/tasks/{id}/reopen', name: 'api_task_reopen', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/tasks/{id}/reopen', name: 'api_task_reopen', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function reopen(string $id): JsonResponse
     {
         $task = $this->ownedTask($id, WorktidePermission::EDIT);
@@ -253,7 +253,7 @@ final class TaskActionsController
         return new JsonResponse(['id' => $task->getId()?->toRfc4122(), 'closedOn' => null]);
     }
 
-    #[Route('/v1/tasks/by-key/{identifier}', name: 'api_task_by_key', host: 'api.worktide.ddev.site', requirements: ['identifier' => '[A-Z][A-Z0-9-]{0,30}'], methods: ['GET'])]
+    #[Route('/v1/tasks/by-key/{identifier}', name: 'api_task_by_key', requirements: ['identifier' => '[A-Z][A-Z0-9-]{0,30}'], methods: ['GET'])]
     public function getByKey(string $identifier): JsonResponse
     {
         $task = $this->tasks->findOneBy(['identifier' => strtoupper($identifier)]);

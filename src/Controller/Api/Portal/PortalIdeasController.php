@@ -57,7 +57,6 @@ final class PortalIdeasController
     #[Route(
         path: '/v1/portal/ideas',
         name: 'api_portal_ideas_list',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function list(): JsonResponse
@@ -78,7 +77,6 @@ final class PortalIdeasController
     #[Route(
         path: '/v1/portal/ideas',
         name: 'api_portal_ideas_create',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function create(Request $request): JsonResponse
@@ -108,7 +106,6 @@ final class PortalIdeasController
     #[Route(
         path: '/v1/portal/ideas/{id}/vote',
         name: 'api_portal_ideas_vote',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]
@@ -132,7 +129,6 @@ final class PortalIdeasController
     #[Route(
         path: '/v1/portal/ideas/{id}/vote',
         name: 'api_portal_ideas_unvote',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['DELETE'],
     )]

@@ -13,10 +13,8 @@ controllers:
 # Auth endpoints — handled by the security firewall (no controller needed).
 api_login:
     path: /v1/auth/login
-    host: api.worktide.ddev.site
     methods: [POST]
 
 api_refresh:
     path: /v1/auth/refresh
-    host: api.worktide.ddev.site
     methods: [POST]

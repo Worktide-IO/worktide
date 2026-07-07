@@ -37,7 +37,6 @@ final class SocialPostScheduleController
     #[Route(
         path: '/v1/social_posts/{id}/schedule',
         name: 'api_social_post_schedule',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

@@ -38,7 +38,6 @@ final class LeadActionsController
     #[Route(
         '/v1/leads/{id}/stage',
         name: 'api_lead_set_stage',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -68,7 +67,6 @@ final class LeadActionsController
     #[Route(
         '/v1/leads/{id}/convert',
         name: 'api_lead_convert',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

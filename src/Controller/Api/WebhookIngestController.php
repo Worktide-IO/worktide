@@ -50,7 +50,6 @@ final class WebhookIngestController
     #[Route(
         path: '/v1/inbound/webhooks/{token}',
         name: 'api_inbound_webhooks',
-        host: 'api.worktide.ddev.site',
         requirements: ['token' => '[A-Za-z0-9_-]{16,128}'],
         methods: ['POST', 'PUT'],
     )]

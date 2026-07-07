@@ -71,7 +71,6 @@ final class PortalTicketsController
     #[Route(
         path: '/v1/portal/tickets',
         name: 'api_portal_tickets_list',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function list(): JsonResponse
@@ -89,7 +88,6 @@ final class PortalTicketsController
     #[Route(
         path: '/v1/portal/tickets/{id}',
         name: 'api_portal_tickets_show',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['GET'],
     )]
@@ -132,7 +130,6 @@ final class PortalTicketsController
     #[Route(
         path: '/v1/portal/tickets',
         name: 'api_portal_tickets_create',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function create(Request $request): JsonResponse
@@ -171,7 +168,6 @@ final class PortalTicketsController
     #[Route(
         path: '/v1/portal/tickets/suggest',
         name: 'api_portal_tickets_suggest',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function suggest(Request $request): JsonResponse
@@ -215,7 +211,6 @@ final class PortalTicketsController
     #[Route(
         path: '/v1/portal/tickets/{id}/comments',
         name: 'api_portal_tickets_comment',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]

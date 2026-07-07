@@ -46,7 +46,6 @@ final class ActivitiesController
     #[Route(
         path: '/v1/projects/{id}/activities',
         name: 'api_project_activities',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['GET'],
     )]
@@ -65,7 +64,6 @@ final class ActivitiesController
     #[Route(
         path: '/v1/tasks/{id}/activities',
         name: 'api_task_activities',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['GET'],
     )]

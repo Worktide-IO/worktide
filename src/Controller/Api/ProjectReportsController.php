@@ -70,7 +70,6 @@ final class ProjectReportsController
     #[Route(
         path: '/v1/reports/burndown',
         name: 'api_report_burndown',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function burndown(Request $request): JsonResponse
@@ -198,7 +197,6 @@ final class ProjectReportsController
     #[Route(
         path: '/v1/reports/cumulative-flow',
         name: 'api_report_cumulative_flow',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function cumulativeFlow(Request $request): JsonResponse
@@ -325,7 +323,6 @@ final class ProjectReportsController
     #[Route(
         path: '/v1/reports/velocity',
         name: 'api_report_velocity',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function velocity(Request $request): JsonResponse
@@ -381,7 +378,6 @@ final class ProjectReportsController
     #[Route(
         path: '/v1/reports/created-vs-resolved',
         name: 'api_report_created_vs_resolved',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function createdVsResolved(Request $request): JsonResponse
@@ -494,7 +490,6 @@ final class ProjectReportsController
     #[Route(
         path: '/v1/reports/cycle-time',
         name: 'api_report_cycle_time',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function cycleTime(Request $request): JsonResponse
@@ -591,7 +586,6 @@ final class ProjectReportsController
     #[Route(
         path: '/v1/reports/open-task-counts',
         name: 'api_report_open_task_counts',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function openTaskCounts(Request $request): JsonResponse
@@ -625,7 +619,6 @@ final class ProjectReportsController
     #[Route(
         path: '/v1/reports/priority-scores',
         name: 'api_report_priority_scores',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function priorityScores(Request $request): JsonResponse

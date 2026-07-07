@@ -46,7 +46,6 @@ final class FileDownloadController
     #[Route(
         path: '/v1/files/{id}/content',
         name: 'api_file_content',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['GET'],
     )]
@@ -69,7 +68,6 @@ final class FileDownloadController
     #[Route(
         path: '/v1/files/{id}/versions/{versionId}/content',
         name: 'api_file_version_content',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7, 'versionId' => Requirement::UUID_V7],
         methods: ['GET'],
     )]

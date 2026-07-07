@@ -37,7 +37,6 @@ final class ProductReleaseController
     #[Route(
         path: '/v1/products/{id}/release',
         name: 'api_product_release',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

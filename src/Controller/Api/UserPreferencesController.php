@@ -47,7 +47,6 @@ final class UserPreferencesController
     #[Route(
         path: '/v1/me/preferences',
         name: 'api_me_preferences_get',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function get(): JsonResponse
@@ -66,7 +65,6 @@ final class UserPreferencesController
     #[Route(
         path: '/v1/me/preferences',
         name: 'api_me_preferences_put',
-        host: 'api.worktide.ddev.site',
         methods: ['PUT'],
     )]
     public function put(Request $request): JsonResponse
