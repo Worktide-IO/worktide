@@ -30,7 +30,6 @@ final class MeController
     #[Route(
         path: '/v1/auth/me',
         name: 'api_auth_me',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function __invoke(Request $request): JsonResponse

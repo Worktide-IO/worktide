@@ -52,7 +52,6 @@ final class PortalAttachmentsController
     #[Route(
         path: '/v1/portal/tickets/{id}/attachments',
         name: 'api_portal_ticket_attachment_upload',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]
@@ -107,7 +106,6 @@ final class PortalAttachmentsController
     #[Route(
         path: '/v1/portal/tickets/{id}/attachments/{fileId}/content',
         name: 'api_portal_ticket_attachment_download',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}', 'fileId' => '[0-9a-fA-F-]{36}'],
         methods: ['GET'],
     )]

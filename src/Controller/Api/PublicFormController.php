@@ -45,7 +45,6 @@ final class PublicFormController
     #[Route(
         path: '/v1/forms/{slug}',
         name: 'api_public_form_schema',
-        host: 'api.worktide.ddev.site',
         requirements: ['slug' => '[a-z0-9-]{1,60}'],
         methods: ['GET'],
     )]
@@ -78,7 +77,6 @@ final class PublicFormController
     #[Route(
         path: '/v1/forms/{slug}',
         name: 'api_public_form_submit',
-        host: 'api.worktide.ddev.site',
         requirements: ['slug' => '[a-z0-9-]{1,60}'],
         methods: ['POST'],
     )]

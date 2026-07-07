@@ -56,7 +56,6 @@ final class PortalSystemsController
     #[Route(
         path: '/v1/portal/systems',
         name: 'api_portal_systems_list',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function list(Request $request): JsonResponse

@@ -60,7 +60,6 @@ final class DocumentWorkflowController
     #[Route(
         path: '/v1/documents/{id}/submit',
         name: 'api_documents_submit',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-f-]{36}'],
         methods: ['POST'],
     )]
@@ -104,7 +103,6 @@ final class DocumentWorkflowController
     #[Route(
         path: '/v1/documents/{id}/approve',
         name: 'api_documents_approve',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-f-]{36}'],
         methods: ['POST'],
     )]
@@ -135,7 +133,6 @@ final class DocumentWorkflowController
     #[Route(
         path: '/v1/documents/{id}/request-changes',
         name: 'api_documents_request_changes',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-f-]{36}'],
         methods: ['POST'],
     )]

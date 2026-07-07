@@ -56,7 +56,6 @@ final class EntityWebhookController
     #[Route(
         path: '/v1/inbound/entity-webhooks/{token}',
         name: 'api_inbound_entity_webhooks',
-        host: 'api.worktide.ddev.site',
         requirements: ['token' => '[A-Za-z0-9_-]{16,128}'],
         methods: ['POST', 'PUT'],
     )]

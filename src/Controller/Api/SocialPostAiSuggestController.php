@@ -44,7 +44,6 @@ final class SocialPostAiSuggestController
     #[Route(
         path: '/v1/social_posts/{id}/ai-suggest',
         name: 'api_social_post_ai_suggest',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

@@ -36,7 +36,6 @@ final class ConversationTimelineController
     #[Route(
         path: '/v1/conversations/{id}/timeline',
         name: 'api_conversation_timeline',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['GET'],
     )]

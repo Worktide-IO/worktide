@@ -48,7 +48,6 @@ final class MarketingCopyController
     #[Route(
         path: '/v1/products/{id}/ai-marketing-draft',
         name: 'api_product_ai_marketing_draft',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

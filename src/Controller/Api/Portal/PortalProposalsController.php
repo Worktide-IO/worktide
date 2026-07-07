@@ -64,7 +64,6 @@ final class PortalProposalsController
     #[Route(
         path: '/v1/portal/proposals',
         name: 'api_portal_proposals_list',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function list(): JsonResponse
@@ -82,7 +81,6 @@ final class PortalProposalsController
     #[Route(
         path: '/v1/portal/proposals/{id}/accept',
         name: 'api_portal_proposals_accept',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]
@@ -143,7 +141,6 @@ final class PortalProposalsController
     #[Route(
         path: '/v1/portal/proposals/{id}/reject',
         name: 'api_portal_proposals_reject',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]
@@ -160,7 +157,6 @@ final class PortalProposalsController
     #[Route(
         path: '/v1/portal/proposals/{id}/feedback',
         name: 'api_portal_proposals_feedback',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]

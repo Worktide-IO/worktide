@@ -39,7 +39,6 @@ final class SavedReplyRenderController
     #[Route(
         path: '/v1/saved_replies/{id}/render',
         name: 'api_saved_reply_render',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

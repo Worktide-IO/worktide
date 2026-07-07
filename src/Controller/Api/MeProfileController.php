@@ -46,7 +46,6 @@ final class MeProfileController
     #[Route(
         path: '/v1/me/profile',
         name: 'api_me_profile_get',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function get(): JsonResponse
@@ -58,7 +57,6 @@ final class MeProfileController
     #[Route(
         path: '/v1/me/profile',
         name: 'api_me_profile_patch',
-        host: 'api.worktide.ddev.site',
         methods: ['PATCH'],
     )]
     public function patch(Request $request): JsonResponse
@@ -98,7 +96,6 @@ final class MeProfileController
     #[Route(
         path: '/v1/me/password',
         name: 'api_me_password_post',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function password(Request $request): JsonResponse

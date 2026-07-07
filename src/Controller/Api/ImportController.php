@@ -69,7 +69,6 @@ final class ImportController
     #[Route(
         path: '/v1/imports/{resource}',
         name: 'api_imports',
-        host: 'api.worktide.ddev.site',
         requirements: ['resource' => 'customers|contacts|tasks'],
         methods: ['POST'],
     )]

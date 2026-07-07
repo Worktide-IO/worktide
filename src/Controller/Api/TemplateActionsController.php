@@ -54,7 +54,6 @@ final class TemplateActionsController
     #[Route(
         path: '/v1/project-templates/{id}/instantiate',
         name: 'api_project_template_instantiate',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -98,7 +97,6 @@ final class TemplateActionsController
     #[Route(
         path: '/v1/projects/{id}/save-as-template',
         name: 'api_project_save_as_template',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -134,7 +132,6 @@ final class TemplateActionsController
     #[Route(
         path: '/v1/projects/{id}/apply-bundle',
         name: 'api_project_apply_bundle',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

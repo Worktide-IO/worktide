@@ -29,7 +29,6 @@ final class PortalMeController
     #[Route(
         path: '/v1/portal/me',
         name: 'api_portal_me',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function __invoke(): JsonResponse

@@ -43,7 +43,6 @@ final class MeSessionsController
     #[Route(
         path: '/v1/me/sessions',
         name: 'api_me_sessions_list',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function list(Request $request): JsonResponse
@@ -83,7 +82,6 @@ final class MeSessionsController
     #[Route(
         path: '/v1/me/sessions/{id}',
         name: 'api_me_sessions_revoke',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '\d+'],
         methods: ['DELETE'],
     )]
@@ -102,7 +100,6 @@ final class MeSessionsController
     #[Route(
         path: '/v1/me/sessions/revoke-others',
         name: 'api_me_sessions_revoke_others',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function revokeOthers(Request $request): JsonResponse

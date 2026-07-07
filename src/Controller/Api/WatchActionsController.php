@@ -48,7 +48,6 @@ final class WatchActionsController
     #[Route(
         path: '/v1/watch',
         name: 'api_watch_create',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function watch(Request $request): JsonResponse
@@ -78,7 +77,6 @@ final class WatchActionsController
     #[Route(
         path: '/v1/watch',
         name: 'api_watch_delete',
-        host: 'api.worktide.ddev.site',
         methods: ['DELETE'],
     )]
     public function unwatch(Request $request): JsonResponse
@@ -102,7 +100,6 @@ final class WatchActionsController
     #[Route(
         path: '/v1/watch/me',
         name: 'api_watch_me',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function me(Request $request): JsonResponse

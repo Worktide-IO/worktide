@@ -38,7 +38,6 @@ final class LogoutController
     #[Route(
         path: '/v1/auth/logout',
         name: 'api_auth_logout',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function __invoke(Request $request): JsonResponse

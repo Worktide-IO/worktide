@@ -49,7 +49,6 @@ final class MercureTokenController
     #[Route(
         path: '/v1/auth/mercure-token',
         name: 'api_auth_mercure_token',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function __invoke(): JsonResponse

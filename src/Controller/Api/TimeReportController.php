@@ -57,7 +57,6 @@ final class TimeReportController
     #[Route(
         path: '/v1/reports/time',
         name: 'api_report_time',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function __invoke(Request $request): JsonResponse
