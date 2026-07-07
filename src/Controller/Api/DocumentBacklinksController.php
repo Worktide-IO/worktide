@@ -45,7 +45,6 @@ final class DocumentBacklinksController
     #[Route(
         path: '/v1/documents/{id}/backlinks',
         name: 'api_documents_backlinks',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-f-]{36}'],
         methods: ['GET'],
     )]

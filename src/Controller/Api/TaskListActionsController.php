@@ -45,7 +45,7 @@ final class TaskListActionsController
         private readonly EntityManagerInterface $em,
     ) {}
 
-    #[Route('/v1/task-lists/{id}/add-tasks', name: 'api_task_list_add_tasks', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/task-lists/{id}/add-tasks', name: 'api_task_list_add_tasks', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function addTasks(string $id, Request $request): JsonResponse
     {
         $list = $this->ownedList($id, WorktidePermission::EDIT);
@@ -81,7 +81,7 @@ final class TaskListActionsController
         return new JsonResponse(['added' => $added, 'skipped' => $skipped]);
     }
 
-    #[Route('/v1/task-lists/{id}/remove-tasks', name: 'api_task_list_remove_tasks', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/task-lists/{id}/remove-tasks', name: 'api_task_list_remove_tasks', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function removeTasks(string $id, Request $request): JsonResponse
     {
         $list = $this->ownedList($id, WorktidePermission::EDIT);
@@ -107,7 +107,7 @@ final class TaskListActionsController
         return new JsonResponse(['removed' => $removed]);
     }
 
-    #[Route('/v1/task-lists/{id}/change-project', name: 'api_task_list_change_project', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/task-lists/{id}/change-project', name: 'api_task_list_change_project', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function changeProject(string $id, Request $request): JsonResponse
     {
         $list = $this->ownedList($id, WorktidePermission::EDIT);
@@ -141,7 +141,7 @@ final class TaskListActionsController
         return new JsonResponse(['id' => $list->getId()?->toRfc4122(), 'projectId' => $target->getId()?->toRfc4122()]);
     }
 
-    #[Route('/v1/task-lists/{id}/copy', name: 'api_task_list_copy', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/task-lists/{id}/copy', name: 'api_task_list_copy', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function copy(string $id): JsonResponse
     {
         $source = $this->ownedList($id, WorktidePermission::VIEW);
@@ -175,7 +175,7 @@ final class TaskListActionsController
         );
     }
 
-    #[Route('/v1/task-lists/{id}/set-archived', name: 'api_task_list_set_archived', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/task-lists/{id}/set-archived', name: 'api_task_list_set_archived', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function setArchived(string $id, Request $request): JsonResponse
     {
         $list = $this->ownedList($id, WorktidePermission::EDIT);

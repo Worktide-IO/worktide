@@ -48,7 +48,7 @@ final class ActiveTimerController
         private readonly ActiveTimerRepository $timers,
     ) {}
 
-    #[Route(path: '/v1/timers/current', name: 'api_timer_current', host: 'api.worktide.ddev.site', methods: ['GET'])]
+    #[Route(path: '/v1/timers/current', name: 'api_timer_current', methods: ['GET'])]
     public function current(): JsonResponse
     {
         $user = $this->user();
@@ -59,7 +59,7 @@ final class ActiveTimerController
         return new JsonResponse($this->snapshot($timer));
     }
 
-    #[Route(path: '/v1/timers/start', name: 'api_timer_start', host: 'api.worktide.ddev.site', methods: ['POST'])]
+    #[Route(path: '/v1/timers/start', name: 'api_timer_start', methods: ['POST'])]
     public function start(Request $request): JsonResponse
     {
         $user = $this->user();
@@ -96,7 +96,7 @@ final class ActiveTimerController
         ], Response::HTTP_CREATED);
     }
 
-    #[Route(path: '/v1/timers/stop', name: 'api_timer_stop', host: 'api.worktide.ddev.site', methods: ['POST'])]
+    #[Route(path: '/v1/timers/stop', name: 'api_timer_stop', methods: ['POST'])]
     public function stop(): JsonResponse
     {
         $user = $this->user();
@@ -112,7 +112,7 @@ final class ActiveTimerController
         ]);
     }
 
-    #[Route(path: '/v1/timers/cancel', name: 'api_timer_cancel', host: 'api.worktide.ddev.site', methods: ['POST'])]
+    #[Route(path: '/v1/timers/cancel', name: 'api_timer_cancel', methods: ['POST'])]
     public function cancel(): JsonResponse
     {
         $user = $this->user();

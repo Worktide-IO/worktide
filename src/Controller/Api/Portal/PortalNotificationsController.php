@@ -28,7 +28,6 @@ final class PortalNotificationsController
     #[Route(
         path: '/v1/portal/notifications',
         name: 'api_portal_notifications_list',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function list(): JsonResponse
@@ -41,7 +40,6 @@ final class PortalNotificationsController
     #[Route(
         path: '/v1/portal/notifications/mark-read',
         name: 'api_portal_notifications_mark_read',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function markRead(): JsonResponse

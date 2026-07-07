@@ -48,7 +48,6 @@ final class TicketTriageController
     #[Route(
         path: '/v1/tasks/{id}/ai-triage',
         name: 'api_task_ai_triage',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -68,7 +67,6 @@ final class TicketTriageController
     #[Route(
         path: '/v1/conversations/{id}/ai-triage',
         name: 'api_conversation_ai_triage',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

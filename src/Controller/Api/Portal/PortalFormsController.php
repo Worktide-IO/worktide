@@ -47,7 +47,6 @@ final class PortalFormsController
     #[Route(
         path: '/v1/portal/forms',
         name: 'api_portal_forms_list',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function list(): JsonResponse
@@ -69,7 +68,6 @@ final class PortalFormsController
     #[Route(
         path: '/v1/portal/forms/{id}',
         name: 'api_portal_forms_show',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['GET'],
     )]
@@ -105,7 +103,6 @@ final class PortalFormsController
     #[Route(
         path: '/v1/portal/forms/{id}/draft',
         name: 'api_portal_forms_save_draft',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['PUT'],
     )]
@@ -128,7 +125,6 @@ final class PortalFormsController
     #[Route(
         path: '/v1/portal/forms/{id}/submit',
         name: 'api_portal_forms_submit',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]

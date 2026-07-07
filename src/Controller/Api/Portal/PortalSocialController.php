@@ -54,7 +54,6 @@ final class PortalSocialController
     #[Route(
         path: '/v1/portal/social',
         name: 'api_portal_social_list',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function list(): JsonResponse
@@ -69,7 +68,6 @@ final class PortalSocialController
     #[Route(
         path: '/v1/portal/social/{id}/approve',
         name: 'api_portal_social_approve',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]
@@ -90,7 +88,6 @@ final class PortalSocialController
     #[Route(
         path: '/v1/portal/social/{id}/reject',
         name: 'api_portal_social_reject',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]
@@ -106,7 +103,6 @@ final class PortalSocialController
     #[Route(
         path: '/v1/portal/social/{id}/request-change',
         name: 'api_portal_social_request_change',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]

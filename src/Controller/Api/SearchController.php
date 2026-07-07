@@ -41,7 +41,6 @@ final class SearchController
     #[Route(
         path: '/v1/search',
         name: 'api_search',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function __invoke(Request $request): JsonResponse

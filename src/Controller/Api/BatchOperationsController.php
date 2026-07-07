@@ -54,19 +54,19 @@ final class BatchOperationsController
         private readonly EntityManagerInterface $em,
     ) {}
 
-    #[Route('/v1/projects/batch', name: 'api_projects_batch', host: 'api.worktide.ddev.site', methods: ['POST'])]
+    #[Route('/v1/projects/batch', name: 'api_projects_batch', methods: ['POST'])]
     public function projects(Request $request): JsonResponse
     {
         return $this->handle($request, Project::class);
     }
 
-    #[Route('/v1/tasks/batch', name: 'api_tasks_batch', host: 'api.worktide.ddev.site', methods: ['POST'])]
+    #[Route('/v1/tasks/batch', name: 'api_tasks_batch', methods: ['POST'])]
     public function tasks(Request $request): JsonResponse
     {
         return $this->handle($request, Task::class);
     }
 
-    #[Route('/v1/time-entries/batch', name: 'api_time_entries_batch', host: 'api.worktide.ddev.site', methods: ['POST'])]
+    #[Route('/v1/time-entries/batch', name: 'api_time_entries_batch', methods: ['POST'])]
     public function timeEntries(Request $request): JsonResponse
     {
         return $this->handle($request, TimeEntry::class);

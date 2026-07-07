@@ -45,7 +45,6 @@ final class AgentDistributionController
     #[Route(
         path: '/v1/agent/plan-distribution',
         name: 'api_agent_plan_distribution',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function planDistribution(Request $request): JsonResponse

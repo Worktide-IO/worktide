@@ -26,7 +26,6 @@ final class ForgotPasswordController
     #[Route(
         path: '/v1/auth/forgot-password',
         name: 'api_auth_forgot_password',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function __invoke(Request $request): JsonResponse

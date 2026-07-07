@@ -45,7 +45,6 @@ final class DiscoveredExternalRecordActionsController
     #[Route(
         path: '/v1/discovered_external_records/{id}/import',
         name: 'api_discovered_record_import',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -70,7 +69,6 @@ final class DiscoveredExternalRecordActionsController
     #[Route(
         path: '/v1/discovered_external_records/{id}/link',
         name: 'api_discovered_record_link',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]
@@ -95,7 +93,6 @@ final class DiscoveredExternalRecordActionsController
     #[Route(
         path: '/v1/discovered_external_records/{id}/dismiss',
         name: 'api_discovered_record_dismiss',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

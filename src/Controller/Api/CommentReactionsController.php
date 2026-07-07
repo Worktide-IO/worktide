@@ -45,7 +45,6 @@ final class CommentReactionsController
     #[Route(
         path: '/v1/comments/{id}/reactions',
         name: 'api_comment_reactions',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

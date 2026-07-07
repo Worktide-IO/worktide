@@ -39,7 +39,6 @@ final class SocialPostPublishController
     #[Route(
         path: '/v1/social_posts/{id}/publish',
         name: 'api_social_post_publish',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

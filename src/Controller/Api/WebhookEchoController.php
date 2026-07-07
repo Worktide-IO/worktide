@@ -31,7 +31,6 @@ final class WebhookEchoController
     #[Route(
         path: '/v1/_webhook-echo',
         name: 'api_webhook_echo',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function __invoke(Request $request): JsonResponse

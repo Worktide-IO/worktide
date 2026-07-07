@@ -47,7 +47,6 @@ final class WorkloadController
     #[Route(
         path: '/v1/reports/workload',
         name: 'api_report_workload',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function __invoke(Request $request): JsonResponse

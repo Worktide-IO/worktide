@@ -51,7 +51,6 @@ final class ResearchMissionDialogController
     #[Route(
         path: '/v1/research-missions/create',
         name: 'api_research_mission_create',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function create(Request $request): JsonResponse
@@ -90,7 +89,6 @@ final class ResearchMissionDialogController
     #[Route(
         path: '/v1/research-missions/{id}/answer',
         name: 'api_research_mission_answer',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

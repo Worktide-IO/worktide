@@ -47,7 +47,6 @@ final class ResearchMissionRunController
     #[Route(
         path: '/v1/research-missions/{id}/run',
         name: 'api_research_mission_run',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

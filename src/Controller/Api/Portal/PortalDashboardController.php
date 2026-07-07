@@ -54,7 +54,6 @@ final class PortalDashboardController
     #[Route(
         path: '/v1/portal/dashboard',
         name: 'api_portal_dashboard',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function __invoke(): JsonResponse

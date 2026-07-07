@@ -51,7 +51,6 @@ final class WorkspaceInvitationAcceptController
     #[Route(
         path: '/v1/workspace_invitations/{token}/accept',
         name: 'api_workspace_invitation_accept',
-        host: 'api.worktide.ddev.site',
         requirements: ['token' => '[A-Za-z0-9]{32,128}'],
         methods: ['POST'],
     )]
