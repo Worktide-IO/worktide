@@ -86,7 +86,12 @@ services:
   # ---- Scheduler (supercronic) --------------------------------------------
   scheduler:
     <<: *app
-    command: ["supercronic", "/etc/crontab"]
+    # -no-reap: supercronic runs as PID 1 here, and its zombie reaper fatals
+    # after ~12s in this image. It already waits on its own direct job children
+    # (php bin/console …, which terminate cleanly), so disabling the PID-1
+    # reaper is safe — the reaper only matters for orphaned zombies, which this
+    # scheduler never spawns.
+    command: ["supercronic", "-no-reap", "/etc/crontab"]
     environment:
       <<: *app-env
       AUTO_MIGRATE: "0"
