@@ -16,6 +16,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\Address;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 /**
@@ -43,7 +44,16 @@ final class PasswordResetService
         private readonly string $spaBaseUrl,
         private readonly string $portalBaseUrl,
         private readonly string $mailFrom,
+        private readonly string $mailFromName = '',
     ) {}
+
+    /** Branded "From" — display name (MAILER_FROM_NAME, default product name) + address. */
+    private function fromAddress(): Address
+    {
+        $name = $this->mailFromName !== '' ? $this->mailFromName : 'Worktide';
+
+        return new Address($this->mailFrom, $name);
+    }
 
     /**
      * Issue a reset link for the given email — if (and only if) an account
@@ -73,7 +83,7 @@ final class PasswordResetService
         $resetUrl = rtrim($this->spaBaseUrl, '/') . '/reset-password?token=' . $plaintext;
 
         $mail = (new TemplatedEmail())
-            ->from($this->mailFrom)
+            ->from($this->fromAddress())
             ->to($user->getEmail())
             ->subject('Passwort zurücksetzen')
             ->htmlTemplate('email/password_reset.html.twig')
@@ -103,7 +113,7 @@ final class PasswordResetService
      * `/set-password?token=` page posts back to the shared
      * `POST /v1/auth/reset-password`.
      */
-    public function sendPortalSetPasswordLink(User $user): void
+    public function sendPortalSetPasswordLink(User $user, ?string $welcomeText = null): void
     {
         // Only ever one live token per user.
         $this->tokens->deleteForUser($user);
@@ -118,7 +128,7 @@ final class PasswordResetService
         $setPasswordUrl = rtrim($this->portalBaseUrl, '/') . '/set-password?token=' . $plaintext;
 
         $mail = (new TemplatedEmail())
-            ->from($this->mailFrom)
+            ->from($this->fromAddress())
             ->to($user->getEmail())
             ->subject('Ihr Zugang zum Kundenportal')
             ->htmlTemplate('email/portal_set_password.html.twig')
@@ -127,6 +137,7 @@ final class PasswordResetService
                 'setPasswordUrl' => $setPasswordUrl,
                 'firstName' => $user->getFirstName(),
                 'expiresAt' => $token->getExpiresAt(),
+                'welcomeText' => $welcomeText !== null && $welcomeText !== '' ? $welcomeText : null,
             ]);
 
         if (!$this->egress->isAllowed(EgressModule::EmailOutbound)) {

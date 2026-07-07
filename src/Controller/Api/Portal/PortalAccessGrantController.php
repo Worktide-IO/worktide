@@ -59,12 +59,13 @@ final class PortalAccessGrantController
             throw new BadRequestHttpException('Contact has no email — cannot grant portal access.');
         }
 
-        // Idempotent: a contact already linked just gets a fresh set-password mail.
+        // Idempotent: an already-linked contact just reports its state. The
+        // invitation email is NO LONGER sent here — provisioning ("Freischaltung")
+        // is separate from inviting, so the staff UI can *offer* to send it via
+        // POST .../send-portal-invitation.
         $user = $contact->getLinkedUser();
         if ($user instanceof User) {
-            $this->resets->sendPortalSetPasswordLink($user);
-
-            return new JsonResponse($this->grantResult($contact, $user, resent: true));
+            return new JsonResponse($this->grantResult($contact, $user));
         }
 
         // Don't hijack an existing (possibly staff) account.
@@ -85,9 +86,36 @@ final class PortalAccessGrantController
         $contact->setLinkedUser($user);
         $this->em->flush();
 
-        $this->resets->sendPortalSetPasswordLink($user);
+        return new JsonResponse($this->grantResult($contact, $user), 201);
+    }
 
-        return new JsonResponse($this->grantResult($contact, $user, resent: false), 201);
+    /**
+     * Send (or re-send) the branded portal invitation — the set-password link
+     * plus the workspace's configured welcome text — to an already-provisioned
+     * portal contact. This is the "offer to invite" that follows Freischaltung.
+     */
+    #[Route(
+        path: '/v1/contacts/{id}/send-portal-invitation',
+        name: 'api_contacts_send_portal_invitation',
+        requirements: ['id' => '[0-9a-fA-F-]{36}'],
+        methods: ['POST'],
+    )]
+    public function sendInvitation(string $id): JsonResponse
+    {
+        $contact = $this->loadEditableContact($id);
+
+        $user = $contact->getLinkedUser();
+        if (!$user instanceof User) {
+            throw new ConflictHttpException('Portal access is not granted yet — grant it first.');
+        }
+
+        $welcomeText = PortalAccessResolver::welcomeText($contact->getCustomer()->getWorkspace());
+        $this->resets->sendPortalSetPasswordLink($user, $welcomeText);
+
+        $contact->markPortalInvited();
+        $this->em->flush();
+
+        return new JsonResponse($this->grantResult($contact, $user, invited: true));
     }
 
     #[Route(
@@ -107,8 +135,10 @@ final class PortalAccessGrantController
         }
 
         // Break the identity chain (the PortalAccessResolver now denies this
-        // account even if a JWT is still live) and neuter the login.
+        // account even if a JWT is still live) and neuter the login. Reset the
+        // invite state so a later re-grant offers to send a fresh invitation.
         $contact->setLinkedUser(null);
+        $contact->clearPortalInvited();
         $user->setRoles([]);
         $user->setPassword($this->hasher->hashPassword($user, bin2hex(random_bytes(24))));
         $this->em->flush();
@@ -135,13 +165,16 @@ final class PortalAccessGrantController
     /**
      * @return array<string, mixed>
      */
-    private function grantResult(Contact $contact, User $user, bool $resent): array
+    private function grantResult(Contact $contact, User $user, bool $invited = false): array
     {
         return [
             'contactId' => $contact->getId()?->toRfc4122(),
             'userId' => $user->getId()?->toRfc4122(),
             'email' => $user->getEmail(),
-            'setPasswordMailResent' => $resent,
+            // Whether an invitation email was dispatched by *this* call, and the
+            // overall invite state so the UI can show "invited on …" vs "offer".
+            'invited' => $invited,
+            'portalInvitedAt' => $contact->getPortalInvitedAt()?->format(\DATE_ATOM),
         ];
     }
 }

@@ -8,6 +8,7 @@ use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
@@ -144,6 +145,15 @@ class Contact
     private ?\DateTimeImmutable $portalNotificationsSeenAt = null;
 
     /**
+     * When the portal invitation email (set-password link + welcome text) was
+     * last sent to this contact. null = access provisioned but not yet invited,
+     * which the staff UI surfaces as an "offer to send" prompt.
+     */
+    #[ApiProperty(writable: false)]
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $portalInvitedAt = null;
+
+    /**
      * Per-contact feature gating: portal feature keys HIDDEN from this contact,
      * even when the workspace has them on (the Capability×Role matrix, screen 1).
      * Absence = visible; the effective set is workspace-features minus these.
@@ -155,6 +165,10 @@ class Contact
 
     public function getPortalNotificationsSeenAt(): ?\DateTimeImmutable { return $this->portalNotificationsSeenAt; }
     public function setPortalNotificationsSeenAt(?\DateTimeImmutable $t): self { $this->portalNotificationsSeenAt = $t; return $this; }
+
+    public function getPortalInvitedAt(): ?\DateTimeImmutable { return $this->portalInvitedAt; }
+    public function markPortalInvited(): self { $this->portalInvitedAt = new \DateTimeImmutable(); return $this; }
+    public function clearPortalInvited(): self { $this->portalInvitedAt = null; return $this; }
 
     /** @return list<string> */
     public function getPortalHiddenFeatures(): array { return $this->portalHiddenFeatures ?? []; }
