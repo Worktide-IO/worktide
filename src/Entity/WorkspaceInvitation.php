@@ -101,6 +101,16 @@ class WorkspaceInvitation
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $acceptedAt = null;
 
+    /** When the invitation email was last dispatched (null = never sent). */
+    #[ApiProperty(writable: false)]
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $sentAt = null;
+
+    /** How many times the invitation email has been dispatched. */
+    #[ApiProperty(writable: false)]
+    #[ORM\Column(options: ['default' => 0])]
+    private int $sendCount = 0;
+
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?User $acceptedBy = null;
@@ -135,6 +145,17 @@ class WorkspaceInvitation
 
     public function getAcceptedAt(): ?\DateTimeImmutable { return $this->acceptedAt; }
     public function getAcceptedBy(): ?User { return $this->acceptedBy; }
+
+    public function getSentAt(): ?\DateTimeImmutable { return $this->sentAt; }
+    public function getSendCount(): int { return $this->sendCount; }
+
+    /** Record that the invitation email was (re)dispatched. */
+    public function markSent(): self
+    {
+        $this->sentAt = new \DateTimeImmutable();
+        $this->sendCount++;
+        return $this;
+    }
 
     public function markAccepted(User $user): self
     {

@@ -189,8 +189,29 @@ ANTHROPIC_API_KEY=__key__
 ANTHROPIC_MODEL=claude-opus-4-8
 MAILER_DSN=smtp://user%40example.com:__pw__@mail.example.com:587
 MAILER_FROM=worktide@example.com
+MAILER_FROM_NAME=Meine Firma
 # TAVILY_API_KEY=... BUILTWITH_API_KEY=... OAUTH_GMAIL_* OAUTH_GRAPH_* OAUTH_LINKEDIN_* OAUTH_REDIRECT_BASE=...
+
+# White-Label-Branding (alles optional; leer = Standard-Worktide-Look)
+BRAND_NAME=Meine Firma
+BRAND_LEGAL_NAME=Meine Firma GmbH
+BRAND_PRIMARY_COLOR=#0F8C72
+BRAND_ACCENT_COLOR=#E0623A
+BRAND_IMPRINT_URL=https://meine-firma.example.com/impressum
+BRAND_PRIVACY_URL=https://meine-firma.example.com/datenschutz
+# BRAND_LOGO_URL=https://cdn.example.com/logo.svg   # absolute URL; leer → siehe unten
+# BRAND_LOGO_URL_DARK=https://cdn.example.com/logo-dark.svg
+# BRAND_SUPPORT_EMAIL=support@meine-firma.example.com
 ```
+
+**Eigenes Logo.** Setze entweder `BRAND_LOGO_URL` auf eine absolute URL, **oder**
+lege eine Datei nach `var/branding/logo.svg` (auch `.png`/`.webp` möglich) — der
+`var/`-Ordner ist ohnehin als Volume gemountet, das Logo wird dann unter
+`{DEFAULT_URI}/branding/logo` ausgeliefert und funktioniert in E-Mails wie in
+beiden Frontends ohne Rebuild. Ohne beides erscheint der Worktide-Schriftzug.
+Farben, Logo und Impressum-/Datenschutz-Links werden von der API unter
+`GET /v1/branding` bereitgestellt und von `worktide-web` **und** `worktide-portal`
+zur Laufzeit übernommen — ein Ändern der ENV genügt, kein Frontend-Build nötig.
 
 Zusätzlich für die DB-Container-Variablen eine `.env` (liest `docker compose` automatisch):
 

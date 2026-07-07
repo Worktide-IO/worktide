@@ -1,0 +1,8 @@
+{% apply spaceless %}{% endapply %}{% block content %}{% endblock %}
+
+--
+{{ brand.legalName }}
+{% if brand.imprintUrl %}Impressum: {{ brand.imprintUrl }}
+{% endif %}{% if brand.privacyUrl %}Datenschutz: {{ brand.privacyUrl }}
+{% endif %}{% if brand.supportEmail %}Kontakt: {{ brand.supportEmail }}
+{% endif %}

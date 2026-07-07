@@ -1,0 +1,64 @@
+{#
+    Shared branded layout for system emails.
+
+    Provides a logo header, a white content card and a footer with the legal
+    entity name + Impressum/Datenschutz links. Colors and links come from the
+    `brand` Twig global (BRAND_* env). Child templates fill the `content` block
+    and may override `title` / `preheader`.
+
+    Table-based, inline-styled markup for broad email-client compatibility.
+#}
+{% set primary = brand.primaryColor %}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <title>{% block title %}{{ brand.name }}{% endblock %}</title>
+</head>
+<body style="margin:0; padding:0; background:#f4f4f5; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#18181b;">
+    {% block preheader %}{% endblock %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5; padding:32px 0;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+                    {# Logo / wordmark header #}
+                    <tr>
+                        <td align="center" style="padding-bottom:20px;">
+                            {% if brand.logoUrl %}
+                                <img src="{{ brand.logoUrl }}" alt="{{ brand.name }}" height="40" style="height:40px; width:auto; display:block; border:0;">
+                            {% else %}
+                                <span style="font-size:22px; font-weight:700; color:{{ primary }};">{{ brand.name }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {# Content card #}
+                    <tr>
+                        <td style="background:#ffffff; border-radius:12px; padding:32px; box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                                {% block content %}{% endblock %}
+                            </table>
+                        </td>
+                    </tr>
+                    {# Footer: legal entity + Impressum / Datenschutz + contact #}
+                    <tr>
+                        <td style="padding:20px 8px 0; font-size:11px; line-height:1.6; color:#a1a1aa; text-align:center;">
+                            © {{ 'now'|date('Y') }} {{ brand.legalName }}
+                            {% if brand.imprintUrl or brand.privacyUrl %}
+                                <br>
+                                {% if brand.imprintUrl %}<a href="{{ brand.imprintUrl }}" style="color:#a1a1aa; text-decoration:underline;">Impressum</a>{% endif %}
+                                {% if brand.imprintUrl and brand.privacyUrl %} &middot; {% endif %}
+                                {% if brand.privacyUrl %}<a href="{{ brand.privacyUrl }}" style="color:#a1a1aa; text-decoration:underline;">Datenschutz</a>{% endif %}
+                            {% endif %}
+                            {% if brand.supportEmail %}
+                                <br><a href="mailto:{{ brand.supportEmail }}" style="color:#a1a1aa; text-decoration:underline;">{{ brand.supportEmail }}</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
