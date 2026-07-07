@@ -55,7 +55,9 @@ COPY --link frankenphp/crontab /etc/crontab
 
 ENTRYPOINT ["docker-entrypoint"]
 
-HEALTHCHECK --start-period=60s CMD curl -f http://localhost:2019/metrics || exit 1
+# No image-wide HEALTHCHECK — each role defines its own in compose.prod.yaml.
+# (The old `curl :2019/metrics` check failed because FrankenPHP does not expose
+# /metrics by default → containers were marked unhealthy and cycled.)
 CMD [ "frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile" ]
 
 ########################
