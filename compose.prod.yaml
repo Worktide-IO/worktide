@@ -47,12 +47,15 @@ services:
     #   SERVICE_FQDN_APP: https://api.worktide.wappler.systems
     expose:
       - "80"
+    # Dependency-free liveness: is FrankenPHP accepting TCP on :80? Avoids the
+    # old curl :2019/metrics check (FrankenPHP doesn't serve /metrics → 404 →
+    # the container was marked unhealthy and cycled).
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:2019/metrics"]
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/80' || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 90s
 
   # ---- Messenger worker ----------------------------------------------------
   worker:
@@ -84,6 +87,12 @@ services:
     environment:
       <<: *app-env
       AUTO_MIGRATE: "0"
+    healthcheck:
+      test: ["CMD-SHELL", "supercronic -test /etc/crontab >/dev/null 2>&1 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
 volumes:
   jwt_keys:
