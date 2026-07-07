@@ -1,0 +1,12 @@
+{% extends 'email/base.txt.twig' %}
+
+{% block content %}Hallo,
+
+Sie wurden eingeladen, dem Workspace "{{ workspaceName }}" in {{ brand.name }} beizutreten.
+Öffnen Sie den folgenden Link, um die Einladung anzunehmen:
+
+{{ acceptUrl }}
+
+Die Einladung ist bis {{ expiresAt|date('d.m.Y') }} gültig.
+
+Falls Sie diese Einladung nicht erwartet haben, ignorieren Sie diese E-Mail.{% endblock %}

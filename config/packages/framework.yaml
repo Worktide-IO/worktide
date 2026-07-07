@@ -42,6 +42,30 @@ framework:
             policy: 'sliding_window'
             limit: 10
             interval: '1 minute'
+        # Token-as-credential accept endpoints (workspace + customer
+        # invitations). Tokens are long-random, so this is defense-in-depth
+        # against token guessing. Keyed on client IP. Applied in
+        # PublicEndpointRateLimitSubscriber.
+        public_token_accept:
+            policy: 'fixed_window'
+            limit: 10
+            interval: '15 minutes'
+        # Inbound webhook ingestion (/v1/inbound/(entity-)webhooks/{token}).
+        # Generous ceiling so legitimate provider bursts pass while a
+        # token-guessing flood from one IP is capped. Tune per deployment if
+        # a channel legitimately exceeds it.
+        inbound_webhook:
+            policy: 'sliding_window'
+            limit: 240
+            interval: '1 minute'
+        # Catch-all for the remaining anonymous public endpoints (branding,
+        # setup, public-form schema GET, signed media, oauth callback). Keeps
+        # scraping / enumeration / amplification in check without touching the
+        # credential endpoints above (which have their own tighter limiters).
+        public_anonymous:
+            policy: 'sliding_window'
+            limit: 120
+            interval: '1 minute'
 
     #esi: true
     #fragments: true

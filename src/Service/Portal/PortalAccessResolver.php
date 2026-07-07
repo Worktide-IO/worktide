@@ -87,6 +87,17 @@ final class PortalAccessResolver
         return ($workspace->getSettings()['portal']['enabled'] ?? false) === true;
     }
 
+    /**
+     * Optional greeting shown in the portal invitation email, configured under
+     * settings.portal.welcomeText. Empty string when unset.
+     */
+    public static function welcomeText(Workspace $workspace): string
+    {
+        $text = $workspace->getSettings()['portal']['welcomeText'] ?? '';
+
+        return \is_string($text) ? trim($text) : '';
+    }
+
     /** Canonical portal feature keys — one per wireframe screen. */
     public const FEATURE_KEYS = [
         'tickets',
