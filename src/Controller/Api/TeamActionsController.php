@@ -43,25 +43,25 @@ final class TeamActionsController
         private readonly EntityManagerInterface $em,
     ) {}
 
-    #[Route('/v1/teams/{id}/add-users', name: 'api_team_add_users', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/teams/{id}/add-users', name: 'api_team_add_users', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function addUsers(string $id, Request $request): JsonResponse
     {
         return $this->mutateMembers($id, $request, add: true);
     }
 
-    #[Route('/v1/teams/{id}/remove-users', name: 'api_team_remove_users', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/teams/{id}/remove-users', name: 'api_team_remove_users', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function removeUsers(string $id, Request $request): JsonResponse
     {
         return $this->mutateMembers($id, $request, add: false);
     }
 
-    #[Route('/v1/teams/{id}/add-projects', name: 'api_team_add_projects', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/teams/{id}/add-projects', name: 'api_team_add_projects', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function addProjects(string $id, Request $request): JsonResponse
     {
         return $this->mutateProjects($id, $request, add: true);
     }
 
-    #[Route('/v1/teams/{id}/remove-projects', name: 'api_team_remove_projects', host: 'api.worktide.ddev.site', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
+    #[Route('/v1/teams/{id}/remove-projects', name: 'api_team_remove_projects', requirements: ['id' => Requirement::UUID_V7], methods: ['POST'])]
     public function removeProjects(string $id, Request $request): JsonResponse
     {
         return $this->mutateProjects($id, $request, add: false);

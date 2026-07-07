@@ -40,7 +40,6 @@ final class SocialPostTargetRetryController
     #[Route(
         path: '/v1/social_post_targets/{id}/retry',
         name: 'api_social_post_target_retry',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

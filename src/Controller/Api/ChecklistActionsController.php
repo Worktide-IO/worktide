@@ -41,7 +41,6 @@ final class ChecklistActionsController
     #[Route(
         path: '/v1/tasks/{id}/checklist-items-to-subtasks',
         name: 'api_checklist_to_subtasks',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

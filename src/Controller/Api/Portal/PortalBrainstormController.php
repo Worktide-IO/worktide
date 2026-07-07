@@ -44,7 +44,6 @@ final class PortalBrainstormController
     #[Route(
         path: '/v1/portal/brainstorm',
         name: 'api_portal_brainstorm_list',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function list(): JsonResponse
@@ -61,7 +60,6 @@ final class PortalBrainstormController
     #[Route(
         path: '/v1/portal/brainstorm',
         name: 'api_portal_brainstorm_create',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function create(Request $request): JsonResponse

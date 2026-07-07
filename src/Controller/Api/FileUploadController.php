@@ -68,7 +68,6 @@ final class FileUploadController
     #[Route(
         path: '/v1/files',
         name: 'api_file_upload',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function upload(Request $request): JsonResponse
@@ -125,7 +124,6 @@ final class FileUploadController
     #[Route(
         path: '/v1/files/{id}/versions',
         name: 'api_file_new_version',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

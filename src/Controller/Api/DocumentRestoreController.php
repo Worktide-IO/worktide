@@ -40,7 +40,6 @@ final class DocumentRestoreController
     #[Route(
         path: '/v1/documents/{id}/restore',
         name: 'api_documents_restore',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-f-]{36}'],
         methods: ['POST'],
     )]

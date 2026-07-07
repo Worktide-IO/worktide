@@ -41,7 +41,6 @@ final class ConversationCreateTaskController
     #[Route(
         path: '/v1/conversations/{id}/create-task',
         name: 'api_conversation_create_task',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

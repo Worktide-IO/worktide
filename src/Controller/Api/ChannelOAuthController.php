@@ -48,7 +48,6 @@ final class ChannelOAuthController
     #[Route(
         path: '/v1/channels/{id}/oauth/start',
         name: 'api_channels_oauth_start',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-f-]{36}'],
         methods: ['GET'],
     )]
@@ -92,7 +91,6 @@ final class ChannelOAuthController
     #[Route(
         path: '/v1/channels/oauth/callback',
         name: 'api_channels_oauth_callback',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function callback(Request $request): RedirectResponse

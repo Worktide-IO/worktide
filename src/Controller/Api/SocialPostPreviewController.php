@@ -39,7 +39,6 @@ final class SocialPostPreviewController
     #[Route(
         path: '/v1/social_posts/{id}/preview',
         name: 'api_social_post_preview',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

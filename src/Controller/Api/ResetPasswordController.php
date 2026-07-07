@@ -32,7 +32,6 @@ final class ResetPasswordController
     #[Route(
         path: '/v1/auth/reset-password',
         name: 'api_auth_reset_password',
-        host: 'api.worktide.ddev.site',
         methods: ['POST'],
     )]
     public function __invoke(Request $request): JsonResponse

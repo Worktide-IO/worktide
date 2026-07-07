@@ -37,7 +37,6 @@ final class PermissionsMatrixController
     #[Route(
         path: '/v1/permissions/matrix',
         name: 'api_permissions_matrix',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function __invoke(Request $request): JsonResponse

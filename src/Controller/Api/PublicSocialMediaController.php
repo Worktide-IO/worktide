@@ -35,7 +35,6 @@ final class PublicSocialMediaController
     #[Route(
         path: '/v1/social/media/{token}',
         name: 'api_social_public_media',
-        host: 'api.worktide.ddev.site',
         requirements: ['token' => '[^/]+'],
         methods: ['GET'],
     )]

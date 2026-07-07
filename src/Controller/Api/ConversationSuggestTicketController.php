@@ -46,7 +46,6 @@ final class ConversationSuggestTicketController
     #[Route(
         path: '/v1/conversations/{id}/suggest-ticket',
         name: 'api_conversation_suggest_ticket',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => Requirement::UUID_V7],
         methods: ['POST'],
     )]

@@ -79,7 +79,6 @@ final class PortalAgreementsController
     #[Route(
         path: '/v1/portal/agreements/{id}/sign',
         name: 'api_portal_agreements_sign',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]
@@ -132,7 +131,6 @@ final class PortalAgreementsController
     #[Route(
         path: '/v1/portal/agreements/{id}/inquiry',
         name: 'api_portal_agreements_inquiry',
-        host: 'api.worktide.ddev.site',
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]
@@ -193,7 +191,6 @@ final class PortalAgreementsController
     #[Route(
         path: '/v1/portal/agreements',
         name: 'api_portal_agreements_list',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function list(): JsonResponse

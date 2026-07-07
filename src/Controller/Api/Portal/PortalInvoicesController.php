@@ -32,7 +32,6 @@ final class PortalInvoicesController
     #[Route(
         path: '/v1/portal/invoices',
         name: 'api_portal_invoices_list',
-        host: 'api.worktide.ddev.site',
         methods: ['GET'],
     )]
     public function list(): JsonResponse
