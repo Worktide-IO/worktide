@@ -47,15 +47,18 @@ services:
     #   SERVICE_FQDN_APP: https://api.worktide.wappler.systems
     expose:
       - "80"
-    # Dependency-free liveness: is FrankenPHP accepting TCP on :80? Avoids the
-    # old curl :2019/metrics check (FrankenPHP doesn't serve /metrics → 404 →
-    # the container was marked unhealthy and cycled).
+    # Liveness on the real HTTP port. `curl` (present in the image — it's used at
+    # build time) without `-f` exits 0 for ANY HTTP response (incl. 404), and
+    # non-zero only when the connection is refused — i.e. it passes iff FrankenPHP
+    # is serving on :80. The old `curl :2019/metrics` check always 404'd
+    # (FrankenPHP doesn't expose /metrics) → unhealthy → Coolify cycled the
+    # container to the restart cap.
     healthcheck:
-      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/80' || exit 1"]
-      interval: 30s
+      test: ["CMD", "curl", "-sS", "-o", "/dev/null", "http://localhost:80/"]
+      interval: 20s
       timeout: 5s
       retries: 5
-      start_period: 90s
+      start_period: 120s
 
   # ---- Messenger worker ----------------------------------------------------
   worker:
