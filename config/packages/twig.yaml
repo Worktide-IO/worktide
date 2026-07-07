@@ -1,5 +1,9 @@
 twig:
     file_name_pattern: '*.twig'
+    globals:
+        # White-label branding, available to all templates (esp. system emails)
+        # as `brand.*`. Resolved from BRAND_* env — see App\Service\Branding.
+        brand: '@App\Service\Branding\BrandingConfig'
 
 when@test:
     twig:

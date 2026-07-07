@@ -107,18 +107,44 @@ Denylist einbauen.
 
 ## Rate-Limits
 
-Geregelt in `src/EventSubscriber/AuthRateLimitSubscriber.php`:
+Alle öffentlichen (unauthentifizierten) Endpunkte sind gegen
+Brute-Force / Missbrauch abgesichert. Limiter-Definitionen im
+`rate_limiter`-Block von `config/packages/framework.yaml`, verdrahtet
+in `config/services.yaml`.
+
+Auth-nah — `src/EventSubscriber/AuthRateLimitSubscriber.php`:
 
 - `POST /v1/auth/login` — Symfony `login_throttling`: 5 Versuche /
-  Minute pro IP (siehe `config/packages/security.yaml`).
-- `POST /v1/auth/refresh` — eigener Limiter `auth_refresh` in
-  `framework.yaml` (rate_limiter-Block).
+  Minute pro (IP + E-Mail) (siehe `config/packages/security.yaml`).
+- `POST /v1/auth/refresh` — Limiter `auth_refresh`.
+- `POST /v1/auth/forgot-password` — Limiter `auth_forgot_password`.
+- `POST /v1/auth/reset-password` — Limiter `auth_reset_password`.
 - `POST /v1/me/password` — Limiter `auth_password_change`.
+- `POST /v1/forms/{slug}` (Absenden) — Limiter `public_form_submit`
+  (in `PublicFormController`).
 
-Bei Throttle wird die Response auf **429** angehoben
-(`AuthFailureStatusSubscriber`) — das default-401 von Lexik bei
-Login-Throttling würde sonst irreführend "ungültige Zugangsdaten"
-anzeigen.
+Übrige öffentliche Endpunkte — `src/EventSubscriber/PublicEndpointRateLimitSubscriber.php`,
+alle pro Client-IP:
+
+- `POST /v1/workspace_invitations/{token}/accept` (und künftige
+  Kunden-Einladungs-Accepts) — Limiter `public_token_accept`
+  (10 / 15 min). Token-als-Credential; Schutz gegen Token-Raten.
+- `POST|PUT /v1/inbound/(entity-)webhooks/{token}` — Limiter
+  `inbound_webhook` (240 / min, großzügig, damit legitime
+  Provider-Bursts durchgehen; pro Deployment anpassbar).
+- Anonyme Lese-/Redirect-Endpunkte (`GET /v1/branding`, `/v1/setup/*`,
+  `GET /v1/forms/{slug}`, `/v1/social/media/*`,
+  `/v1/channels/oauth/callback`) — Limiter `public_anonymous`
+  (120 / min) gegen Scraping / Enumeration / Amplification.
+
+Signierte Tokens (`social/media`, OAuth-`state`) sind bereits durch
+ihre Signatur gegen Raten geschützt; der Limiter ist hier
+Defense-in-Depth.
+
+Bei Throttle wird die Response auf **429** (mit `Retry-After`) angehoben
+(`AuthFailureStatusSubscriber` bzw. `TooManyRequestsHttpException`) —
+das default-401 von Lexik bei Login-Throttling würde sonst irreführend
+"ungültige Zugangsdaten" anzeigen.
 
 ## Auth-Audit-Log
 
