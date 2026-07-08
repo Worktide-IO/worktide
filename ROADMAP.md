@@ -45,18 +45,18 @@ Realisiert die Phase-D-Infrastruktur und macht sie generisch (Details in den Pha
 
 **Ziel:** Was bereits gebaut ist, vollständig sichtbar und benutzbar machen. Kein neues Backend-Konzept.
 
-- Dashboard-Widgets ersetzen die Platzhalter:
-  - **ActiveTimer-Widget** (große Stoppuhr + Heute-Summe + Quick-Start)
-  - **"Alle offenen Kunden-Aufgaben"** (cross-project Liste)
-  - **"Meine Aufgaben"** mit Tabs Heute / Diese Woche / Überfällig
+- ~~Dashboard-Widgets ersetzen die Platzhalter:~~ — **erledigt** (konfigurierbares `react-grid-layout`-Dashboard, `WIDGET_REGISTRY`, Layout persistiert via `/v1/me/preferences`)
+  - ~~**ActiveTimer-Widget** (große Stoppuhr + Heute-Summe + Quick-Start)~~ — **erledigt** (`ActiveTimerWidget` + `FloatingTimer`, `/v1/timers/*`)
+  - ~~**"Alle offenen Kunden-Aufgaben"** (cross-project Liste)~~ — **erledigt** (`OpenCustomerTasksWidget`)
+  - ~~**"Meine Aufgaben"** mit Tabs Heute / Diese Woche / Überfällig~~ — **erledigt** (`MyTasksWidget`)
 - Sidebar-Polish:
   - ~~Pinned / Recent Projects unter "Meine Projekte"~~ — **erledigt** (Sidebar-Favoriten)
-  - Sammelprojekte vs Kunden-Projekte Gruppierung
+  - ~~Sammelprojekte vs Kunden-Projekte Gruppierung~~ — **erledigt** (`MyProjectsSidebar`: Favoriten / „Eigene" (ohne Customer-FK) / pro-Kunde-Gruppen)
 - ~~**Quick-Add Cmd+K Popover** — globaler Shortcut, Task in Sekunden anlegen~~ — **erledigt** (QuickAddDialog: Cmd+K, Task + Projekt)
 - ~~**Calendar-View** — FullCalendar-React, Tasks mit dueOn als Events~~ — **erledigt** (`/calendar`)
 - ~~**Globale Suche** — cross-resource Suche (Tasks, Projects, Customers, Contacts, Documents)~~ — **erledigt** (GlobalSearchDialog, Cmd+/)
-- **Smart-Links** — externe URLs als Rich-Cards (oEmbed: YouTube, Figma, Confluence, …)
-- ~~**Status-Updates** — strukturierte Projekt-Berichte (was läuft, Risiken, nächste Schritte)~~ — **erledigt** (Backend): `ProjectStatusUpdate`-Entity (CRUD unter `/v1/project_status_updates`), `ProjectHealth`-RAG (on_track/at_risk/off_track/on_hold/complete), drei Sektionen summary/risks/nextSteps, Autor via `createdByUser`, pro-Projekt-Feed (`?project=`), Domain-Events + Webhooks via `DomainEventEmitterSubscriber`. Report-Editor-UI offen (SPA-Repo)
+- **Smart-Links** — externe URLs als Rich-Cards (oEmbed: YouTube, Figma, Confluence, …) — **offen** (einziger nicht gebauter Phase-A-Punkt; braucht serverseitigen oEmbed-Proxy hinter dem `EgressGuard` + Frontend-Rendering)
+- ~~**Status-Updates** — strukturierte Projekt-Berichte (was läuft, Risiken, nächste Schritte)~~ — **erledigt** (Backend): `ProjectStatusUpdate`-Entity (CRUD unter `/v1/project_status_updates`), `ProjectHealth`-RAG (on_track/at_risk/off_track/on_hold/complete), drei Sektionen summary/risks/nextSteps, Autor via `createdByUser`, pro-Projekt-Feed (`?project=`), Domain-Events + Webhooks via `DomainEventEmitterSubscriber`. Report-Editor-UI **erledigt** (SPA): „Status-Updates"-Tab auf der Projekt-Detailseite + Dashboard-Widget „Status-Updates"
 - ~~**Top-Level-Routes** ausbauen: Kalender, Planer, Personen, Auswertungen~~ — **erledigt** (alle vier als Routen vorhanden)
 
 ---
@@ -215,7 +215,7 @@ Realisiert die Phase-D-Infrastruktur und macht sie generisch (Details in den Pha
 **Ziel:** Worktide auf viel Daten + read-heavy Traffic vorbereiten. Querschnitts-Phase — die drei Blöcke sind einzeln zündbar, nicht als Sequenz zu verstehen. Bewusst von den fachlichen Features entkoppelt.
 
 ### Storage — S3 / Object-Store
-- **S3-Adapter aktivieren** (herausgezogen aus dem Document-Vault, Phase E). Die Architektur ist bereits darauf vorbereitet: `FileStorage` (`src/Service/FileStorage.php`) hängt nur an Flysystems `FilesystemOperator`, Callers kennen den Adapter nicht. In `config/services.yaml` wird `file_storage.adapter` env-gesteuert von `LocalFilesystemAdapter` auf `AwsS3V3Adapter` umgestellt — `league/flysystem-aws-s3-v3` requiren, sonst nichts. Klein (~1 Tag).
+- ~~**S3-Adapter aktivieren**~~ — **erledigt & verifiziert**. `StorageAdapterFactory` (`src/Service/Storage/StorageAdapterFactory.php`) baut zur Laufzeit aus `FILE_STORAGE_ADAPTER` (`local`|`s3`) entweder `LocalFilesystemAdapter` oder `AwsS3V3Adapter` (mit `S3_ENDPOINT`/`S3_USE_PATH_STYLE`/`S3_PREFIX` für MinIO/UpCloud/R2, `directory_visibility: private`); `league/flysystem-aws-s3-v3` ist requirt + installiert. Dev läuft via `.env.local` bereits gegen MinIO (write/read/delete getestet). Callers hängen nur an `FilesystemOperator`.
 - **Vor lokalem `var/uploads`-Überlauf** ziehen — sobald nennenswerte Datenmengen (File-Attachments, Document-Vault, Mail-Anhänge aus Phase C) anfallen. S3-kompatibel: AWS, UpCloud, MinIO (self-hostable), Cloudflare R2.
 - SSE-Verschlüsselung + Retention-Policies (GoBD) bleiben Teil des **Document-Vault (Phase E)** — der bloße Bucket-Anschluss ist davon entkoppelt und kann früher passieren.
 
