@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Repository\PublicFormRepository;
+use App\Service\Form\FormPrefillResolver;
+use App\Service\Form\FormSchemaNormalizer;
 use App\Service\PublicFormSubmissionService;
 use App\Service\PublicFormValidationException;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -40,6 +42,8 @@ final class PublicFormController
         private readonly PublicFormRepository $forms,
         private readonly PublicFormSubmissionService $submissions,
         private readonly RateLimiterFactory $publicFormSubmitLimiter,
+        private readonly FormSchemaNormalizer $normalizer,
+        private readonly FormPrefillResolver $prefill,
     ) {}
 
     #[Route(
@@ -55,22 +59,17 @@ final class PublicFormController
             throw new NotFoundHttpException();
         }
 
+        $doc = $this->normalizer->normalize($form);
+
         return new JsonResponse([
             'slug' => $form->getSlug(),
             'title' => $form->getTitle(),
             'description' => $form->getDescription(),
             'successMessage' => $form->getSuccessMessage(),
-            'fields' => array_map(
-                static fn (array $f): array => [
-                    'key' => $f['key'] ?? null,
-                    'label' => $f['label'] ?? ($f['key'] ?? null),
-                    'type' => $f['type'] ?? 'text',
-                    'required' => (bool) ($f['required'] ?? false),
-                    'options' => array_values((array) ($f['options'] ?? [])),
-                    'placeholder' => $f['placeholder'] ?? null,
-                ],
-                $form->getFields(),
-            ),
+            // v2 engine document for the Tally-like renderer + flat back-compat
+            // list. Both client-safe: `mapsTo`/`prefillFrom` are never exposed.
+            'schema' => $this->normalizer->toClientSchema($doc),
+            'fields' => $this->normalizer->toClientFields($doc),
         ]);
     }
 
@@ -109,12 +108,16 @@ final class PublicFormController
             return new JsonResponse(['error' => 'This form is no longer accepting submissions.'], 409);
         }
 
+        // Anonymous path: no contact, so only project-scoped prefill applies.
+        $prefill = $this->prefill->resolve($this->normalizer->normalize($form), null, $form->getProject());
+
         try {
             $this->submissions->submit(
                 $form,
                 $values,
                 $request->getClientIp(),
                 $request->headers->get('User-Agent'),
+                $prefill,
             );
         } catch (PublicFormValidationException $e) {
             return new JsonResponse(['errors' => $e->getErrors()], 422);
