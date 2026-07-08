@@ -202,6 +202,10 @@ BRAND_PRIVACY_URL=https://meine-firma.example.com/datenschutz
 # BRAND_LOGO_URL=https://cdn.example.com/logo.svg   # absolute URL; leer → siehe unten
 # BRAND_LOGO_URL_DARK=https://cdn.example.com/logo-dark.svg
 # BRAND_SUPPORT_EMAIL=support@meine-firma.example.com
+
+# Demo-Modus (dünnes rotes Banner über jeder Seite in beiden Frontends)
+# DEMO_MODE=true
+# DEMO_BANNER_TEXT="Demo – Beispieldaten, keine echten Kundendaten"   # leer → Standardtext
 ```
 
 **Eigenes Logo.** Setze entweder `BRAND_LOGO_URL` auf eine absolute URL, **oder**

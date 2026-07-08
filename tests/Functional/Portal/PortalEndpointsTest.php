@@ -16,6 +16,7 @@ use App\Entity\Customer;
 use App\Entity\CustomerAgreement;
 use App\Entity\CustomerAgreementRevision;
 use App\Entity\CustomerSystem;
+use App\Entity\DomainEventLog;
 use App\Entity\Enum\AgreementStatus;
 use App\Entity\Enum\CustomerStatus;
 use App\Entity\Enum\IdeaOrigin;
@@ -26,6 +27,8 @@ use App\Entity\Enum\TaskDependencyType;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Project;
 use App\Entity\ProjectStatus;
+use App\Entity\PublicForm;
+use App\Entity\PublicFormSubmission;
 use App\Entity\SystemIncident;
 use App\Entity\SystemUptimeDay;
 use App\Entity\Task;
@@ -333,6 +336,73 @@ final class PortalEndpointsTest extends WebTestCase
         self::assertSame(403, $this->client->getResponse()->getStatusCode());
     }
 
+    public function testFormShowExposesV2SchemaWithoutInternals(): void
+    {
+        $ctx = $this->seedForms();
+        $this->request('GET', '/v1/portal/forms/' . $ctx['formId'], $this->token($ctx['portalUser']));
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+
+        $body = $this->client->getResponse()->getContent();
+        $json = $this->json();
+
+        self::assertSame(2, $json['schema']['version']);
+        self::assertCount(1, $json['schema']['pages']);
+        // The Tally-like renderer gets logic + calc.
+        self::assertNotEmpty($json['schema']['logic']);
+        // Internal routing/prefill source must NEVER reach the client.
+        self::assertStringNotContainsString('mapsTo', (string) $body);
+        self::assertStringNotContainsString('prefillFrom', (string) $body);
+        self::assertStringNotContainsString('contact.id', (string) $body);
+    }
+
+    public function testFormFeatureIsGated(): void
+    {
+        $ctx = $this->seed(); // forms flag OFF
+        $this->request('GET', '/v1/portal/forms', $this->token($ctx['portalUser']));
+        self::assertSame(403, $this->client->getResponse()->getStatusCode());
+    }
+
+    public function testFormSubmitAppliesBranchingPrefillAndFiresWebhookEvent(): void
+    {
+        $ctx = $this->seedForms();
+
+        // has_site=no ⇒ site_url is branched off, so omitting it must NOT 422.
+        // The client tries to spoof the hidden prefill field `cid`.
+        $this->request('POST', '/v1/portal/forms/' . $ctx['formId'] . '/submit', $this->token($ctx['portalUser']), [
+            'name' => 'Neuer Audit-Wunsch',
+            'has_site' => 'no',
+            'cid' => 'attacker-supplied',
+        ]);
+        self::assertSame(201, $this->client->getResponse()->getStatusCode());
+
+        $submission = $this->em->getRepository(PublicFormSubmission::class)->findOneBy([]);
+        self::assertInstanceOf(PublicFormSubmission::class, $submission);
+        $payload = $submission->getPayload();
+        // Prefill is server-authoritative — the spoofed value is overwritten.
+        self::assertSame($ctx['contactId'], $payload['cid']);
+        // Branched-off field never entered the payload.
+        self::assertArrayNotHasKey('site_url', $payload);
+        // The materialized task took its title from the mapsTo=title field.
+        self::assertSame('Neuer Audit-Wunsch', $submission->getCreatedTask()?->getTitle());
+
+        // The webhook-feeding domain event fired for the accepted submission.
+        $events = $this->em->getRepository(DomainEventLog::class)->findBy(['name' => 'publicformsubmission.created']);
+        self::assertCount(1, $events);
+    }
+
+    public function testFormSubmitEnforcesActiveRequiredField(): void
+    {
+        $ctx = $this->seedForms();
+
+        // has_site=yes ⇒ site_url becomes required; omitting it must 422.
+        $this->request('POST', '/v1/portal/forms/' . $ctx['formId'] . '/submit', $this->token($ctx['portalUser']), [
+            'name' => 'X',
+            'has_site' => 'yes',
+        ]);
+        self::assertSame(422, $this->client->getResponse()->getStatusCode());
+        self::assertArrayHasKey('site_url', $this->json()['errors']);
+    }
+
     public function testPerContactGatingHidesAnEnabledFeature(): void
     {
         $ctx = $this->seedMonitoring(); // monitoring ON for the workspace
@@ -467,6 +537,70 @@ final class PortalEndpointsTest extends WebTestCase
             'ownTaskId' => $ownTask->getId()?->toRfc4122() ?? '',
             'foreignTaskId' => $foreignTask->getId()?->toRfc4122() ?? '',
         ];
+    }
+
+    /**
+     * A portal world with the forms feature ON: a v2 (Tally-like) form with a
+     * required title field, a branch driver (`has_site`) that shows/requires
+     * `site_url` only when "yes", and a hidden `cid` field prefilled from the
+     * contact id.
+     *
+     * @return array{portalUser: User, formId: string, contactId: string}
+     */
+    private function seedForms(): array
+    {
+        $ws = (new Workspace())
+            ->setName('Form WS')
+            ->setSlug('form-ws-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
+            ->setLocale('de')
+            ->setTimezone('Europe/Berlin')
+            ->setSettings(['portal' => ['enabled' => true, 'features' => ['tickets' => true, 'forms' => true]]]);
+        $this->em->persist($ws);
+
+        $status = (new TaskStatus())->setWorkspace($ws)->setName('Offen')->setColor('#888')->setPosition(0)->setIsCompleted(false)->setIsDefault(true);
+        $this->em->persist($status);
+        $projectStatus = (new ProjectStatus())->setWorkspace($ws)->setName('Aktiv')->setColor('#888')->setPosition(0)->setIsCompleted(false)->setIsArchived(false);
+        $this->em->persist($projectStatus);
+
+        $portalUser = $this->user('portal.forms@example.test', ['ROLE_PORTAL']);
+        $customer = $this->customer($ws, 'Form GmbH');
+        $contact = (new Contact())->setCustomer($customer)->setFirstName('Fritz')->setLastName('Form')
+            ->setEmail('portal.forms@example.test')->setLinkedUser($portalUser);
+        $this->em->persist($contact);
+        $project = $this->project($ws, $customer, 'FRM', $projectStatus);
+
+        $form = (new PublicForm())
+            ->setWorkspace($ws)
+            ->setProject($project)
+            ->setSlug('audit-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
+            ->setTitle('SEO-Audit')
+            ->setFields([])
+            ->setSchemaVersion(2)
+            ->setDefaultStatus($status)
+            ->setSchema([
+                'pages' => [[
+                    'id' => 'p1',
+                    'title' => 'Basis',
+                    'blocks' => [
+                        ['id' => 'bn', 'key' => 'name', 'type' => 'text', 'label' => 'Betreff', 'required' => true, 'mapsTo' => 'title'],
+                        ['id' => 'bh', 'key' => 'has_site', 'type' => 'select', 'label' => 'Website vorhanden?', 'options' => ['yes', 'no']],
+                        ['id' => 'bu', 'key' => 'site_url', 'type' => 'url', 'label' => 'URL', 'required' => true],
+                        ['id' => 'bc', 'key' => 'cid', 'type' => 'text', 'label' => '', 'hidden' => true, 'prefillFrom' => 'contact.id'],
+                    ],
+                ]],
+                'logic' => [
+                    ['if' => ['all' => [['field' => 'has_site', 'op' => 'eq', 'value' => 'yes']]],
+                        'then' => ['action' => 'show', 'target' => 'bu']],
+                ],
+            ]);
+        $this->em->persist($form);
+
+        $this->em->flush();
+        $formId = $form->getId()?->toRfc4122() ?? '';
+        $contactId = $contact->getId()?->toRfc4122() ?? '';
+        $this->em->clear();
+
+        return ['portalUser' => $portalUser, 'formId' => $formId, 'contactId' => $contactId];
     }
 
     /**

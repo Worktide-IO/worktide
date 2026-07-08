@@ -29,7 +29,21 @@ final readonly class BrandingConfig
         private string $mailFrom,
         private string $mailFromName,
         private string $defaultUri,
+        private bool $demoMode = false,
+        private string $demoBannerText = '',
     ) {}
+
+    /** Whether this instance runs in demo mode (SPAs show a red demo banner). */
+    public function demoMode(): bool
+    {
+        return $this->demoMode;
+    }
+
+    /** Optional custom banner label; empty string means "use the SPA default". */
+    public function demoBannerText(): string
+    {
+        return $this->demoBannerText;
+    }
 
     public function name(): string
     {
@@ -99,7 +113,7 @@ final readonly class BrandingConfig
     /**
      * JSON shape returned by GET /v1/branding and consumed by the SPAs.
      *
-     * @return array<string, string>
+     * @return array<string, string|bool>
      */
     public function toArray(): array
     {
@@ -113,6 +127,8 @@ final readonly class BrandingConfig
             'imprintUrl' => $this->imprintUrl(),
             'privacyUrl' => $this->privacyUrl(),
             'supportEmail' => $this->supportEmail(),
+            'demoMode' => $this->demoMode(),
+            'demoBannerText' => $this->demoBannerText(),
         ];
     }
 }

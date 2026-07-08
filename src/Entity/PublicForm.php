@@ -116,14 +116,35 @@ class PublicForm
     private ?TaskPriority $defaultPriority = null;
 
     /**
-     * Form schema. Each entry:
+     * Legacy flat form schema (schema v1). Each entry:
      *   { "key": string, "label": string, "type": string,
      *     "required"?: bool, "options"?: list<string>, "mapsTo"?: string }
+     *
+     * Still the storage for v1 forms and always the fallback the
+     * {@see \App\Service\Form\FormSchemaNormalizer} synthesises a v2 document
+     * from when {@see $schema} is null. New engine capabilities live in $schema.
      *
      * @var list<array<string, mixed>>
      */
     #[ORM\Column(type: 'json')]
     private array $fields = [];
+
+    /**
+     * Tally-like engine schema (schema v2), or null for legacy flat forms.
+     * A nested document — pages → blocks — plus branching logic and computed
+     * fields. The canonical shape is documented on
+     * {@see \App\Service\Form\FormSchemaNormalizer}; everything downstream
+     * consumes the *normalised* document that service produces, never this raw
+     * column, so a null here transparently falls back to {@see $fields}.
+     *
+     * @var array<string, mixed>|null
+     */
+    #[ORM\Column(name: 'form_schema', type: 'json', nullable: true)]
+    private ?array $schema = null;
+
+    /** Schema generation: 1 = legacy flat {@see $fields}, 2 = {@see $schema} document. */
+    #[ORM\Column(options: ['default' => 1])]
+    private int $schemaVersion = 1;
 
     /** Optional cap on accepted submissions; null = unlimited. */
     #[ORM\Column(nullable: true)]
@@ -164,6 +185,15 @@ class PublicForm
 
     /** @param list<array<string, mixed>> $fields */
     public function setFields(array $fields): self { $this->fields = $fields; return $this; }
+
+    /** @return array<string, mixed>|null */
+    public function getSchema(): ?array { return $this->schema; }
+
+    /** @param array<string, mixed>|null $schema */
+    public function setSchema(?array $schema): self { $this->schema = $schema; return $this; }
+
+    public function getSchemaVersion(): int { return $this->schemaVersion; }
+    public function setSchemaVersion(int $version): self { $this->schemaVersion = $version; return $this; }
 
     public function getSubmissionLimit(): ?int { return $this->submissionLimit; }
     public function setSubmissionLimit(?int $limit): self { $this->submissionLimit = $limit; return $this; }
