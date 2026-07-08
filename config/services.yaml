@@ -251,3 +251,9 @@ services:
     App\Controller\Api\ChannelOAuthController:
         arguments:
             $spaRedirectBase: '%env(SPA_BASE_URL)%'
+
+    # Graph push subscriptions notify our public webhook endpoint, so they need
+    # the public API base (same host the OAuth callback uses).
+    App\Channels\Adapter\EmailGraph\GraphSubscriptionManager:
+        arguments:
+            $publicBase: '%env(OAUTH_REDIRECT_BASE)%'

@@ -14,8 +14,14 @@
 # Publish social posts that are due
 * * * * * cd /app && php bin/console app:social:publish-due
 
-# Pull inbound mail / channels (IMAP etc.) — one batch per channel
+# Pull inbound mail / channels (IMAP etc.) — one batch per channel.
+# Also the backstop for Graph/Gmail channels: push (below) delivers instantly,
+# this catches anything a missed notification left behind (dedup makes it a no-op).
 */2 * * * * cd /app && php bin/console worktide:channel:pull
+
+# Keep Microsoft Graph push subscriptions alive (they expire ~every 3 days).
+# Self-healing: creates missing, renews expiring, removes disabled.
+17 */6 * * * cd /app && php bin/console worktide:mailbox:graph-subscriptions:sync
 
 # Recompute task priority scores
 */15 * * * * cd /app && php bin/console worktide:priority:recompute

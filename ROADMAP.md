@@ -98,6 +98,10 @@ Realisiert die Phase-D-Infrastruktur und macht sie generisch (Details in den Pha
   - **OAuth Google Workspace** via Gmail API
 - Tokens encrypted-at-rest (libsodium via Symfony Secrets)
 - **Mailbox-Sync-Worker** via Symfony Messenger (IMAP-IDLE / Graph-Webhooks / Polling als Fallback)
+  - **Polling — erledigt** (`worktide:channel:pull`, alle 2 min, pro Channel).
+  - **Microsoft-Graph-Push — erledigt**: `EmailGraphAdapter::consumeWebhook()` (clientState-verifiziert, delegiert an den Delta-Pull), `GraphSubscriptionManager` (subscribe/renew/unsubscribe, State verschlüsselt in `authConfig`), Validation-Handshake im `WebhookIngestController`, Reconcile-Cron `worktide:mailbox:graph-subscriptions:sync` (6-stündlich) + Eager-Subscribe nach OAuth-Connect. Polling bleibt Backstop (dedup ⇒ No-op).
+  - **IMAP-IDLE — offen (bewusst zurückgestellt)**: echtes IDLE ist ein blockierender Dauer-Daemon (webklex `Folder::idle()` läuft endlos), passt nicht ins Cron-Modell → eigener Long-Running-Worker (ein Prozess pro Postfach). Das 2-Min-Polling deckt IMAP heute ab; IDLE nur bei konkretem Latenzbedarf.
+  - **Gmail-Push (Pub/Sub) — offen**: benötigt GCP-Projekt + Topic; Gmail pollt weiter.
 - **Mehrfach-Email** pro User und pro Contact: `EmailAddress(owner, address, isPrimary, isVerified)`
 
 ### Schicht 2 — Threading
