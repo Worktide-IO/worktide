@@ -15,6 +15,8 @@ use App\Entity\TaskStatus;
 use App\Entity\Workspace;
 use App\Repository\CustomFieldDefinitionRepository;
 use App\Repository\TaskStatusRepository;
+use App\Service\Form\FormLogicEvaluator;
+use App\Service\Form\FormSchemaNormalizer;
 use App\Service\PublicFormSubmissionService;
 use App\Service\PublicFormValidationException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -139,7 +141,169 @@ final class PublicFormSubmissionServiceTest extends TestCase
         self::assertSame($defaultStatus, $task->getStatus());
     }
 
+    // --- engine (schema v2) -------------------------------------------
+
+    public function testBranchingDeactivatedRequiredFieldIsNotEnforced(): void
+    {
+        $form = $this->formV2([
+            'pages' => [[
+                'id' => 'p1',
+                'blocks' => [
+                    ['id' => 'ba', 'key' => 'has_site', 'type' => 'select', 'options' => ['yes', 'no']],
+                    ['id' => 'bx', 'key' => 'site_url', 'type' => 'url', 'required' => true],
+                ],
+            ]],
+            'logic' => [
+                ['if' => ['all' => [['field' => 'has_site', 'op' => 'eq', 'value' => 'yes']]],
+                    'then' => ['action' => 'show', 'target' => 'bx']],
+            ],
+        ]);
+
+        // has_site=no → site_url is hidden by branching, so its absence must NOT
+        // fail validation and a smuggled value must be dropped.
+        $submission = $this->service()->submit($form, ['has_site' => 'no', 'site_url' => 'not-a-url']);
+
+        self::assertInstanceOf(Task::class, $this->firstOf(Task::class));
+        self::assertArrayNotHasKey('site_url', $submission->getPayload(), 'deactivated field is discarded');
+    }
+
+    public function testBranchingActiveRequiredFieldIsEnforced(): void
+    {
+        $form = $this->formV2([
+            'pages' => [[
+                'id' => 'p1',
+                'blocks' => [
+                    ['id' => 'ba', 'key' => 'has_site', 'type' => 'select', 'options' => ['yes', 'no']],
+                    ['id' => 'bx', 'key' => 'site_url', 'type' => 'url', 'required' => true],
+                ],
+            ]],
+            'logic' => [
+                ['if' => ['all' => [['field' => 'has_site', 'op' => 'eq', 'value' => 'yes']]],
+                    'then' => ['action' => 'show', 'target' => 'bx']],
+            ],
+        ]);
+
+        $this->expectException(PublicFormValidationException::class);
+        $this->service()->submit($form, ['has_site' => 'yes']); // site_url now required
+    }
+
+    public function testCalcIsComputedServerSideAndClientValueIgnored(): void
+    {
+        $cfDef = new CustomFieldDefinition();
+        $customFields = $this->createStub(CustomFieldDefinitionRepository::class);
+        $customFields->method('findOneBy')->willReturn($cfDef);
+
+        $form = $this->formV2([
+            'pages' => [[
+                'id' => 'p1',
+                'blocks' => [
+                    ['id' => 'b1', 'key' => 'pages', 'type' => 'number'],
+                    ['id' => 'b2', 'key' => 'rate', 'type' => 'number'],
+                ],
+            ]],
+            'calc' => [
+                ['key' => 'total', 'mapsTo' => 'cf:total', 'ast' => ['op' => '*', 'args' => [['field' => 'pages'], ['field' => 'rate']]]],
+            ],
+        ]);
+
+        $submission = $this->service($customFields)->submit($form, [
+            'pages' => '10',
+            'rate' => '25',
+            'total' => '999999', // client-supplied — must be ignored
+        ]);
+
+        self::assertSame(250, $submission->getPayload()['total']);
+        $cfv = $this->firstOf(CustomFieldValue::class);
+        self::assertInstanceOf(CustomFieldValue::class, $cfv);
+        self::assertSame(250, $cfv->getValue());
+    }
+
+    public function testHiddenPrefillFieldUsesServerValueNotClientValue(): void
+    {
+        $cfDef = new CustomFieldDefinition();
+        $customFields = $this->createStub(CustomFieldDefinitionRepository::class);
+        $customFields->method('findOneBy')->willReturn($cfDef);
+
+        $form = $this->formV2([
+            'pages' => [[
+                'id' => 'p1',
+                'blocks' => [
+                    ['id' => 'b1', 'key' => 'name', 'type' => 'text', 'required' => true, 'mapsTo' => 'title'],
+                    ['id' => 'b2', 'key' => 'cid', 'type' => 'text', 'hidden' => true, 'prefillFrom' => 'contact.id', 'mapsTo' => 'cf:contact'],
+                ],
+            ]],
+        ]);
+
+        $submission = $this->service($customFields)->submit(
+            $form,
+            ['name' => 'Ada', 'cid' => 'attacker-supplied'],
+            null,
+            null,
+            ['cid' => 'server-contact-uuid'],
+        );
+
+        self::assertSame('server-contact-uuid', $submission->getPayload()['cid']);
+        $cfv = $this->firstOf(CustomFieldValue::class);
+        self::assertSame('server-contact-uuid', $cfv?->getValue());
+    }
+
+    public function testNewFieldTypesAreCoerced(): void
+    {
+        $form = $this->formV2([
+            'pages' => [[
+                'id' => 'p1',
+                'blocks' => [
+                    ['id' => 'b1', 'key' => 'title', 'type' => 'text', 'required' => true, 'mapsTo' => 'title'],
+                    ['id' => 'b2', 'key' => 'channels', 'type' => 'multi_select', 'options' => ['seo', 'ads', 'social']],
+                    ['id' => 'b3', 'key' => 'nps', 'type' => 'rating', 'min' => 1, 'max' => 5],
+                ],
+            ]],
+        ]);
+
+        $submission = $this->service()->submit($form, [
+            'title' => 'Audit',
+            'channels' => ['seo', 'social'],
+            'nps' => '4',
+        ]);
+
+        self::assertSame(4, $submission->getPayload()['nps']);
+        // Arrays are JSON-encoded in the audit payload.
+        self::assertSame(['seo', 'social'], json_decode((string) $submission->getPayload()['channels'], true));
+    }
+
+    public function testMultiSelectRejectsValueOutsideOptions(): void
+    {
+        $form = $this->formV2([
+            'pages' => [[
+                'id' => 'p1',
+                'blocks' => [
+                    ['id' => 'b1', 'key' => 'title', 'type' => 'text', 'required' => true, 'mapsTo' => 'title'],
+                    ['id' => 'b2', 'key' => 'channels', 'type' => 'multi_select', 'options' => ['seo', 'ads']],
+                ],
+            ]],
+        ]);
+
+        $this->expectException(PublicFormValidationException::class);
+        $this->service()->submit($form, ['title' => 'X', 'channels' => ['seo', 'tv']]);
+    }
+
     // --- helpers -------------------------------------------------------
+
+    /**
+     * @param array<string, mixed> $schema
+     */
+    private function formV2(array $schema): PublicForm
+    {
+        return (new PublicForm())
+            ->setWorkspace(new Workspace())
+            ->setProject((new Project())->setKey('pub'))
+            ->setSlug('audit')
+            ->setTitle('Audit')
+            ->setFields([])
+            ->setSchema($schema)
+            ->setSchemaVersion(2)
+            ->setDefaultStatus(new TaskStatus());
+    }
 
     /**
      * @param list<array<string, mixed>> $fields
@@ -179,6 +343,8 @@ final class PublicFormSubmissionServiceTest extends TestCase
             $em,
             $taskStatuses ?? $this->createStub(TaskStatusRepository::class),
             $customFields ?? $this->createStub(CustomFieldDefinitionRepository::class),
+            new FormSchemaNormalizer(),
+            new FormLogicEvaluator(),
         );
     }
 

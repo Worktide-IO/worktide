@@ -144,10 +144,16 @@ final class EntityApplier
      * etc. Today only the ISO-date path matters because the base
      * adapter only writes title/description; richer adapters
      * extend this method.
+     *
+     * Accepts both full datetimes (`2026-07-08T14:30:00+02:00`) and
+     * date-only values (`2026-07-08`) — Redmine's start_date/due_date
+     * arrive as the latter, and the setters (Task::setStartOn/setDueOn)
+     * are typed `?DateTimeImmutable`, so an un-coerced date-only string
+     * would raise a TypeError and abort the whole pull.
      */
     private function coerceForSetter(string $setter, object $entity, mixed $value): mixed
     {
-        if (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/', $value)) {
+        if (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}|$)/', $value)) {
             try {
                 return new \DateTimeImmutable($value);
             } catch (\Exception) {

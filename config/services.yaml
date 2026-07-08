@@ -160,6 +160,8 @@ services:
             $mailFrom: '%env(MAILER_FROM)%'
             $mailFromName: '%env(string:MAILER_FROM_NAME)%'
             $defaultUri: '%env(DEFAULT_URI)%'
+            $demoMode: '%env(bool:DEMO_MODE)%'
+            $demoBannerText: '%env(string:DEMO_BANNER_TEXT)%'
 
     # Channel adapter registry (Phase C.2). Tags are produced by
     # _instanceof above; the threader map stays empty until concrete

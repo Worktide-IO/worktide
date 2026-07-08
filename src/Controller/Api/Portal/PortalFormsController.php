@@ -9,6 +9,8 @@ use App\Entity\Project;
 use App\Entity\PublicForm;
 use App\Repository\PortalFormDraftRepository;
 use App\Repository\PublicFormRepository;
+use App\Service\Form\FormPrefillResolver;
+use App\Service\Form\FormSchemaNormalizer;
 use App\Service\Portal\PortalAccessResolver;
 use App\Service\PublicFormSubmissionService;
 use App\Service\PublicFormValidationException;
@@ -42,6 +44,8 @@ final class PortalFormsController
         private readonly PublicFormSubmissionService $submissions,
         private readonly PortalFormDraftRepository $drafts,
         private readonly EntityManagerInterface $em,
+        private readonly FormSchemaNormalizer $normalizer,
+        private readonly FormPrefillResolver $prefill,
     ) {}
 
     #[Route(
@@ -56,11 +60,11 @@ final class PortalFormsController
         $forms = $this->forms->findEnabledForPortalProjects($this->portal->allowedProjects());
 
         return new JsonResponse([
-            'forms' => array_map(static fn (PublicForm $f): array => [
+            'forms' => array_map(fn (PublicForm $f): array => [
                 'id' => $f->getId()?->toRfc4122(),
                 'title' => $f->getTitle(),
                 'description' => $f->getDescription(),
-                'fieldCount' => \count($f->getFields()),
+                'fieldCount' => \count($this->normalizer->inputBlocks($this->normalizer->normalize($f))),
             ], $forms),
         ]);
     }
@@ -77,23 +81,18 @@ final class PortalFormsController
 
         $form = $this->findFormOr404($id);
         $draft = $this->drafts->findOneForContact($form, $this->portal->contact());
+        $doc = $this->normalizer->normalize($form);
 
-        // Public-safe field shape (mirrors PublicFormController::schema) plus an
-        // optional `section` for grouped display. NEVER exposes `mapsTo`.
+        // `schema` is the v2 engine document (pages/blocks/logic/calc) for the
+        // Tally-like renderer; `fields` is the legacy flat list kept for
+        // back-compat. Both are client-safe — NEVER expose `mapsTo`/`prefillFrom`.
         return new JsonResponse([
             'id' => $form->getId()?->toRfc4122(),
             'title' => $form->getTitle(),
             'description' => $form->getDescription(),
             'successMessage' => $form->getSuccessMessage(),
-            'fields' => array_map(static fn (array $f): array => [
-                'key' => $f['key'] ?? null,
-                'label' => $f['label'] ?? ($f['key'] ?? null),
-                'type' => $f['type'] ?? 'text',
-                'required' => (bool) ($f['required'] ?? false),
-                'options' => array_values((array) ($f['options'] ?? [])),
-                'placeholder' => $f['placeholder'] ?? null,
-                'section' => $f['section'] ?? null,
-            ], $form->getFields()),
+            'schema' => $this->normalizer->toClientSchema($doc),
+            'fields' => $this->normalizer->toClientFields($doc),
             // Resume support: the contact's saved partial answers, if any.
             'draft' => $draft?->getAnswers(),
             'draftSavedAt' => $draft?->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
@@ -140,8 +139,17 @@ final class PortalFormsController
         }
 
         $values = $this->body($request);
+
+        // Hidden/prefill fields are filled server-side from the signed-in
+        // contact + the form's project, never from the request body.
+        $prefill = $this->prefill->resolve(
+            $this->normalizer->normalize($form),
+            $this->portal->contact(),
+            $form->getProject(),
+        );
+
         try {
-            $this->submissions->submit($form, $values, $request->getClientIp(), $request->headers->get('User-Agent'));
+            $this->submissions->submit($form, $values, $request->getClientIp(), $request->headers->get('User-Agent'), $prefill);
         } catch (PublicFormValidationException $e) {
             return new JsonResponse(['errors' => $e->getErrors()], 422);
         }

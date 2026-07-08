@@ -44,6 +44,13 @@ final class BrandingControllerTest extends WebTestCase
         self::assertSame('#0F8C72', $body['primaryColor']);
         self::assertSame('#E0623A', $body['accentColor']);
 
+        // Demo mode is off by default and typed as a bool in the payload.
+        self::assertArrayHasKey('demoMode', $body);
+        self::assertIsBool($body['demoMode']);
+        self::assertFalse($body['demoMode']);
+        self::assertArrayHasKey('demoBannerText', $body);
+        self::assertIsString($body['demoBannerText']);
+
         // Empty logo URL falls back to the backend's own /branding/logo route.
         self::assertStringEndsWith('/branding/logo', $body['logoUrl']);
     }
