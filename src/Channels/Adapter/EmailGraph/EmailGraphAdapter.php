@@ -13,7 +13,6 @@ use App\Channels\OutboundAdapter;
 use App\Channels\OutboundResult;
 use App\Channels\Testable;
 use App\Channels\TestResult;
-use App\Channels\WebhookNotSupportedException;
 use App\Entity\Channel;
 use App\Entity\Contact;
 use App\Entity\Enum\InboundEventState;
@@ -145,13 +144,45 @@ final class EmailGraphAdapter implements InboundAdapter, OutboundAdapter, Testab
 
     public function consumeWebhook(Channel $channel, Request $request): InboundResult
     {
-        // Graph subscriptions are roadmap'd separately — the lifecycle
-        // (renewal, validation handshake, clientState verification) is
-        // a real chunk of work that doesn't belong inside the pull
-        // adapter.
-        throw new WebhookNotSupportedException(
-            'email_graph webhook subscriptions arrive in a follow-up sub-phase.'
-        );
+        // The subscription-validation handshake (?validationToken=) is answered
+        // generically by WebhookIngestController before we get here — this only
+        // ever sees real change notifications:
+        //   { "value": [ { "subscriptionId", "clientState", "resource", … } ] }
+        $payload = json_decode((string) $request->getContent(), true);
+        $notifications = is_array($payload) && is_array($payload['value'] ?? null)
+            ? $payload['value']
+            : [];
+        if ($notifications === []) {
+            return InboundResult::empty();
+        }
+
+        // Verify clientState on EVERY notification against the secret stashed at
+        // subscribe-time. A single mismatch (spoofed / stale subscription) makes
+        // us ignore the whole batch rather than fetch — cheap and fail-closed.
+        $expected = (string) ($channel->getAuthConfig()['graphSubscription']['clientState'] ?? '');
+        if ($expected === '') {
+            return InboundResult::empty();
+        }
+        foreach ($notifications as $n) {
+            $got = is_array($n) ? (string) ($n['clientState'] ?? '') : '';
+            if (!hash_equals($expected, $got)) {
+                return InboundResult::empty();
+            }
+        }
+
+        // A notification only says "something changed in the mailbox". Reuse the
+        // delta pull to fetch exactly the new messages (dedup + threading + size
+        // hardening all come for free), then persist the advanced delta cursor —
+        // WebhookIngestController flushes but, unlike ChannelPullCommand, does not
+        // write the cursor back, so we do it here.
+        $result = $this->pull($channel);
+        if ($result->cursor !== null && $result->cursor !== '') {
+            $cfg = $channel->getInboundConfig();
+            $cfg['cursor'] = $result->cursor;
+            $channel->setInboundConfig($cfg);
+        }
+
+        return $result;
     }
 
     /**

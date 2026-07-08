@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Channels\Adapter\EmailGraph\GraphSubscriptionManager;
 use App\Channels\OAuth\OAuth2Client;
 use App\Channels\OAuth\OAuth2ConfigurationException;
 use App\Channels\OAuth\OAuth2TokenException;
@@ -42,6 +43,7 @@ final class ChannelOAuthController
         private readonly Security $security,
         private readonly EntityManagerInterface $em,
         private readonly OAuth2Client $oauth,
+        private readonly GraphSubscriptionManager $graphSubscriptions,
         private readonly string $spaRedirectBase,
     ) {}
 
@@ -113,6 +115,18 @@ final class ChannelOAuthController
                 return new RedirectResponse($this->spaRedirectUrl('err', 'channel_not_found'));
             }
             $this->oauth->exchangeCode($channel, $code);
+
+            // Register a Graph push subscription immediately so mail arrives in
+            // near-realtime without waiting for the reconcile cron. Best-effort:
+            // a failure here (e.g. unreachable notificationUrl in dev) must not
+            // fail the OAuth success — the cron + the 2-min poll are the safety net.
+            if ($channel->getAdapterCode() === 'email_graph') {
+                try {
+                    $this->graphSubscriptions->subscribe($channel);
+                } catch (\Throwable) {
+                    // swallow — reconcile cron will retry
+                }
+            }
         } catch (OAuth2TokenException | OAuth2ConfigurationException $e) {
             return new RedirectResponse($this->spaRedirectUrl('err', $e->getMessage()));
         } catch (\Throwable $e) {

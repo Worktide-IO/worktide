@@ -12,6 +12,7 @@ use App\Message\ProcessInboundEventMessage;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
@@ -53,8 +54,17 @@ final class WebhookIngestController
         requirements: ['token' => '[A-Za-z0-9_-]{16,128}'],
         methods: ['POST', 'PUT'],
     )]
-    public function __invoke(string $token, Request $request): JsonResponse
+    public function __invoke(string $token, Request $request): Response
     {
+        // Provider subscription-validation handshake (Microsoft Graph and
+        // others POST the notificationUrl with ?validationToken=… and expect
+        // it echoed back verbatim as text/plain 200 within 10s). Generic and
+        // harmless for adapters that don't use it — they never send the param.
+        $validationToken = $request->query->get('validationToken');
+        if (is_string($validationToken) && $validationToken !== '') {
+            return new Response($validationToken, 200, ['Content-Type' => 'text/plain; charset=utf-8']);
+        }
+
         $channel = $this->resolveByToken($token);
         if ($channel === null) {
             // Same 404 for "unknown token" + "wrong adapter type" so
