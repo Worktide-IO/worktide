@@ -3,7 +3,10 @@ nelmio_cors:
         origin_regex: true
         allow_origin: ['%env(CORS_ALLOW_ORIGIN)%']
         allow_methods: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']
-        allow_headers: ['Content-Type', 'Authorization']
+        # X-Workspace-Id: the admin SPA stamps it on workspace-scoped requests
+        # (src/lib/api.ts). Without it here the CORS preflight rejects every
+        # authenticated request once a workspace is selected.
+        allow_headers: ['Content-Type', 'Authorization', 'X-Workspace-Id']
         expose_headers: ['Link']
         max_age: 3600
     paths:
