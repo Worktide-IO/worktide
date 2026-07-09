@@ -188,6 +188,16 @@ services:
                 email_graph: 0
                 email_gmail: 0
 
+    # Build/version identity for GET /v1/version. Values from build-time env
+    # (APP_VERSION = release tag, APP_COMMIT = git SHA) + a BUILD_TIME file
+    # written at image build; all degrade to dev/unknown/null when unset.
+    App\Service\AppVersion:
+        arguments:
+            $version: '%env(default::APP_VERSION)%'
+            $commit: '%env(default::APP_COMMIT)%'
+            $environment: '%kernel.environment%'
+            $projectDir: '%kernel.project_dir%'
+
     # Notification fan-out. The dispatcher runs every tagged resolver over a
     # DomainEventLog to produce per-user notifications.
     App\Notification\NotificationDispatcher:

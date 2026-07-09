@@ -75,6 +75,7 @@ security:
         - { path: ^/v1/social/media/, roles: PUBLIC_ACCESS }   # signed short-lived media token IS the credential (Instagram fetch)
         - { path: ^/v1/setup,        roles: PUBLIC_ACCESS }   # first-run wizard; /setup/init self-locks once any user exists
         - { path: ^/v1/branding,     roles: PUBLIC_ACCESS }   # white-label config; non-sensitive, needed on login/set-password pages
+        - { path: ^/v1/version,      roles: PUBLIC_ACCESS }   # build/version identity; non-sensitive, aids deploy diagnosis
         - { path: ^/v1/$,            roles: PUBLIC_ACCESS }
         # Portal endpoints require ROLE_PORTAL. Portal users have ONLY that role
         # (User::getRoles() withholds the implicit ROLE_USER from them), so the
