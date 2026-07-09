@@ -9,6 +9,7 @@ use App\Entity\Comment;
 use App\Entity\Contact;
 use App\Entity\ConversationNote;
 use App\Entity\Customer;
+use App\Entity\CustomerProduct;
 use App\Entity\CustomerSystem;
 use App\Entity\CustomFieldDefinition;
 use App\Entity\CustomFieldOption;
@@ -31,6 +32,7 @@ use App\Entity\ProjectType;
 use App\Entity\PublicFormSubmission;
 use App\Entity\RolePermissionOverride;
 use App\Entity\ServiceSubscription;
+use App\Entity\SystemIncident;
 use App\Entity\Workflow;
 use App\Entity\Tag;
 use App\Entity\Task;
@@ -141,6 +143,8 @@ final class DomainEventEmitterSubscriber
         Contact::class => 'Contact',
         CustomerSystem::class => 'CustomerSystem',
         ServiceSubscription::class => 'ServiceSubscription',
+        CustomerProduct::class => 'CustomerProduct',
+        SystemIncident::class => 'SystemIncident',
         AIRecommendation::class => 'AIRecommendation',
         // Emits `publicformsubmission.created` on every accepted form submission
         // (answers + created-task id in the payload) so workspace webhooks can

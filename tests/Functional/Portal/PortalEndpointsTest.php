@@ -297,15 +297,23 @@ final class PortalEndpointsTest extends WebTestCase
         );
         $this->em->flush();
 
-        // It surfaces as an unread ticket_reply notification.
+        // It is persisted (via the DomainEventLog fan-out) as an unread
+        // comment notification pointing at the ticket.
         $this->request('GET', '/v1/portal/notifications', $token);
         self::assertSame(200, $this->client->getResponse()->getStatusCode());
         $data = $this->json();
         self::assertSame(1, $data['unreadCount']);
-        self::assertSame('ticket_reply', $data['items'][0]['type']);
+        self::assertSame('comment', $data['items'][0]['type']);
+        self::assertSame('Neue Antwort auf OWN-1', $data['items'][0]['title']);
+        self::assertSame('/tickets/' . $ctx['ownTaskId'], $data['items'][0]['link']);
         self::assertFalse($data['items'][0]['read']);
+        $notificationId = $data['items'][0]['id'];
 
-        // Marking read clears the badge and flips the item to read.
+        // Per-item mark-read flips exactly that item and decrements the badge.
+        $this->request('POST', '/v1/portal/notifications/' . $notificationId . '/read', $token);
+        self::assertSame(0, $this->json()['unreadCount']);
+
+        // The legacy bulk mark-read alias still works (no-op here, already read).
         $this->request('POST', '/v1/portal/notifications/mark-read', $token);
         self::assertSame(0, $this->json()['unreadCount']);
         $this->request('GET', '/v1/portal/notifications', $token);

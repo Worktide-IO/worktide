@@ -35,4 +35,24 @@ class WatchRepository extends ServiceEntityRepository
             'user' => $user,
         ]);
     }
+
+    /**
+     * Users watching a specific target across all workspaces (targetId is a
+     * UUID, unique enough that workspace scoping adds nothing). Used by the
+     * notification fan-out to find who to notify about a new comment.
+     *
+     * @return list<User>
+     */
+    public function findWatchersFor(WatchableTarget $target, Uuid $targetId): array
+    {
+        $watches = $this->createQueryBuilder('w')
+            ->andWhere('w.target = :target')
+            ->andWhere('w.targetId = :targetId')
+            ->setParameter('target', $target)
+            ->setParameter('targetId', $targetId->toBinary())
+            ->getQuery()
+            ->getResult();
+
+        return array_values(array_map(static fn (Watch $w): User => $w->getUser(), $watches));
+    }
 }
