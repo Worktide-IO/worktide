@@ -2,12 +2,11 @@
 
 declare(strict_types=1);
 
-namespace App\Controller\Api\Portal;
+namespace App\Controller\Api;
 
 use App\Entity\User;
 use App\Notification\NotificationFeedService;
 use App\Repository\NotificationRepository;
-use App\Service\Portal\PortalAccessResolver;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,28 +15,24 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * Customer-portal notifications — the header 🔔 bell + the Benachrichtigungen
- * page. Now backed by the persisted, per-recipient {@see \App\Entity\Notification}
- * inbox (produced from the DomainEventLog fan-out) rather than the old derived
- * feed: individual + bulk read state, keyset pagination.
+ * Staff notification inbox — `/v1/me/notifications`.
  *
- * The recipient is the authenticated portal User (ROLE_PORTAL enforced by the
- * `^/v1/portal` firewall). Every query is scoped to that user, so a portal user
- * only ever sees / marks their own rows.
+ * Like {@see UserPreferencesController}, the route IS the authorization: every
+ * operation is scoped to the authenticated user's own rows (the repository
+ * WHEREs on `recipient`), so there is no way to read or mark another user's
+ * notifications by id. Firewall already requires ROLE_USER on `^/v1`.
  */
-final class PortalNotificationsController
+final class NotificationsController
 {
     public function __construct(
         private readonly Security $security,
-        private readonly PortalAccessResolver $portal,
         private readonly NotificationFeedService $feed,
         private readonly NotificationRepository $repo,
     ) {}
 
-    #[Route(path: '/v1/portal/notifications', name: 'api_portal_notifications_list', methods: ['GET'])]
+    #[Route(path: '/v1/me/notifications', name: 'api_me_notifications_list', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
-        $this->portal->assertPortalEnabled();
         $user = $this->requireUser();
 
         return new JsonResponse($this->feed->feed(
@@ -48,10 +43,9 @@ final class PortalNotificationsController
         ));
     }
 
-    #[Route(path: '/v1/portal/notifications/{id}/read', name: 'api_portal_notifications_read', methods: ['POST'])]
+    #[Route(path: '/v1/me/notifications/{id}/read', name: 'api_me_notifications_read', methods: ['POST'])]
     public function markRead(string $id): JsonResponse
     {
-        $this->portal->assertPortalEnabled();
         $user = $this->requireUser();
         if (!Uuid::isValid($id)) {
             return new JsonResponse(['error' => 'Invalid id.'], 400);
@@ -61,24 +55,13 @@ final class PortalNotificationsController
         return new JsonResponse(['unreadCount' => $this->repo->countUnread($user)]);
     }
 
-    #[Route(path: '/v1/portal/notifications/read-all', name: 'api_portal_notifications_read_all', methods: ['POST'])]
+    #[Route(path: '/v1/me/notifications/read-all', name: 'api_me_notifications_read_all', methods: ['POST'])]
     public function markAllRead(): JsonResponse
     {
-        $this->portal->assertPortalEnabled();
         $user = $this->requireUser();
         $this->repo->markAllRead($user);
 
         return new JsonResponse(['unreadCount' => 0]);
-    }
-
-    /**
-     * Backward-compatible alias for the legacy bell, which POSTed here to
-     * "clear the badge". Maps to mark-all-read on the persisted inbox.
-     */
-    #[Route(path: '/v1/portal/notifications/mark-read', name: 'api_portal_notifications_mark_read', methods: ['POST'])]
-    public function legacyMarkAllRead(): JsonResponse
-    {
-        return $this->markAllRead();
     }
 
     private function requireUser(): User

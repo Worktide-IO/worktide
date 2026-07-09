@@ -31,6 +31,10 @@ services:
         # Research agent: every external-search adapter is indexed for the registry.
         App\Service\ExternalSearch\ExternalSearchProviderInterface:
             tags: ['worktide.external_search']
+        # Notification fan-out: every resolver turning a DomainEventLog into
+        # per-user notifications is collected for the dispatcher.
+        App\Notification\NotificationResolverInterface:
+            tags: ['worktide.notification_resolver']
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name
@@ -183,6 +187,12 @@ services:
                 email_imap: 0
                 email_graph: 0
                 email_gmail: 0
+
+    # Notification fan-out. The dispatcher runs every tagged resolver over a
+    # DomainEventLog to produce per-user notifications.
+    App\Notification\NotificationDispatcher:
+        arguments:
+            $resolvers: !tagged_iterator 'worktide.notification_resolver'
 
     # Central default-deny egress gate. EGRESS_ALLOW empty = nothing leaves the
     # system; approve modules explicitly (e.g. "llm,ticket_push:<channelUuid>").
