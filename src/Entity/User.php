@@ -8,11 +8,8 @@ use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Metadata\ApiResource;
-use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
-use ApiPlatform\Metadata\Patch;
-use ApiPlatform\Metadata\Post;
 use App\ApiPlatform\Filter\UuidExactFilter;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\ExternalReferenceTrait;
@@ -25,18 +22,22 @@ use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Serializer\Attribute\Ignore;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: 'users')]
 #[ORM\HasLifecycleCallbacks]
+// Writes are intentionally NOT exposed here: users are created only through
+// dedicated controllers (SetupController, WorkspaceInvitationAcceptController,
+// PortalAccessGrantController) and edited via MeProfileController — never via a
+// generic API Platform Post/Patch, which would let any authenticated user set
+// their own `roles` (→ ROLE_SUPER_ADMIN) or overwrite another user's password
+// hash. Reads are scoped to co-workspace users by WorkspaceScopeExtension.
 #[ApiResource(
     shortName: 'User',
     operations: [
-        new GetCollection(),
-        new Get(),
-        new Post(),
-        new Patch(),
-        new Delete(),
+        new GetCollection(security: "is_granted('ROLE_USER')"),
+        new Get(security: "is_granted('ROLE_USER')"),
     ],
 )]
 #[ApiFilter(UuidExactFilter::class, properties: ['id'])]
@@ -94,6 +95,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->email;
     }
 
+    #[Ignore]
     public function getPassword(): string
     {
         return $this->password;

@@ -690,10 +690,17 @@ final class ProjectReportsController
         $hdr = $request->headers->get('X-Workspace-Id') ?? $request->query->get('workspace');
         if (\is_string($hdr) && $hdr !== '') {
             try {
-                return $this->em->find(Workspace::class, Uuid::fromString($hdr));
+                $ws = $this->em->find(Workspace::class, Uuid::fromString($hdr));
             } catch (\InvalidArgumentException) {
                 return null;
             }
+            // Never trust a client-supplied workspace id: only return it when
+            // the caller is actually a member (else cross-tenant report leak).
+            if ($ws === null || $this->em->getRepository(WorkspaceMember::class)
+                    ->findOneBy(['workspace' => $ws, 'user' => $user]) === null) {
+                return null;
+            }
+            return $ws;
         }
         $membership = $this->em->getRepository(WorkspaceMember::class)->findOneBy(['user' => $user]);
         return $membership?->getWorkspace();

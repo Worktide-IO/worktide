@@ -75,7 +75,12 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         }
 
         $isWorkspaceItself = $resourceClass === Workspace::class;
-        if (!$isWorkspaceItself && !$this->isWorkspaceScoped($resourceClass)) {
+        $isUser = $resourceClass === User::class;
+        $isMembership = $resourceClass === WorkspaceMember::class;
+        // Workspace / User / WorkspaceMember have no scopable `.workspace` of
+        // the usual shape, so they get bespoke subqueries below; everything
+        // else is scoped only if it carries WorkspaceScopedTrait.
+        if (!$isWorkspaceItself && !$isUser && !$isMembership && !$this->isWorkspaceScoped($resourceClass)) {
             return;
         }
 
@@ -88,6 +93,46 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         }
 
         $userParam = $queryNameGenerator->generateParameterName('scopeUserId');
+
+        // User is scoped by CO-MEMBERSHIP: a user row is visible iff it shares
+        // at least one workspace with the caller. Without this, GET /v1/users
+        // enumerates every tenant's users (names, emails).
+        if ($isUser) {
+            $selfAlias = $queryNameGenerator->generateJoinAlias('wmself');
+            $callerAlias = $queryNameGenerator->generateJoinAlias('wmcaller');
+            $coMembership = sprintf(
+                'SELECT 1 FROM %s %s, %s %s WHERE %s.user = %s AND %s.workspace = %s.workspace AND %s.user = :%s',
+                WorkspaceMember::class, $selfAlias,
+                WorkspaceMember::class, $callerAlias,
+                $selfAlias, $rootAlias,
+                $selfAlias, $callerAlias,
+                $callerAlias, $userParam,
+            );
+            $queryBuilder
+                ->andWhere(sprintf('EXISTS (%s)', $coMembership))
+                ->setParameter($userParam, $user->getId(), UuidType::NAME);
+
+            // X-Workspace-Id narrows to members of that single workspace.
+            $requested = $this->requestStack->getCurrentRequest()?->headers->get('X-Workspace-Id');
+            if ($requested !== null && $requested !== '') {
+                try {
+                    $requestedUuid = Uuid::fromString($requested);
+                } catch (\InvalidArgumentException) {
+                    $queryBuilder->andWhere('1 = 0');
+                    return;
+                }
+                $wsParam = $queryNameGenerator->generateParameterName('scopeWsId');
+                $narrowAlias = $queryNameGenerator->generateJoinAlias('wmnarrow');
+                $queryBuilder
+                    ->andWhere(sprintf(
+                        'EXISTS (SELECT 1 FROM %s %s WHERE %s.user = %s AND %s.workspace = :%s)',
+                        WorkspaceMember::class, $narrowAlias, $narrowAlias, $rootAlias, $narrowAlias, $wsParam,
+                    ))
+                    ->setParameter($wsParam, $requestedUuid, UuidType::NAME);
+            }
+            return;
+        }
+
         $subAlias = $queryNameGenerator->generateJoinAlias('wmscope');
 
         // For Workspace itself: filter to workspaces the user is a member of.
