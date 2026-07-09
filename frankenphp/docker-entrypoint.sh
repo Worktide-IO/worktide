@@ -12,9 +12,23 @@ if [ "$1" = 'frankenphp' ] || [ "$1" = 'php' ] || [ "$1" = 'bin/console' ] || [ 
 	# --- JWT keypair (lexik) -------------------------------------------------
 	# Generated once into the persistent config/jwt volume so tokens stay valid
 	# across restarts. JWT_PASSPHRASE must be set in the environment (Coolify).
-	if [ ! -f config/jwt/private.pem ] && [ -n "$JWT_PASSPHRASE" ]; then
-		echo "[entrypoint] generating JWT keypair..."
-		php bin/console lexik:jwt:generate-keypair --skip-if-exists --no-interaction || true
+	#
+	# Self-healing on passphrase rotation: if a key already exists but can no
+	# longer be decrypted with the current JWT_PASSPHRASE (i.e. the passphrase
+	# was rotated in the environment), regenerate it. Without this, changing
+	# JWT_PASSPHRASE leaves the old key undecryptable and every token-sign
+	# fails while public endpoints keep working — masking the breakage.
+	# The regenerate (--overwrite) is gated to the app container (AUTO_MIGRATE=1)
+	# so the worker/scheduler don't race on the shared volume; the app is the
+	# JWT signer and fixes the volume for all roles.
+	if [ -n "$JWT_PASSPHRASE" ]; then
+		if [ ! -f config/jwt/private.pem ]; then
+			echo "[entrypoint] generating JWT keypair..."
+			php bin/console lexik:jwt:generate-keypair --skip-if-exists --no-interaction || true
+		elif [ "${AUTO_MIGRATE:-0}" = "1" ] && ! openssl pkey -in config/jwt/private.pem -passin "pass:$JWT_PASSPHRASE" -noout 2>/dev/null; then
+			echo "[entrypoint] JWT_PASSPHRASE changed — regenerating keypair (invalidates existing tokens)"
+			php bin/console lexik:jwt:generate-keypair --overwrite --no-interaction || true
+		fi
 	fi
 
 	# --- Wait for the database ----------------------------------------------
