@@ -52,7 +52,10 @@ use Symfony\Component\Validator\Constraints as Assert;
     operations: [
         new GetCollection(security: "is_granted('ROLE_USER')"),
         new Get(security: "is_granted('VIEW', object.getWorkspace())"),
-        new Post(security: "is_granted('ROLE_USER')"),
+        // securityPostDenormalize (not security) so the check runs AFTER the
+        // `workspace` field is populated — otherwise object.getWorkspace() is
+        // null and any member could grant capabilities in ANY workspace.
+        new Post(securityPostDenormalize: "is_granted('MANAGE', object.getWorkspace())"),
         new Patch(security: "is_granted('MANAGE', object.getWorkspace())"),
         new Delete(security: "is_granted('MANAGE', object.getWorkspace())"),
     ],

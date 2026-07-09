@@ -26,11 +26,15 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiResource(
     shortName: 'WorkspaceMember',
     operations: [
-        new GetCollection(),
-        new Get(),
-        new Post(),
-        new Patch(),
-        new Delete(),
+        // Collection reads are scoped to the caller's workspaces by
+        // WorkspaceScopeExtension (WorkspaceMember has a `.workspace`).
+        new GetCollection(security: "is_granted('ROLE_USER')"),
+        new Get(security: "is_granted('VIEW', object.getWorkspace())"),
+        // securityPostDenormalize so object.getWorkspace() is populated before
+        // the check — only a workspace owner (MANAGE) may add/change members.
+        new Post(securityPostDenormalize: "is_granted('MANAGE', object.getWorkspace())"),
+        new Patch(security: "is_granted('MANAGE', object.getWorkspace())"),
+        new Delete(security: "is_granted('MANAGE', object.getWorkspace())"),
     ],
 )]
 #[ApiFilter(SearchFilter::class, properties: ['workspace' => 'exact', 'user' => 'exact', 'role' => 'exact'])]
