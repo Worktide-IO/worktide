@@ -168,6 +168,12 @@ git tag v1.2.3 && git push origin v1.2.3
 Publishing triggers the workflow → all-in-one deploy. (Turn OFF Coolify's own
 "Automatic Deployment on push" so pushes to `main` don't deploy — only releases.)
 
+> ⚠️ **Backlog / Ist-Zustand (2026-07-09):** Coolify's "Automatic Deployment on
+> push" is currently **ON** — every push to `main` triggers a full rebuild+deploy
+> (observed). Decide one way: either turn it OFF (release-only, as above) or drop
+> the release workflow and embrace push-deploy — but not both half-on, so casual
+> doc pushes don't rebuild prod.
+
 > Prefer deploy-on-push instead? Then skip the workflow and just enable Coolify's
 > "Automatic Deployment" on each app; every push to `main` redeploys.
 
