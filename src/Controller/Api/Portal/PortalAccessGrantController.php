@@ -109,6 +109,13 @@ final class PortalAccessGrantController
             throw new ConflictHttpException('Portal access is not granted yet — grant it first.');
         }
 
+        // The customer's portal must be freigeschaltet, otherwise the invited
+        // contact would set a password but still be locked out at login by the
+        // PortalUserChecker — a dead end. Enforce it before we mail the link.
+        if (!$contact->getCustomer()->isPortalEnabled()) {
+            throw new ConflictHttpException('Portal is not enabled for this customer — enable it before sending the invitation.');
+        }
+
         $welcomeText = PortalAccessResolver::welcomeText($contact->getCustomer()->getWorkspace());
         $this->resets->sendPortalSetPasswordLink($user, $welcomeText);
 
