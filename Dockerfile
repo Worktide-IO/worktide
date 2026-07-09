@@ -98,6 +98,11 @@ RUN rm -Rf frankenphp/
 # assets and compile the asset map (non-fatal if the app ships no frontend assets).
 RUN set -eux; \
 	mkdir -p var/cache var/log var/uploads; \
+	# .env is no longer committed (secrets removed). `composer dump-env prod`
+	# still needs a base .env file, so materialize it from the secret-free
+	# .env.example. Real secrets come from the runtime environment (Coolify),
+	# which always wins over the baked .env.local.php.
+	cp .env.example .env; \
 	composer dump-autoload --classmap-authoritative --no-dev; \
 	composer dump-env prod; \
 	composer run-script --no-dev post-install-cmd || true; \
