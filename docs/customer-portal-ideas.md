@@ -67,6 +67,9 @@ Kundenportal pro Workspace. CRM-Kontakte werden freigeschaltet und erhalten eine
 ## 7. Kommunikation & Termine
 
 - Echtzeit-Aktivitätsfeed & Benachrichtigungen (Mercure)
+- **Benachrichtigungs-Inbox (ausgeliefert) – offene Punkte:** die persistierte Inbox (Glocke + Seite, Web + Portal, gespeist aus dem DomainEventLog) ist live. Nachzuziehen:
+  - **Zuweisungs-Änderungen:** aktuell wird nur bei Aufgaben-*Erstellung* mit Assignee benachrichtigt (`task.created`); für spätere Zuweisungs-Änderungen fehlt ein Event → `task.assignees_changed` einführen und im `TaskAssignedResolver` behandeln.
+  - **Katalogweite Launches:** nur kundenspezifische Launches (`customerproduct`/`servicesubscription`) sind verdrahtet; für globale `product.created`/`productversion.created` muss zuerst das Empfänger-Publikum definiert werden (sonst Broadcast an alle).
 - **Einstellbare Benachrichtigungskanäle** – Kunde wählt pro Ereignistyp, wie er informiert wird: E-Mail, Chat (Slack / Mattermost („Kchat") / Teams) oder nur In-App. Pro Kanal ein-/ausschaltbar je Ereignis (neues Ticket-Update, Angebot/Vertrag, Monitoring-Incident, Datei-Freigabe, Digest). Optional Frequenz (sofort / gebündelt / täglich) und Ruhezeiten. Umsetzung über die vorhandenen HMAC-signierten Webhooks bzw. Kanal-Connectoren; Einstellungen pro Contact.
 - Automatischer Wochen-/Monats-Digest per E-Mail
 - Terminbuchung/Meeting-Slots
