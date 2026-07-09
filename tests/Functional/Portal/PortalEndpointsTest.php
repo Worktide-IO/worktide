@@ -96,6 +96,22 @@ final class PortalEndpointsTest extends WebTestCase
         self::assertSame(403, $this->client->getResponse()->getStatusCode());
     }
 
+    public function testPortalLoginBlockedWhenCustomerNotEnabled(): void
+    {
+        $ctx = $this->seed();
+
+        // Take the customer's portal Freischaltung away → the PortalUserChecker
+        // must reject the (still valid) JWT on the very next request.
+        $contact = $this->em->getRepository(Contact::class)->findOneBy(['linkedUser' => $ctx['portalUser']]);
+        self::assertInstanceOf(Contact::class, $contact);
+        $contact->getCustomer()->setPortalEnabled(false);
+        $this->em->flush();
+        $this->em->clear();
+
+        $this->request('GET', '/v1/portal/me', $this->token($ctx['portalUser']));
+        self::assertSame(401, $this->client->getResponse()->getStatusCode());
+    }
+
     public function testMeReturnsCuratedContact(): void
     {
         $ctx = $this->seed();
@@ -895,7 +911,8 @@ final class PortalEndpointsTest extends WebTestCase
 
     private function customer(Workspace $ws, string $name): Customer
     {
-        $customer = (new Customer())->setWorkspace($ws)->setName($name)->setIsCompany(true)->setStatus(CustomerStatus::Active);
+        $customer = (new Customer())->setWorkspace($ws)->setName($name)->setIsCompany(true)
+            ->setStatus(CustomerStatus::Active)->setPortalEnabled(true);
         $this->em->persist($customer);
         return $customer;
     }

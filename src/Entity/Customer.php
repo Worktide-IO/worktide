@@ -79,7 +79,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'industry' => 'exact',
     'tags.id' => 'exact',
 ])]
-#[ApiFilter(BooleanFilter::class, properties: ['isCompany', 'isCustomer', 'isVendor'])]
+#[ApiFilter(BooleanFilter::class, properties: ['isCompany', 'isCustomer', 'isVendor', 'portalEnabled'])]
 #[ApiFilter(ExistsFilter::class, properties: ['deletedAt'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt', 'updatedAt', 'status'])]
 class Customer
@@ -190,6 +190,23 @@ class Customer
 
     /** @param array<string, mixed>|null $p */
     public function setSlaPolicy(?array $p): self { $this->slaPolicy = $p === null || $p === [] ? null : $p; return $this; }
+
+    /**
+     * Per-customer portal "Freischaltung". The customer's portal contacts may
+     * only obtain a login (and keep a live session) while this is true — enforced
+     * at the firewall by {@see \App\Security\PortalUserChecker}, which blocks JWT
+     * issuance and every authenticated request for a ROLE_PORTAL user whose
+     * customer is not enabled. Opt-in: default false, flipped by staff from the
+     * customer detail view (Patch is guarded by EDIT on the workspace).
+     *
+     * Orthogonal to the workspace-wide `settings.portal.enabled` toggle, which
+     * gates the /v1/portal/* endpoints themselves (see {@see \App\Service\Portal\PortalAccessResolver}).
+     */
+    #[ORM\Column]
+    private bool $portalEnabled = false;
+
+    public function isPortalEnabled(): bool { return $this->portalEnabled; }
+    public function setPortalEnabled(bool $v): self { $this->portalEnabled = $v; return $this; }
 
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $revenueSyncedAt = null;
