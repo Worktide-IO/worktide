@@ -1,5 +1,9 @@
 
 ###> symfony/framework-bundle ###
+# .env is no longer committed — it held real secrets (JWT/Mercure). Copy
+# .env.example to .env (or .env.local) locally; supply real values at runtime
+# via the environment or .env.local. See .env.example for the full template.
+/.env
 /.env.local
 /.env.local.php
 /.env.*.local
