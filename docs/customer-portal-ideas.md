@@ -64,6 +64,28 @@ Kundenportal pro Workspace. CRM-Kontakte werden freigeschaltet und erhalten eine
 - Brainstorming
 - **Präsentation der Ideen zu Projekten** – dedizierter Pitch-Modus pro Projekt (Nutzen, Aufwand, Kostenschätzung, Vorher/Nachher-Visuals), Kundenaktion Annehmen → Angebot/Task / Rückfrage / Ablehnen, optional Varianten A/B im Vergleich
 
+## 6a. Roadmap / Feature-Vorschau (Produkt-/Feature-Roadmap)
+
+Eine schlanke Produkt-/Feature-Roadmap, die im Portal sichtbar gemacht werden kann. **Bewusst abgegrenzt** vom „Präsentation der Ideen zu Projekten" (Pitch-Modus pro Projekt, oben): das hier ist die **produkt-/feature-bezogene Roadmap**, nicht projektbezogen.
+
+- **Neue Entität** (z. B. `RoadmapItem` / `FeaturePreview`) mit den üblichen Traits (`EntityIdTrait` UUIDv7, `TimestampableTrait`, `SoftDeletableTrait`).
+- **Minimum:** `title`; `description` (Rich-Text/Markdown); `images` – Cover + optional Galerie über die vorhandene **`File`/`FileVersion` + `FileStorage`-Infrastruktur** (local/S3), **nicht** als lose URLs.
+- **Früh mitdenken (spart spätere Migrationen):**
+  - `kind` (Enum: `feature | product | service`)
+  - `stage` (Enum: `geplant | in_arbeit | beta | live`) → macht daraus eine echte Roadmap mit Fortschritt
+  - `targetQuarter`/ETA (optional, bewusst vage – „Q3 2026")
+  - `isPublished` (Draft vs. im Portal sichtbar) + `position` (Sortierung)
+  - optionaler FK auf `Product`/`ProductVersion`/`ServiceSubscription` – verknüpft die Vorschau mit dem echten Datensatz, sobald gelauncht
+- **Scope (wichtigste frühe Entscheidung): `workspace` nullable**
+  - `null` = **Worktide-Plattform-Roadmap** (eigene Worktide-Features, in *allen* Kundenportalen sichtbar)
+  - gesetzt = Roadmap *einer Agentur/eines Workspaces* für deren eigene Kunden
+- **Wiederverwendung des Vorhandenen:**
+  - **Sichtbarkeit/Freischaltung:** über das bestehende Portal-Feature-Gating (Workspace-`features` + `Contact::portalHiddenFeatures`) ein `roadmap`/`vorschau`-Flag; optional Audience-Targeting (alle Kunden vs. bestimmte).
+  - **Portal-Endpunkt:** read-only `/v1/portal/roadmap` (nur `isPublished` + für den Kunden sichtbar), sortiert nach `stage`/ETA; im Admin-Web CRUD zur Pflege.
+  - **i18n:** `title`/`description` übersetzbar – passt zum i18n-Backlog (Tier 1, `Contact.locale`).
+  - **Launch-Benachrichtigung:** beim Übergang `stage → live` kann der bereits gebaute **Launch-Notification-Trigger** feuern („Neues Feature/Produkt live").
+  - **Feature-Voting (optional):** Kunden drücken Interesse/Upvote aus – reuse des `Idea`/`IdeaVote`-Musters (deckt sich mit dem „Feature-Voting"-Punkt oben in §6).
+
 ## 7. Kommunikation & Termine
 
 - Echtzeit-Aktivitätsfeed & Benachrichtigungen (Mercure)
