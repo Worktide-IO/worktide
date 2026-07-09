@@ -16,6 +16,9 @@ security:
         api_login:
             pattern: ^/v1/auth/login$
             stateless: true
+            # Blocks JWT issuance for a portal user whose customer is not
+            # freigeschaltet (Customer::portalEnabled) — see PortalUserChecker.
+            user_checker: App\Security\PortalUserChecker
             json_login:
                 check_path: /v1/auth/login
                 username_path: email
@@ -34,6 +37,7 @@ security:
         api_refresh:
             pattern: ^/v1/auth/refresh$
             stateless: true
+            user_checker: App\Security\PortalUserChecker
             refresh_jwt:
                 check_path: /v1/auth/refresh
 
@@ -41,6 +45,9 @@ security:
             pattern: ^/v1
             stateless: true
             provider: app_user_provider
+            # Re-checks on every JWT-authenticated request, so switching a
+            # customer's portal off invalidates live sessions immediately.
+            user_checker: App\Security\PortalUserChecker
             # Personal Access Tokens are checked first — its supports() returns
             # false for anything that isn't wt_pat_..., so JWT keeps handling
             # regular Bearer-eyJ... requests transparently.

@@ -1064,6 +1064,7 @@ MD)
             ->setEmail('info@nordlicht-medien.example')
             ->setStatus(CustomerStatus::Active)
             ->setAccountManager($users[0])
+            ->setPortalEnabled(true) // Freigeschaltet, damit der Demo-Portal-Contact sich einloggen kann.
             ->setNotes('Demo-Kunde für das Kundenportal.');
         $om->persist($portalCustomer);
 

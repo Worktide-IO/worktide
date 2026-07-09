@@ -8,6 +8,7 @@ use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
@@ -59,11 +60,21 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiResource(
     shortName: 'Channel',
     operations: [
-        new GetCollection(),
-        new Get(),
-        new Post(),
-        new Patch(),
-        new Delete(),
+        new GetCollection(security: "is_granted('ROLE_USER')"),
+        new Get(security: "is_granted('VIEW', object)"),
+        // securityPostDenormalize: the voter must see the RESULTING state
+        // (isShared/ownerUser/workspace from the payload) so a plain member
+        // cannot create a shared channel, nor flip their own personal mailbox
+        // to shared — either case makes the object "shared" → EDIT needs admin.
+        new Post(
+            securityPostDenormalize: "is_granted('EDIT', object)",
+            securityPostDenormalizeMessage: 'Keine Berechtigung, diesen Kanal anzulegen.',
+        ),
+        new Patch(
+            securityPostDenormalize: "is_granted('EDIT', object)",
+            securityPostDenormalizeMessage: 'Keine Berechtigung, diesen Kanal zu ändern.',
+        ),
+        new Delete(security: "is_granted('DELETE', object)"),
     ],
     mercure: true,
 )]
@@ -172,6 +183,7 @@ class Channel
      */
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(name: 'owner_user_id', nullable: true, onDelete: 'SET NULL')]
+    #[ApiProperty(readable: true, writable: true)]
     private ?User $ownerUser = null;
 
     #[ORM\Column]
