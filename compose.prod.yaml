@@ -24,6 +24,13 @@ x-app: &app
     FILE_STORAGE_ADAPTER: s3
     SEARCH_PROVIDER: mysql
     MESSENGER_TRANSPORT_DSN: doctrine://default?auto_setup=0
+    # CORS_ALLOW_ORIGIN carries a regex with special chars (the `$` end-anchor,
+    # `\.`). When injected inline it gets mangled by compose's `$` interpolation,
+    # so the running container ends up with a value that matches no origin →
+    # every cross-origin call from the SPAs is blocked (no Access-Control-Allow-
+    # Origin). Map it via ${...} substitution instead: compose substitutes the
+    # env-file value verbatim (single pass, no re-interpolation of the value).
+    CORS_ALLOW_ORIGIN: "${CORS_ALLOW_ORIGIN}"
   # Named volume keeps the generated JWT keypair stable across restarts.
   volumes:
     - jwt_keys:/app/config/jwt
