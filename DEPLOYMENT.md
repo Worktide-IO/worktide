@@ -102,6 +102,15 @@ Notes:
   `scheduler` skip them — no schema race.
 - JWT keypair is generated once into a **named volume** (`jwt_keys`) so tokens
   survive restarts. Keep `JWT_PASSPHRASE` stable.
+  - ⚠️ **Rotating `JWT_PASSPHRASE` is NOT enough on its own.** The entrypoint only
+    generates the keypair when `config/jwt/private.pem` is *absent*
+    (`--skip-if-exists`), so a persisted key stays encrypted with the *old*
+    passphrase and can no longer be decrypted → every login/token-sign throws an
+    OpenSSL "bad decrypt / unable to load private key" error (public endpoints
+    like `/v1/branding` keep working, which masks it). When you change the
+    passphrase you MUST regenerate the keypair in the container:
+    `php bin/console lexik:jwt:generate-keypair --overwrite --no-interaction`
+    then restart the app (invalidates all existing tokens — expected on rotation).
 - Tune the cron cadences in `frankenphp/crontab`; lexoffice syncs are disabled
   there by default (need `--apply` + per-channel API key).
 
