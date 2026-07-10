@@ -21,7 +21,8 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
  *
  * Resolution order (first match wins):
  *  1. Workspace owner/admin                              → MANAGE / DELETE / EDIT / VIEW
- *  2. Workspace member (any role)                        → EDIT / VIEW
+ *  2. Workspace member                                   → EDIT / VIEW
+ *  2b. Workspace guest (read-mostly)                     → VIEW only
  *  3. ProjectMember on this specific project (manager)   → MANAGE / EDIT / VIEW
  *  4. ProjectMember (contributor)                        → EDIT / VIEW
  *  5. ProjectMember (viewer)                             → VIEW only
@@ -56,7 +57,9 @@ final class ProjectVoter extends Voter
         if ($wsRole !== null) {
             return match ($attribute) {
                 WorktidePermission::VIEW   => true,
-                WorktidePermission::EDIT   => true,
+                // Guests are read-mostly (see DefaultPermissions) — no project
+                // EDIT, which would otherwise cascade to task create/edit.
+                WorktidePermission::EDIT   => $wsRole !== WorkspaceMemberRole::Guest,
                 WorktidePermission::MANAGE,
                 WorktidePermission::DELETE => \in_array($wsRole, [WorkspaceMemberRole::Owner, WorkspaceMemberRole::Admin], true),
                 default                    => false,

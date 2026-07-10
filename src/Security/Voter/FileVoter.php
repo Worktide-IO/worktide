@@ -60,12 +60,14 @@ final class FileVoter extends Voter
             return false;
         }
 
-        // User-target files: only the user themselves, or workspace admin.
+        // User-target files: only the user themselves, or a workspace admin
+        // (owner/admin, via WorkspaceVoter EDIT). Previously ANY workspace
+        // member could read AND delete another user's file.
         if ($targetEntity instanceof User) {
             if ($targetEntity->getId()?->equals($user->getId())) {
                 return true;
             }
-            return $this->isWorkspaceMember($subject->getWorkspace(), $user);
+            return $this->decisions->decide($token, [WorktidePermission::EDIT], $subject->getWorkspace());
         }
 
         $canView = $this->decisions->decide($token, [WorktidePermission::VIEW], $targetEntity);
