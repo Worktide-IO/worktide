@@ -1,0 +1,32 @@
+# Local Mercure hub for realtime in ddev. Without it the SPA falls back to the
+# LIVE hub (worktide-mercure.wappler.systems), which rejects the local origin
+# (CORS floods) and needs prod keys. This hub uses a dev-only shared secret and
+# allows the local SPA origins.
+#
+#   - web container  -> http://mercure/.well-known/mercure   (publish)
+#   - browser        -> https://<site>.ddev.site:3443/.well-known/mercure (subscribe)
+#
+# The shared secret below MUST match MERCURE_JWT_SECRET in the app's .env.local.
+# Dev-only value - mirrors the committed-dev-key convention of the other .ddev
+# services (e.g. Meilisearch MEILI_MASTER_KEY=masterKey).
+services:
+  mercure:
+    image: dunglas/mercure:v0.16
+    container_name: ddev-${DDEV_SITENAME}-mercure
+    restart: "no"
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: ${DDEV_APPROOT}
+    expose:
+      - "80"
+    environment:
+      # HTTP only - the ddev router terminates TLS in front of us.
+      - SERVER_NAME=:80
+      - MERCURE_PUBLISHER_JWT_KEY=worktide-local-dev-mercure-secret
+      - MERCURE_SUBSCRIBER_JWT_KEY=worktide-local-dev-mercure-secret
+      # Allow the local SPA origins (event-source-plus sends an Authorization
+      # header, so the origin must be echoed explicitly, not "*").
+      - MERCURE_EXTRA_DIRECTIVES=cors_origins https://worktide-web.ddev.site https://worktide-portal.ddev.site http://localhost:5173 http://localhost:5174
+      - VIRTUAL_HOST=${DDEV_HOSTNAME}
+      - HTTP_EXPOSE=3000:80
+      - HTTPS_EXPOSE=3443:80
