@@ -14,9 +14,11 @@ use App\Entity\Task;
 use App\Entity\TaskStatus;
 use App\Entity\Workspace;
 use App\Repository\CustomFieldDefinitionRepository;
+use App\Repository\PublicFormRepository;
 use App\Repository\TaskStatusRepository;
 use App\Service\Form\FormLogicEvaluator;
 use App\Service\Form\FormSchemaNormalizer;
+use App\Service\PublicFormSubmissionClosedException;
 use App\Service\PublicFormSubmissionService;
 use App\Service\PublicFormValidationException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -72,10 +74,23 @@ final class PublicFormSubmissionServiceTest extends TestCase
 
         self::assertSame($task, $submission->getCreatedTask());
         self::assertSame('203.0.113.9', $submission->getRemoteIp());
-        self::assertSame(1, $form->getSubmissionCount());
+        // The submission slot is claimed atomically at the DB level
+        // (PublicFormRepository::tryClaimSubmissionSlot), not by mutating the
+        // in-memory entity — see testSubmissionAtLimitThrowsClosedException.
         // Reserved honeypot key must not leak into the audit payload.
         self::assertArrayNotHasKey('_hp', $submission->getPayload());
         self::assertSame('Ada Lovelace', $submission->getPayload()['name']);
+    }
+
+    public function testSubmissionAtLimitThrowsClosedException(): void
+    {
+        $form = $this->form([
+            ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'mapsTo' => 'title'],
+        ]);
+
+        // Slot claim fails (form full / lost the concurrent race) → closed, 409.
+        $this->expectException(PublicFormSubmissionClosedException::class);
+        $this->service(claimSlot: false)->submit($form, ['name' => 'Ada']);
     }
 
     public function testMissingRequiredFieldThrowsValidationException(): void
@@ -327,6 +342,7 @@ final class PublicFormSubmissionServiceTest extends TestCase
     private function service(
         ?CustomFieldDefinitionRepository $customFields = null,
         ?TaskStatusRepository $taskStatuses = null,
+        bool $claimSlot = true,
     ): PublicFormSubmissionService {
         $em = $this->createStub(EntityManagerInterface::class);
         $em->method('persist')->willReturnCallback(function (object $entity): void {
@@ -339,12 +355,16 @@ final class PublicFormSubmissionServiceTest extends TestCase
             $this->persisted[] = $entity;
         });
 
+        $forms = $this->createStub(PublicFormRepository::class);
+        $forms->method('tryClaimSubmissionSlot')->willReturn($claimSlot);
+
         return new PublicFormSubmissionService(
             $em,
             $taskStatuses ?? $this->createStub(TaskStatusRepository::class),
             $customFields ?? $this->createStub(CustomFieldDefinitionRepository::class),
             new FormSchemaNormalizer(),
             new FormLogicEvaluator(),
+            $forms,
         );
     }
 
