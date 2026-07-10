@@ -18,6 +18,7 @@ use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
+use Symfony\Component\Validator\Constraints as Assert;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\WebhookRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -72,6 +73,11 @@ class Webhook
     #[ORM\Column(length: 200)]
     private string $name = '';
 
+    // Format check only (http/https, well-formed). The real SSRF protection —
+    // rejecting private/internal targets — happens at delivery time in
+    // SendWebhookHandler via OutboundUrlGuard, since a static constraint can't
+    // safely resolve DNS or defend against rebinding.
+    #[Assert\Url(protocols: ['http', 'https'], requireTld: false)]
     #[ORM\Column(length: 2048)]
     private string $url;
 
