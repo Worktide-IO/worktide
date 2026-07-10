@@ -121,12 +121,21 @@ final class FormSchemaNormalizer
             return $page;
         }, $doc['pages']);
 
+        // Calc keys/AST are safe to expose so the renderer can show live totals,
+        // but a calc rule may also carry internal routing (`mapsTo`/`prefillFrom`)
+        // — strip those, like we do for input blocks, so the anonymous
+        // GET /v1/forms/{slug} never leaks internal custom-field/task keys.
+        $calc = array_map(static function (array $rule): array {
+            unset($rule['mapsTo'], $rule['prefillFrom']);
+
+            return $rule;
+        }, $doc['calc']);
+
         return [
             'version' => $doc['version'],
             'pages' => $pages,
             'logic' => $doc['logic'],
-            // calc keys/AST are safe to expose so the renderer can show live totals.
-            'calc' => $doc['calc'],
+            'calc' => $calc,
         ];
     }
 

@@ -147,4 +147,51 @@ final class FormLogicEvaluatorTest extends TestCase
         self::assertSame(['name', 'email'], $result['activeKeys']);
         self::assertCount(2, $doc['pages'], 'one page per distinct section');
     }
+
+    /**
+     * A pathologically deep calc AST (authored into a staff-owned schema but
+     * evaluated on every anonymous submit) must NOT blow the PHP stack. With the
+     * depth cap this recurses at most MAX_AST_DEPTH levels; without it, a tree
+     * this deep would fatal the worker.
+     */
+    public function testDeeplyNestedCalcAstDoesNotBlowTheStack(): void
+    {
+        $node = ['const' => 1];
+        for ($i = 0; $i < 100000; $i++) {
+            $node = ['op' => '+', 'args' => [$node, ['const' => 1]]];
+        }
+        $schema = [
+            'pages' => [['id' => 'p1', 'blocks' => [['id' => 'b1', 'key' => 'x', 'type' => 'number']]]],
+            'calc' => [['key' => 'deep', 'ast' => $node]],
+        ];
+
+        $calc = $this->evaluate($schema, ['x' => 1])['calc'];
+        // It returns a finite number (deeper-than-cap branches fold to 0) — the
+        // point is that it returns at all rather than crashing.
+        self::assertIsNumeric($calc['deep']);
+    }
+
+    public function testClientSchemaStripsInternalKeysFromBlocksAndCalc(): void
+    {
+        $schema = [
+            'pages' => [['id' => 'p1', 'blocks' => [
+                ['id' => 'b1', 'key' => 'email', 'type' => 'email', 'mapsTo' => 'contact.email', 'prefillFrom' => 'contact'],
+            ]]],
+            'calc' => [
+                ['key' => 'score', 'ast' => ['const' => 1], 'mapsTo' => 'task.customField.score', 'prefillFrom' => 'x'],
+            ],
+        ];
+        $form = (new \App\Entity\PublicForm())->setFields([])->setSchema($schema)->setSchemaVersion(2);
+        $normalizer = new FormSchemaNormalizer();
+        $client = $normalizer->toClientSchema($normalizer->normalize($form));
+
+        $block = $client['pages'][0]['blocks'][0];
+        self::assertArrayNotHasKey('mapsTo', $block, 'internal mapsTo must not reach the client');
+        self::assertArrayNotHasKey('prefillFrom', $block);
+
+        $calcRule = $client['calc'][0];
+        self::assertArrayNotHasKey('mapsTo', $calcRule, 'calc mapsTo must not leak to anonymous clients');
+        self::assertArrayNotHasKey('prefillFrom', $calcRule);
+        self::assertSame('score', $calcRule['key'], 'the public calc key/AST is still exposed');
+    }
 }

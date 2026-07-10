@@ -13,6 +13,7 @@ use App\Entity\PublicFormSubmission;
 use App\Entity\Task;
 use App\Entity\TaskStatus;
 use App\Repository\CustomFieldDefinitionRepository;
+use App\Repository\PublicFormRepository;
 use App\Repository\TaskStatusRepository;
 use App\Service\Form\FormLogicEvaluator;
 use App\Service\Form\FormSchemaNormalizer;
@@ -53,6 +54,7 @@ final class PublicFormSubmissionService
         private readonly CustomFieldDefinitionRepository $customFields,
         private readonly FormSchemaNormalizer $normalizer,
         private readonly FormLogicEvaluator $logic,
+        private readonly PublicFormRepository $forms,
     ) {}
 
     /**
@@ -60,7 +62,8 @@ final class PublicFormSubmissionService
      * @param array<string, mixed> $prefill  Authoritative values for hidden/prefill
      *                                        fields, resolved from the portal context.
      *
-     * @throws PublicFormValidationException
+     * @throws PublicFormValidationException field-level validation failed
+     * @throws PublicFormSubmissionClosedException the submission limit was reached
      */
     public function submit(PublicForm $form, array $values, ?string $ip = null, ?string $userAgent = null, array $prefill = []): PublicFormSubmission
     {
@@ -157,7 +160,14 @@ final class PublicFormSubmissionService
             ->setUserAgent($userAgent !== null ? mb_substr($userAgent, 0, 255) : null);
         $this->em->persist($submission);
 
-        $form->incrementSubmissionCount();
+        // Atomically claim a submission slot (a single conditional UPDATE that
+        // bumps the counter iff the form is under its limit). Race-safe — no
+        // read-then-write TOCTOU — and, unlike an ORM increment, it does NOT
+        // bump the optimistic-lock version, so concurrent submits no longer
+        // collide into an uncaught OptimisticLockException (500).
+        if (!$this->forms->tryClaimSubmissionSlot($form)) {
+            throw new PublicFormSubmissionClosedException();
+        }
 
         $this->em->flush();
 
