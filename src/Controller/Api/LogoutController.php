@@ -17,19 +17,25 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * Invalidate refresh tokens for the current user.
  *
- * Request body (JSON):
- *   { "refresh_token": "..." }            ← drop a single device
+ * Request body (JSON), all optional:
+ *   {}                                    ← current device (refresh token read
+ *                                           from the httpOnly cookie)
+ *   { "refresh_token": "..." }            ← drop a specific token
  *   { "everywhere": true }                ← sign out every device for this user
  *
- * Response: 200 with { "revoked": <int> } on success.
+ * Always expires the refresh-token cookie on the response, so a subsequent
+ * silent-refresh-on-load can't revive the session. Idempotent: a logout with no
+ * identifiable token still clears the cookie and returns { "revoked": 0 }.
  *
  * Trade-off: the currently-issued JWT keeps working until its natural expiry
- * (1 h by default). Clients should drop it locally — and we can layer a JWT
- * denylist (Redis) on top later if/when stricter immediate-revocation is
- * required for compliance.
+ * (1 h by default). Clients drop it (it's in-memory only) — and we can layer a
+ * JWT denylist (Redis) on top later if stricter immediate-revocation is needed.
  */
 final class LogoutController
 {
+    /** gesdinet cookie name = its token_parameter_name (default). */
+    private const COOKIE_NAME = 'refresh_token';
+
     public function __construct(
         private readonly Security $security,
         private readonly EntityManagerInterface $em,
@@ -48,14 +54,12 @@ final class LogoutController
         }
 
         $payload = $this->decodeBody($request);
-        $refreshToken = isset($payload['refresh_token']) && \is_string($payload['refresh_token'])
-            ? $payload['refresh_token']
-            : null;
         $everywhere = (bool) ($payload['everywhere'] ?? false);
-
-        if (!$everywhere && $refreshToken === null) {
-            throw new BadRequestHttpException('Provide "refresh_token" or set "everywhere": true.');
-        }
+        // The refresh token now lives in an httpOnly cookie the SPA can't read;
+        // fall back to it so a plain POST (empty body) logs out this device.
+        $refreshToken = (isset($payload['refresh_token']) && \is_string($payload['refresh_token']) && $payload['refresh_token'] !== '')
+            ? $payload['refresh_token']
+            : $request->cookies->get(self::COOKIE_NAME);
 
         $repo = $this->em->getRepository(RefreshToken::class);
 
@@ -67,7 +71,7 @@ final class LogoutController
                 $this->em->remove($t);
                 $revoked++;
             }
-        } else {
+        } elseif (\is_string($refreshToken) && $refreshToken !== '') {
             $token = $repo->findOneBy([
                 'refreshToken' => $refreshToken,
                 'username' => $user->getUserIdentifier(),
@@ -80,7 +84,11 @@ final class LogoutController
 
         $this->em->flush();
 
-        return new JsonResponse(['revoked' => $revoked]);
+        $response = new JsonResponse(['revoked' => $revoked]);
+        // Expire the cookie (match attributes) so the session can't be revived.
+        $response->headers->clearCookie(self::COOKIE_NAME, '/', null, true, true, 'lax');
+
+        return $response;
     }
 
     /** @return array<string, mixed> */

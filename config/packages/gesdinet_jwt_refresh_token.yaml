@@ -2,7 +2,19 @@ gesdinet_jwt_refresh_token:
     refresh_token_class: App\Entity\RefreshToken
     ttl: 2592000   # 30 days
     ttl_update: true
-    single_use: true
+    single_use: true   # rotate on every refresh
+    # The refresh token lives in an httpOnly cookie, NOT the JSON body, so XSS in
+    # either SPA can't read it (M1). It's read from the cookie on /auth/refresh
+    # and stripped from the login/refresh response body (remove_token_from_body).
+    # SameSite=Lax is enough because api/web/portal share the wappler.systems
+    # registrable domain in prod → the refresh request is same-site (host-only
+    # cookie on the API host, sent on same-site cross-origin requests). The SPAs
+    # send withCredentials + CORS allows credentials.
     cookie:
-        enabled: false
+        enabled: true
+        same_site: lax
+        path: /
+        http_only: true
+        secure: true
+        remove_token_from_body: true
     return_expiration: true

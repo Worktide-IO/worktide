@@ -2,6 +2,11 @@ nelmio_cors:
     defaults:
         origin_regex: true
         allow_origin: ['%env(CORS_ALLOW_ORIGIN)%']
+        # Required so the browser sends/receives the httpOnly refresh-token cookie
+        # on cross-origin XHR (web/portal → api). With credentials the matched
+        # origin is echoed back (never '*'), so CORS_ALLOW_ORIGIN must list the
+        # exact SPA origins in prod.
+        allow_credentials: true
         allow_methods: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']
         # X-Workspace-Id: the admin SPA stamps it on workspace-scoped requests
         # (src/lib/api.ts). Without it here the CORS preflight rejects every
