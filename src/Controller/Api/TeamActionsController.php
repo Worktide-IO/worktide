@@ -7,6 +7,8 @@ namespace App\Controller\Api;
 use App\Entity\Project;
 use App\Entity\Team;
 use App\Entity\User;
+use App\Entity\Workspace;
+use App\Entity\WorkspaceMember;
 use App\Repository\ProjectRepository;
 use App\Repository\TeamRepository;
 use App\Repository\UserRepository;
@@ -75,7 +77,11 @@ final class TeamActionsController
         $skipped = 0;
         foreach ($userIds as $uid) {
             $user = $this->users->find($uid);
-            if (!$user instanceof User) {
+            // Only touch users who belong to the team's workspace — never pull
+            // an outside user onto the team. Team membership expands into task
+            // VIEW/EDIT via TaskVoter, so a cross-workspace add would leak this
+            // tenant's tasks to a foreign user. (mutateProjects guards the same.)
+            if (!$user instanceof User || !$this->isWorkspaceMember($user, $team->getWorkspace())) {
                 $skipped++;
                 continue;
             }
@@ -131,6 +137,12 @@ final class TeamActionsController
             throw new AccessDeniedHttpException();
         }
         return $team;
+    }
+
+    private function isWorkspaceMember(User $user, Workspace $workspace): bool
+    {
+        return $this->em->getRepository(WorkspaceMember::class)
+            ->findOneBy(['workspace' => $workspace, 'user' => $user]) !== null;
     }
 
     /** @return list<Uuid> */
