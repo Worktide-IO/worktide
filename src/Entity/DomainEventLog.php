@@ -29,8 +29,11 @@ use Symfony\Component\Uid\Uuid;
 #[ApiResource(
     shortName: 'DomainEvent',
     operations: [
-        new GetCollection(),
-        new Get(),
+        // Read-only audit log. Scoped to the caller's workspaces by
+        // WorkspaceScopeExtension (via .workspace) so it can't leak other
+        // tenants' event stream / payloads.
+        new GetCollection(security: "is_granted('ROLE_USER')"),
+        new Get(security: "is_granted('ROLE_USER')"),
     ],
 )]
 #[ApiFilter(SearchFilter::class, properties: [
