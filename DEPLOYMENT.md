@@ -76,7 +76,7 @@ Secrets — set as **runtime** (not build) variables. These override the baked
 | `APP_SECRET` | long random string |
 | `DATABASE_URL` | from §1 |
 | `JWT_PASSPHRASE` | passphrase for the generated JWT keypair (stable!) |
-| `CORS_ALLOW_ORIGIN` | `^https://(worktide|kunden)\.wappler\.systems$` |
+| `CORS_ALLOW_ORIGIN` | `^https://(worktide\|kunden).wappler.systems$` — ⚠️ **plain dots, single `$`, NO backslash-escapes** (see Troubleshooting → CORS) |
 | `DEFAULT_URI` / `API_HOST` | `https://api.worktide.wappler.systems` |
 | `SPA_BASE_URL` | `https://worktide.wappler.systems` |
 | `PORTAL_BASE_URL` | `https://kunden.wappler.systems` |
@@ -187,10 +187,67 @@ Publishing triggers the workflow → all-in-one deploy. (Turn OFF Coolify's own
   `scheduler` runs supercronic. Check both in Coolify's logs if async jobs or
   cron tasks stall.
 - **Zero-downtime:** Compose deployments briefly stop/start. For rolling updates,
-  enable Coolify's health-check-gated deployment (the `app` healthcheck hits the
-  Caddy admin `/metrics` on :2019).
+  enable Coolify's health-check-gated deployment. The `app` healthcheck curls
+  `http://localhost:80/` (any HTTP response, incl. 404, = alive). An earlier check
+  against the Caddy admin `/metrics` (:2019) always 404'd → container marked
+  unhealthy → Coolify cycled it to the restart cap. Don't revert to it.
 - **FrankenPHP worker mode (optional perf boost):** `composer require
   runtime/frankenphp-symfony`, then set Coolify env `FRANKENPHP_CONFIG=import
   worker.Caddyfile`. Redeploy. (Long-running kernel — watch for state leaks.)
 - **Scaling workers:** raise the `worker` replica count in Coolify, or split the
   transports into separate services (`messenger:consume async` vs `ai_agents`).
+
+---
+
+## Troubleshooting — production incidents (learned the hard way)
+
+These all surfaced during the first live bring-up. Every one of them *looked* like
+a CORS error in the browser but mostly wasn't.
+
+### All `/v1/*` resources return 404 in prod (but work locally)
+- **Symptom:** login works, then every API-Platform resource (`/v1/projects`,
+  `/v1/workspaces`, `/v1/tasks`, …) 404s. In the SPA this shows up as "CORS error"
+  because the 404 response carries no CORS headers.
+- **Cause:** a `when@prod` override in `config/routes/api_platform.yaml` bound the
+  routes to `host: api.worktide.com` — a placeholder host nobody calls. API
+  Platform routes only match that host, so they 404 under the real domain.
+- **Fix:** no `host:` binding — routes must match any host. Verify with
+  `APP_ENV=prod php bin/console debug:router` → the `_api_*` routes must show **no**
+  host column. Sanity check from a shell:
+  `curl -o /dev/null -w '%{http_code}' https://api.worktide.wappler.systems/v1/projects`
+  → **401** (route exists, needs auth), *not* 404.
+
+### CORS: no `Access-Control-Allow-Origin` on any response
+- **`CORS_ALLOW_ORIGIN` value mangling.** docker-compose interpolates `${...}` and
+  eats inline `$`/`\`, so a regex like `^https://…\.systems$` arrives at the
+  container mangled → matches no origin → every cross-origin call blocked. Set the
+  Coolify value with **plain dots and a single `$`, no backslash escapes**:
+  `^https://(worktide|kunden).wappler.systems$`. It reaches the container verbatim
+  via `CORS_ALLOW_ORIGIN: "${CORS_ALLOW_ORIGIN}"` in `compose.prod.yaml` (single-pass
+  substitution — do **not** re-add backslashes there).
+- **Custom request header rejected at preflight.** The admin SPA sends
+  `X-Workspace-Id` on workspace-scoped requests; it must be in
+  `config/packages/nelmio_cors.yaml → allow_headers` or the preflight fails the
+  moment a workspace is selected. (Currently `Content-Type, Authorization,
+  X-Workspace-Id`.)
+- **Mercure hub CORS is separate.** Set the hub's `cors_origins` to the **SPA**
+  domains (`worktide` + `kunden`), not the API domain — otherwise the EventSource
+  connection is CORS-blocked.
+
+### Mercure connection 401
+- Backend signs the subscriber JWT with `MERCURE_JWT_SECRET`; the hub validates
+  with `MERCURE_PUBLISHER_JWT_KEY` / `MERCURE_SUBSCRIBER_JWT_KEY`. **All three must
+  be the same secret.** A mismatch 401s every `/.well-known/mercure` request.
+
+### A burst of 401s right after a redeploy
+- **Benign.** The entrypoint's JWT self-heal can rotate the keypair on boot, which
+  invalidates access tokens issued *before* the deploy. Stale tokens still in a
+  user's browser 401 until the SPA refreshes / re-logs-in. A **fresh login is
+  clean** — that's the test that distinguishes this from a real auth bug (fresh
+  login also 401ing = real JWT verification problem).
+
+### Deploy build fails at `install-php-extensions` (exit 255)
+- Coolify builds with `--no-cache --pull`, so that layer re-downloads PHP
+  extensions from the network every time and occasionally flakes. This is **not a
+  code error** — just redeploy (Coolify → app → **Redeploy**). A commit that built
+  before will build again.
