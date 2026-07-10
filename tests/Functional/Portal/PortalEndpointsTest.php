@@ -123,6 +123,33 @@ final class PortalEndpointsTest extends WebTestCase
         self::assertFalse($data['features']['monitoring']);
     }
 
+    public function testMeExposesAndUpdatesPreferredLanguage(): void
+    {
+        $ctx = $this->seed();
+        $token = $this->token($ctx['portalUser']);
+
+        // GET exposes the language settings; default is no preference.
+        $this->request('GET', '/v1/portal/me', $token);
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        $data = $this->json();
+        self::assertNull($data['preferredLanguage']);
+        self::assertContains('de', $data['supportedLanguages']);
+
+        // PATCH a supported locale → stored + echoed back.
+        $this->request('PATCH', '/v1/portal/me', $token, ['preferredLanguage' => 'en']);
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        self::assertSame('en', $this->json()['preferredLanguage']);
+
+        // PATCH null clears the preference.
+        $this->request('PATCH', '/v1/portal/me', $token, ['preferredLanguage' => null]);
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        self::assertNull($this->json()['preferredLanguage']);
+
+        // An unsupported locale is rejected, nothing persisted.
+        $this->request('PATCH', '/v1/portal/me', $token, ['preferredLanguage' => 'zz']);
+        self::assertSame(400, $this->client->getResponse()->getStatusCode());
+    }
+
     public function testTicketsAreScopedAndHiddenExcluded(): void
     {
         $ctx = $this->seed();
