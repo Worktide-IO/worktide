@@ -16,9 +16,10 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * End-to-end i18n seam: the TranslatableNormalizer overlays a translatable
- * base field with the active-locale value on the way out (falling back to the
- * base value), and the profile endpoint stores/validates preferredLanguage.
+ * End-to-end i18n seam (additive model): the API serves the raw source-language
+ * base field untouched PLUS the raw `translations` map, so clients resolve the
+ * active locale themselves. The profile endpoint stores/validates
+ * preferredLanguage.
  *
  * Same isolation pattern as {@see NotificationsInboxTest}: one kernel,
  * everything inside a rolled-back transaction.
@@ -45,8 +46,11 @@ final class TranslatableApiTest extends WebTestCase
         parent::tearDown();
     }
 
-    public function testTranslatableFieldIsOverlaidToUserLocale(): void
+    public function testBaseFieldStaysRawAndTranslationsMapIsExposed(): void
     {
+        // Additive model: even for an en-preferring user, the base field is served
+        // untouched (source language) and the raw translations map rides alongside
+        // for the client to resolve + for editing UIs.
         [$user, $ws, $status] = $this->seedStatus(
             preferredLanguage: 'en',
             baseName: 'Offen',
@@ -57,24 +61,10 @@ final class TranslatableApiTest extends WebTestCase
 
         self::assertSame(200, $this->client->getResponse()->getStatusCode());
         $data = $this->json();
-        // name overlaid to the user's locale …
-        self::assertSame('Open', $data['name']);
-        // … while the raw map is still exposed for editing UIs.
+        // Base column is NOT overlaid — round-trips can't corrupt the source.
+        self::assertSame('Offen', $data['name']);
+        // Raw per-locale map is exposed verbatim.
         self::assertSame(['name' => ['en' => 'Open']], $data['translations']);
-    }
-
-    public function testFallsBackToBaseValueWhenTranslationMissing(): void
-    {
-        // User prefers en, but this status has only a fr translation → base wins.
-        [$user, $ws, $status] = $this->seedStatus(
-            preferredLanguage: 'en',
-            baseName: 'Offen',
-            translations: ['name' => ['fr' => 'Ouvert']],
-        );
-
-        $this->getStatus($status, $user, $ws);
-
-        self::assertSame('Offen', $this->json()['name']);
     }
 
     public function testProfilePreferredLanguageRoundTripAndValidation(): void
