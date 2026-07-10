@@ -25,4 +25,5 @@ enum EgressModule: string
     case TicketPush = 'ticket_push';
     case Llm = 'llm';
     case ExternalSearch = 'external_search'; // research agent: outbound web/company search
+    case CalendarSync = 'calendar_sync'; // booking: fetch staff ICS calendar feeds for free/busy
 }

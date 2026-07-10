@@ -1,0 +1,6 @@
+{% extends 'email/base.txt.twig' %}
+
+{% block content %}{% if inviteeName %}Hallo {{ inviteeName }},{% else %}Hallo,{% endif %}
+
+Ihr Termin "{{ title }}" am {{ start|date('d.m.Y') }} um {{ start|date('H:i') }} Uhr ({{ timezone }}) wurde storniert.
+Sie können bei Bedarf jederzeit einen neuen Termin buchen.{% endblock %}
