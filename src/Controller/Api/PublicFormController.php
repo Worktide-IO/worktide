@@ -7,6 +7,7 @@ namespace App\Controller\Api;
 use App\Repository\PublicFormRepository;
 use App\Service\Form\FormPrefillResolver;
 use App\Service\Form\FormSchemaNormalizer;
+use App\Service\PublicFormSubmissionClosedException;
 use App\Service\PublicFormSubmissionService;
 use App\Service\PublicFormValidationException;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -121,6 +122,9 @@ final class PublicFormController
             );
         } catch (PublicFormValidationException $e) {
             return new JsonResponse(['errors' => $e->getErrors()], 422);
+        } catch (PublicFormSubmissionClosedException) {
+            // Lost the atomic slot-claim race — the limit was hit concurrently.
+            return new JsonResponse(['error' => 'This form is no longer accepting submissions.'], 409);
         }
 
         return $this->success($form);

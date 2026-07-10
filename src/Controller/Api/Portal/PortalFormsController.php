@@ -12,6 +12,7 @@ use App\Repository\PublicFormRepository;
 use App\Service\Form\FormPrefillResolver;
 use App\Service\Form\FormSchemaNormalizer;
 use App\Service\Portal\PortalAccessResolver;
+use App\Service\PublicFormSubmissionClosedException;
 use App\Service\PublicFormSubmissionService;
 use App\Service\PublicFormValidationException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -152,6 +153,8 @@ final class PortalFormsController
             $this->submissions->submit($form, $values, $request->getClientIp(), $request->headers->get('User-Agent'), $prefill);
         } catch (PublicFormValidationException $e) {
             return new JsonResponse(['errors' => $e->getErrors()], 422);
+        } catch (PublicFormSubmissionClosedException) {
+            return new JsonResponse(['error' => 'This form is no longer accepting submissions.'], 409);
         }
 
         // Submitted → discard any saved draft for this contact.

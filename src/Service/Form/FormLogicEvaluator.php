@@ -338,12 +338,20 @@ final class FormLogicEvaluator
     }
 
     /**
+     * Hard cap on calc-AST nesting. A calc AST is authored into the (staff-owned)
+     * form schema but evaluated on every ANONYMOUS submit, so a pathologically
+     * deep tree would otherwise blow the PHP stack on a public endpoint. 64 is
+     * far beyond any legitimate formula; deeper branches evaluate to 0.
+     */
+    private const MAX_AST_DEPTH = 64;
+
+    /**
      * @param mixed $node
      * @param array<string, mixed> $scope
      */
-    private function evalAst(mixed $node, array $scope): int|float
+    private function evalAst(mixed $node, array $scope, int $depth = 0): int|float
     {
-        if (!\is_array($node)) {
+        if ($depth > self::MAX_AST_DEPTH || !\is_array($node)) {
             return 0;
         }
         if (\array_key_exists('const', $node)) {
@@ -354,7 +362,7 @@ final class FormLogicEvaluator
         }
         $op = (string) ($node['op'] ?? '');
         $args = \is_array($node['args'] ?? null) ? $node['args'] : [];
-        $values = array_map(fn ($a): int|float => $this->evalAst($a, $scope), $args);
+        $values = array_map(fn ($a): int|float => $this->evalAst($a, $scope, $depth + 1), $args);
         if ($values === []) {
             return 0;
         }
