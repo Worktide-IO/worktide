@@ -71,6 +71,13 @@ final class BlueskyAdapter implements SocialPublisherAdapter
         if ($identifier === '' || $appPassword === '') {
             return SocialPublishResult::failed('Bluesky channel missing identifier or appPassword.');
         }
+        // The PDS `service` can be overridden per channel — never authenticate
+        // against an internal/private host (SSRF).
+        try {
+            \App\Http\OutboundUrlGuard::ensureNotReservedHost($service);
+        } catch (\App\Http\UnsafeUrlException $e) {
+            return SocialPublishResult::failed($e->getMessage());
+        }
 
         try {
             // 1. Session

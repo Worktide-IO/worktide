@@ -399,6 +399,11 @@ final class RedmineAdapter extends BaseTicketSyncAdapter implements Testable
         if ($base === '') {
             return TestResult::failed('Base URL missing in channel config.');
         }
+        try {
+            \App\Http\OutboundUrlGuard::ensureNotReservedHost($base);
+        } catch (\App\Http\UnsafeUrlException $e) {
+            return TestResult::failed($e->getMessage());
+        }
         if (empty($this->authHeaders($channel))) {
             return TestResult::failed('API key missing in channel auth-config.');
         }

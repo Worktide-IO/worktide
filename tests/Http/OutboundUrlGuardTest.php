@@ -64,4 +64,17 @@ final class OutboundUrlGuardTest extends TestCase
         $target = $this->guard->assertPublicHttpUrl('http://1.1.1.1/');
         self::assertSame('1.1.1.1', $target['ip']);
     }
+
+    public function testStaticEnsurePublicRejectsInternalHost(): void
+    {
+        // Used by the channel adapters to validate an admin-supplied base/instance URL.
+        $this->expectException(UnsafeUrlException::class);
+        OutboundUrlGuard::ensurePublic('http://169.254.169.254/latest/meta-data/');
+    }
+
+    public function testStaticEnsurePublicAllowsPublicHost(): void
+    {
+        OutboundUrlGuard::ensurePublic('https://8.8.8.8/api');
+        $this->expectNotToPerformAssertions();
+    }
 }

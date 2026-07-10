@@ -475,6 +475,11 @@ final class JiraAdapter extends BaseTicketSyncAdapter implements Testable
         if ($base === '') {
             return TestResult::failed('Base URL missing in channel config.');
         }
+        try {
+            \App\Http\OutboundUrlGuard::ensureNotReservedHost($base);
+        } catch (\App\Http\UnsafeUrlException $e) {
+            return TestResult::failed($e->getMessage());
+        }
         $headers = $this->authHeaders($channel);
         if (empty($headers)) {
             return TestResult::failed('Auth missing — paste either a PAT (Server/DC) or email + API-token (Cloud).');

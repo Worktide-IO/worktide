@@ -67,6 +67,12 @@ final class DiscourseForumAdapter implements SocialPublisherAdapter
         if ($baseUrl === '' || $apiKey === '' || $apiUser === '') {
             return SocialPublishResult::failed('Discourse channel missing baseUrl, apiKey or apiUsername.');
         }
+        // Never send the API key to an internal/private host (SSRF).
+        try {
+            \App\Http\OutboundUrlGuard::ensureNotReservedHost($baseUrl);
+        } catch (\App\Http\UnsafeUrlException $e) {
+            return SocialPublishResult::failed($e->getMessage());
+        }
 
         $raw = $target->effectiveBody();
         $title = $this->titleFrom($raw);
