@@ -24,6 +24,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
@@ -79,6 +80,13 @@ final class ImportController
         }
         $user = $this->requireUser();
         $workspace = $this->resolveWorkspace($request, $user);
+
+        // Bulk create/import is an admin-level operation. Gate on workspace EDIT
+        // (owner/admin) — matching the Customer/Contact mutation security — so a
+        // read-mostly member/guest can't bulk-create thousands of records.
+        if (!$this->security->isGranted(WorktidePermission::EDIT, $workspace)) {
+            throw new AccessDeniedHttpException('Importing requires workspace edit rights.');
+        }
 
         $body = $this->body($request);
         $rows = $body['rows'] ?? null;
