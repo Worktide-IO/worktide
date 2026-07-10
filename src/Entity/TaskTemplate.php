@@ -21,6 +21,7 @@ use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\TaskTemplateRepository;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Trait\TranslatableTrait;
 
 /**
  * Template for a Task — lives inside a TaskBundle. When the bundle is
@@ -53,8 +54,9 @@ use Doctrine\ORM\Mapping as ORM;
     'priority' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['position', 'title', 'createdAt'])]
-class TaskTemplate
+class TaskTemplate implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use WorkspaceScopedTrait;
@@ -125,4 +127,12 @@ class TaskTemplate
         $this->defaultChecklist = array_values(array_filter($items, 'is_string'));
         return $this;
     }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['title', 'description'];
+    }
+
 }

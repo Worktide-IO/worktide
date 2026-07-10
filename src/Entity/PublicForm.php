@@ -23,6 +23,7 @@ use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\PublicFormRepository;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Trait\TranslatableTrait;
 
 /**
  * A publicly reachable form. Anyone with the {@see $slug} can GET its schema and
@@ -71,8 +72,9 @@ use Doctrine\ORM\Mapping as ORM;
 ])]
 #[ApiFilter(BooleanFilter::class, properties: ['isEnabled'])]
 #[ApiFilter(OrderFilter::class, properties: ['title', 'slug', 'createdAt'])]
-class PublicForm
+class PublicForm implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
@@ -201,4 +203,12 @@ class PublicForm
     public function getSubmissionCount(): int { return $this->submissionCount; }
     public function setSubmissionCount(int $count): self { $this->submissionCount = $count; return $this; }
     public function incrementSubmissionCount(): self { ++$this->submissionCount; return $this; }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['title', 'description', 'successMessage'];
+    }
+
 }

@@ -39,6 +39,13 @@ Realisiert die Phase-D-Infrastruktur und macht sie generisch (Details in den Pha
 - **Universelles Agent-Action-Fundament**: statt eines bespoke Stacks pro Fähigkeit erarbeitet der LLM die Empfehlungen selbst (`AgentActionPlanner` über einen `CapabilityCatalog` aus den verbundenen Kanälen), und ein **einziger** generischer Applier-Zweig führt sie aus — Dispatch nach Archetyp (`social_post` / `outbound_message`), Connector aus der `AdapterRegistry` (unbegrenzt). Neue Fähigkeit = „Connector registrieren". Beweis: `DiscourseForumAdapter` (Foren-Verbreitung ohne Spezialcode, reitet die egress-gated Social-Pipeline; Permalink = Verbreitungs-Nachweis).
 - **Separate Noch-nicht-Kunden-Daten**: `ResearchMission` (resümierbarer `state`) + `ResearchMissionMessage` (Dialog) + `Lead` (source/stage/fitScore/dedupeKey/convertedCustomer) + `LeadActivity` (append-only Historie). Priority-Scoring (WSJF-lite) mit Lexoffice-Umsatz als Signal.
 
+### i18n / Mehrsprachigkeit (Backend v1)
+Generische Übersetzbarkeit von Datentypen + bevorzugte Sprache pro User:
+- **Infrastruktur (additives Modell)**: `TranslatableInterface` + `TranslatableTrait` (eine `translations`-JSON-Spalte pro Entity, Shape `{feld:{locale:wert}}`; Basis-Spalten bleiben die Quellsprache → UniqueConstraints/SearchFilter/Bestandsdaten unberührt). Die API liefert **Rohwerte + `translations`-Map** (kein serverseitiges Overlay) → Editoren können die Quellsprache nicht korrumpieren; die Anzeige löst clientseitig via `localize(entity, feld)` gegen die aktive Sprache auf. Neue Entity übersetzbar = Interface + Spalte, null Serializer-Config. `LocaleResolver` bleibt für Profil-Validierung (`supported_locales`) + spätere Mail-Lokalisierung (aktive Sprache: `User.preferredLanguage → Workspace.locale → Default`, bewusst **kein** `Accept-Language`).
+- **Übersetzbar (15 Entities)**: TaskStatus, ProjectStatus, Tracker, TypeOfWork, ProjectType, Industry, AgreementType, Tag, CustomFieldDefinition, CustomFieldOption, SavedReply, ProjectTemplate, TaskTemplate, PublicForm, Product (skalare Textfelder name/label/title/description/body/successMessage/value).
+- **User-Sprache**: `User.preferredLanguage`, editierbar über `MeProfileController` (validiert gegen `app.supported_locales`, Snapshot liefert `supportedLanguages`) — gilt für worktide-web **und** worktide-portal.
+- **Offen (Folgeschritte)**: verschachtelte/Array-Felder (CustomField `options[]`, TaskTemplate `defaultChecklist[]`, PublicForm `fields[]`/`schema`); SPA-UI (Sprachwahl im Profil + Übersetzungs-Editor) in worktide-web/-portal; Suchfilter in Nicht-Default-Sprache (Escape-Hatch: MySQL-8-Virtual-Column-Index).
+
 ---
 
 ## Phase A — Frontend-Polish

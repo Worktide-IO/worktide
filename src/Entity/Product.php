@@ -28,6 +28,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
+use App\Entity\Trait\TranslatableTrait;
 
 /**
  * An item in the agency's own catalogue of offerings — either a versioned
@@ -64,8 +65,9 @@ use Symfony\Component\Validator\Constraints as Assert;
     'name' => 'partial',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt'])]
-class Product
+class Product implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
@@ -145,4 +147,12 @@ class Product
     }
 
     public function isVersioned(): bool { return $this->type->isVersioned(); }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['name', 'description'];
+    }
+
 }

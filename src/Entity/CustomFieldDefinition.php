@@ -25,6 +25,7 @@ use App\Repository\CustomFieldDefinitionRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Trait\TranslatableTrait;
 
 /**
  * Workspace-scoped definition of a user-defined field that can be attached to
@@ -56,8 +57,9 @@ use Doctrine\ORM\Mapping as ORM;
 ])]
 #[ApiFilter(BooleanFilter::class, properties: ['isRequired', 'isArchived'])]
 #[ApiFilter(OrderFilter::class, properties: ['position', 'label', 'createdAt'])]
-class CustomFieldDefinition
+class CustomFieldDefinition implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use WorkspaceScopedTrait;
@@ -222,4 +224,12 @@ class CustomFieldDefinition
         $this->position = $position;
         return $this;
     }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['label', 'description'];
+    }
+
 }

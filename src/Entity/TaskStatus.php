@@ -22,6 +22,7 @@ use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\TaskStatusRepository;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Trait\TranslatableTrait;
 
 #[ORM\Entity(repositoryClass: TaskStatusRepository::class)]
 #[ORM\Table(name: 'task_statuses')]
@@ -40,8 +41,9 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiFilter(SearchFilter::class, properties: ['name' => 'partial', 'workspace' => 'exact'])]
 #[ApiFilter(BooleanFilter::class, properties: ['isCompleted', 'isDefault'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'position', 'createdAt'])]
-class TaskStatus
+class TaskStatus implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use WorkspaceScopedTrait;
@@ -128,4 +130,12 @@ class TaskStatus
         $this->isDefault = $value;
         return $this;
     }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['name'];
+    }
+
 }

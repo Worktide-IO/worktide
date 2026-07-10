@@ -22,6 +22,7 @@ use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\ProjectTypeRepository;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Trait\TranslatableTrait;
 
 /**
  * Categorisation of projects ("Client work", "Internal", "Retainer",
@@ -47,8 +48,9 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiFilter(SearchFilter::class, properties: ['workspace' => 'exact', 'name' => 'partial'])]
 #[ApiFilter(BooleanFilter::class, properties: ['isArchived'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'position', 'createdAt'])]
-class ProjectType
+class ProjectType implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use WorkspaceScopedTrait;
@@ -91,4 +93,12 @@ class ProjectType
 
     public function isArchived(): bool { return $this->isArchived; }
     public function setIsArchived(bool $value): self { $this->isArchived = $value; return $this; }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['name', 'description'];
+    }
+
 }
