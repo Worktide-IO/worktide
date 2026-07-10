@@ -47,9 +47,10 @@ use Symfony\Component\Validator\Constraints as Assert;
     operations: [
         new GetCollection(security: "is_granted('ROLE_USER')"),
         new Get(security: "is_granted('VIEW', object.getProject())"),
-        // Issuance is gated to project managers / workspace admins in the
-        // state processor (needs MANAGE on the project being shared).
-        new Post(security: "is_granted('ROLE_USER')"),
+        // Only someone who can MANAGE the project (workspace owner/admin or
+        // project manager) may share it — checked after denormalization so
+        // `object.getProject()` is populated from the request body.
+        new Post(securityPostDenormalize: "is_granted('MANAGE', object.getProject())"),
         new Delete(security: "is_granted('MANAGE', object.getProject())"),
     ],
 )]
