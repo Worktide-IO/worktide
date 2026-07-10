@@ -83,6 +83,7 @@ final readonly class PublicEndpointRateLimitSubscriber implements EventSubscribe
         return $path === '/v1/branding'
             || str_starts_with($path, '/v1/setup')
             || str_starts_with($path, '/v1/forms/')
+            || str_starts_with($path, '/v1/book/')
             || str_starts_with($path, '/v1/social/media/')
             || str_starts_with($path, '/v1/channels/oauth/callback');
     }

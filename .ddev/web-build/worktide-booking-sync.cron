@@ -1,0 +1,5 @@
+# Booking free/busy: poll staff ICS calendar feeds into calendar_busy_blocks so
+# public booking slots reflect the host's real availability. Outbound fetch is
+# SSRF-guarded and behind the default-deny `calendar_sync` egress module.
+# Every 10 minutes.
+*/10 * * * * cd /var/www/html && php bin/console app:booking:sync-calendars >> /var/www/html/var/log/cron-booking-sync.log 2>&1

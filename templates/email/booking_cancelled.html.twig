@@ -1,0 +1,16 @@
+{% extends 'email/base.html.twig' %}
+
+{% block title %}Termin storniert{% endblock %}
+
+{% block content %}
+    <tr>
+        <td style="font-size:18px; font-weight:600; padding-bottom:16px;">Ihr Termin wurde storniert</td>
+    </tr>
+    <tr>
+        <td style="font-size:14px; line-height:1.6; padding-bottom:16px;">
+            {% if inviteeName %}Hallo {{ inviteeName }},{% else %}Hallo,{% endif %}<br><br>
+            Ihr Termin <strong>{{ title }}</strong> am {{ start|date('d.m.Y') }} um {{ start|date('H:i') }} Uhr ({{ timezone }})
+            wurde storniert. Sie können bei Bedarf jederzeit einen neuen Termin buchen.
+        </td>
+    </tr>
+{% endblock %}

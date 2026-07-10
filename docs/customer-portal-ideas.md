@@ -33,7 +33,7 @@ schließen* und *ans Portal ausliefern*, nicht auf Greenfield.
 | **Benachrichtigungskanäle** (In-App + E-Mail pro User) | ✅ **erledigt 2026-07-10** — `notificationPreferences` auf `UserPreferences`; Portal `/v1/portal/notification-preferences` + Seite `/einstellungen`; Instant-E-Mail via `NotificationEmailNotifier` (Egress-Gate, Ruhezeiten, pro Typ) | Chat-Adapter (Slack/Mattermost/Teams) weiterhin offen |
 | E-Mail-Digest (Täglich/Wöchentlich) | ✅ **erledigt 2026-07-10** — `app:notifications:send-digest` + Cron (`frankenphp/crontab` + `.ddev`) | — |
 | **Newsletter-Baum** (Opt-in) | ✅ **erledigt 2026-07-10** — `Newsletter`-Baum (Self-Ref) + `NewsletterSubscription` + `Customer.enabledNewsletterIds`; Admin-Baum-Editor (`worktide-web` /newsletter) + Kunden-Reiter „Newsletter"; Portal `/newsletter` Opt-in (`PortalNewslettersController`) | Drag-Reorder verschoben (Move via Parent-Auswahl); i18n der Titel verschoben |
-| Terminbuchung / Meeting-Slots | ❌ fehlt (Calendly-Klon, Phase E `ROADMAP.md:253`) | großes Greenfield + ICS |
+| Terminbuchung / Meeting-Slots (7D) | ✅ **erledigt 2026-07-10** — `MeetingType`+`Booking`, Slot-Engine, öffentliche `/v1/book/{slug}`-Endpoints, Bestätigungs-Mail + ICS; öffentliche Buchungsseite `worktide-portal /book/:slug` (+ /book/cancel/:token); Admin `worktide-web` Terminarten (Verfügbarkeits-Editor) + Buchungen | Externer Kalender-Sync (Google/Outlook), Reschedule, In-Portal-Buchungslink für eingeloggte Kunden, Absence-Abzug verschoben |
 | Broadcast-Ankündigungen | ❌ fehlt | verwandt mit Newsletter/Launch-Audience |
 
 **§8 Wissen & Assets**
@@ -134,7 +134,27 @@ Eine schlanke Produkt-/Feature-Roadmap, die im Portal sichtbar gemacht werden ka
   - **Katalogweite Launches:** nur kundenspezifische Launches (`customerproduct`/`servicesubscription`) sind verdrahtet; für globale `product.created`/`productversion.created` muss zuerst das Empfänger-Publikum definiert werden (sonst Broadcast an alle).
 - **Einstellbare Benachrichtigungskanäle** – Kunde wählt pro Ereignistyp, wie er informiert wird: E-Mail, Chat (Slack / Mattermost („Kchat") / Teams) oder nur In-App. Pro Kanal ein-/ausschaltbar je Ereignis (neues Ticket-Update, Angebot/Vertrag, Monitoring-Incident, Datei-Freigabe, Digest). Optional Frequenz (sofort / gebündelt / täglich) und Ruhezeiten. Umsetzung über die vorhandenen HMAC-signierten Webhooks bzw. Kanal-Connectoren; Einstellungen pro Contact.
 - Automatischer Wochen-/Monats-Digest per E-Mail
-- Terminbuchung/Meeting-Slots
+- Terminbuchung/Meeting-Slots (7D ✅ erledigt 2026-07-10 — siehe Umsetzungsstand oben)
+  - **Staff-Kalenderansicht + externer Kalender-Sync für Frei/Belegt** — ✅ **ICS + Ansicht erledigt 2026-07-10; OAuth-Variante offen.**
+    Zwei Teile, additiv zu 7D:
+    1. ✅ **Admin-Buchungskalender (erledigt):** Buchungen als Events in der bestehenden
+       `worktide-web /calendar`-Ansicht (FullCalendar), markengrün, klickbar → `/buchungen`.
+    2. **Externer Kalender (Frei/Belegt-Blocker):** ✅ **ICS-Feed-Ansatz erledigt** —
+       `StaffCalendarConnection` (ICS-URL pro User) + `CalendarBusyBlock`-Cache; `IcsCalendarImporter`
+       (SSRF-/Egress-`calendar_sync`-geschützt, VEVENT-Parser: UTC/TZID/all-day/CANCELLED) +
+       `app:booking:sync-calendars` Command + Cron (alle 10 Min); `BookingSlotService` zieht die
+       Belegt-Blöcke des Hosts ab; Admin-Seite `/kalender-sync` zum Hinterlegen der ICS-URL.
+       **Offen (spätere Ausbaustufe):**
+       - (a) **ICS-Feed-Abo (einfachste, kein OAuth):** Mitarbeiter hinterlegt seine geheime
+         ICS-URL (Google/Outlook/Apple bieten sowas); Cron holt + parst die VEVENTs periodisch in
+         einen Belegt-Cache. Read-only, near-real-time via Poll. Ergänzt die schon gebaute
+         ICS-Erzeugung.
+       - (b) **Google/Outlook-API (OAuth + FreeBusy):** reicher, näher an Echtzeit, ggf. Zwei-Wege
+         (Buchung landet im Kalender des Mitarbeiters); nutzt die vorhandene Channels-OAuth-Plumbing
+         (Graph/Gmail). Größer.
+       - (c) CalDAV: generisch, aber komplex.
+       - Feld/Modell: `MeetingType.host` bzw. eine `StaffCalendarConnection` (User + Feed-URL/OAuth-
+         Token + letzter Sync); Belegt-Zeiten als Cache-Tabelle, die die Slot-Engine subtrahiert.
 - Broadcast-Ankündigungen (Wartung, Features, Preise)
 - **Newsletter-Verwaltung (Baum-Struktur)** – hierarchisch organisierte Newsletter/Themen, die der Kunde im Portal einzeln abonnieren bzw. abbestellen kann.
   - **Datenmodell:** Newsletter als Baum (Selbstreferenz `parent` + `position`); pro Knoten **Titel** und **Beschreibung**; beliebige Verschachtelungstiefe.

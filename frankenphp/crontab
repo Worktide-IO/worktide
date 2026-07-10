@@ -41,6 +41,10 @@
 0 7 * * * cd /app && php bin/console app:notifications:send-digest --frequency=daily
 5 7 * * 1 cd /app && php bin/console app:notifications:send-digest --frequency=weekly
 
+# Booking free/busy: poll staff ICS calendar feeds so slots reflect the host's
+# real availability. Every 10 minutes (behind the calendar_sync egress gate).
+*/10 * * * * cd /app && php bin/console app:booking:sync-calendars
+
 # --- Disabled by default: need per-workspace setup / --apply ---------------
 # lexoffice syncs default to dry-run and require an API key on the channel:
 #*/30 * * * * cd /app && php bin/console app:lexoffice:sync-invoices --apply

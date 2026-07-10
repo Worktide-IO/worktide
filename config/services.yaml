@@ -136,6 +136,11 @@ services:
         arguments:
             $publicFormSubmitLimiter: '@limiter.public_form_submit'
 
+    # Public booking reuses the same per-IP submit limiter for POST /v1/book/{slug}.
+    App\Controller\Api\PublicBookingController:
+        arguments:
+            $publicFormSubmitLimiter: '@limiter.public_form_submit'
+
     # Workspace-invitation email (branded accept link → SPA).
     App\Service\WorkspaceInvitationMailer:
         arguments:
@@ -168,6 +173,17 @@ services:
             $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
             $mailFrom: '%env(MAILER_FROM)%'
             $mailFromName: '%env(string:MAILER_FROM_NAME)%'
+
+    # Booking (Calendly-style) confirmation/cancellation mail + ICS: needs the
+    # portal base (cancel link) and a system from-address.
+    App\Service\Booking\BookingMailer:
+        arguments:
+            $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
+            $mailFrom: '%env(MAILER_FROM)%'
+            $mailFromName: '%env(string:MAILER_FROM_NAME)%'
+    App\Service\Booking\IcsGenerator:
+        arguments:
+            $mailFrom: '%env(MAILER_FROM)%'
 
     # White-label branding, resolved from BRAND_* env. Source of truth for the
     # public /v1/branding endpoint (SPAs) and the `brand` Twig global (emails).

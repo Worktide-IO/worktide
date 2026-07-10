@@ -1,0 +1,16 @@
+{% extends 'email/base.txt.twig' %}
+
+{% block content %}{% if inviteeName %}Hallo {{ inviteeName }},{% else %}Hallo,{% endif %}
+
+Ihr Termin ist bestätigt. Details:
+
+{{ title }}
+Datum: {{ start|date('l, d.m.Y') }}
+Zeit:  {{ start|date('H:i') }}-{{ end|date('H:i') }} ({{ durationMinutes }} Min., {{ timezone }})
+Ort:   {{ location }}
+{% if hostName %}Mit:   {{ hostName }}
+{% endif %}{% if notes %}Notiz: {{ notes }}
+{% endif %}
+Der Termin liegt als Kalender-Datei (.ics) bei.
+
+Termin absagen: {{ cancelUrl }}{% endblock %}
