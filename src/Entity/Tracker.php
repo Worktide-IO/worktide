@@ -21,6 +21,7 @@ use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\TrackerRepository;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Trait\TranslatableTrait;
 
 /**
  * Issue tracker classification — Bug, Feature, Story, Support, Epic, …
@@ -70,8 +71,9 @@ use Doctrine\ORM\Mapping as ORM;
 ])]
 #[ApiFilter(BooleanFilter::class, properties: ['isDefault'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'position', 'createdAt'])]
-class Tracker
+class Tracker implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use WorkspaceScopedTrait;
@@ -126,4 +128,12 @@ class Tracker
 
     public function getDefaultStatus(): ?TaskStatus { return $this->defaultStatus; }
     public function setDefaultStatus(?TaskStatus $s): self { $this->defaultStatus = $s; return $this; }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['name'];
+    }
+
 }

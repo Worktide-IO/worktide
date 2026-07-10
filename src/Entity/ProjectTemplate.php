@@ -24,6 +24,7 @@ use App\Repository\ProjectTemplateRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Trait\TranslatableTrait;
 
 /**
  * Reusable blueprint for a Project. Captures the project's "defaults"
@@ -51,8 +52,9 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiFilter(SearchFilter::class, properties: ['workspace' => 'exact', 'name' => 'partial', 'projectType' => 'exact'])]
 #[ApiFilter(BooleanFilter::class, properties: ['isPublished', 'isArchived'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt'])]
-class ProjectTemplate
+class ProjectTemplate implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
@@ -155,4 +157,12 @@ class ProjectTemplate
         }
         return $this;
     }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['name', 'description'];
+    }
+
 }

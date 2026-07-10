@@ -6,6 +6,7 @@ namespace App\Controller\Api;
 
 use App\Entity\DomainEventLog;
 use App\Entity\User;
+use App\Service\I18n\LocaleResolver;
 use App\Service\PasswordPolicy;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -41,6 +42,7 @@ final class MeProfileController
         private readonly UserPasswordHasherInterface $hasher,
         private readonly RequestStack $requestStack,
         private readonly PasswordPolicy $passwordPolicy,
+        private readonly LocaleResolver $localeResolver,
     ) {}
 
     #[Route(
@@ -87,6 +89,20 @@ final class MeProfileController
                 throw new BadRequestHttpException('lastName is too long.');
             }
             $user->setLastName($trimmed);
+        }
+        if (array_key_exists('preferredLanguage', $body)) {
+            $value = $body['preferredLanguage'];
+            // Null / empty clears the preference (→ falls back to workspace / default).
+            if ($value === null || $value === '') {
+                $user->setPreferredLanguage(null);
+            } elseif (is_string($value) && $this->localeResolver->isSupported($value)) {
+                $user->setPreferredLanguage($value);
+            } else {
+                throw new BadRequestHttpException(sprintf(
+                    'preferredLanguage must be null or one of: %s.',
+                    implode(', ', $this->localeResolver->supportedLocales()),
+                ));
+            }
         }
 
         $this->em->flush();
@@ -169,6 +185,8 @@ final class MeProfileController
             'fullName' => $user->getFullName(),
             'roles' => $user->getRoles(),
             'lastLoginAt' => $user->getLastLoginAt()?->format(\DateTimeInterface::ATOM),
+            'preferredLanguage' => $user->getPreferredLanguage(),
+            'supportedLanguages' => $this->localeResolver->supportedLocales(),
         ];
     }
 
