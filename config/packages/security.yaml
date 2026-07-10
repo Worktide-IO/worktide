@@ -77,6 +77,11 @@ security:
         - { path: ^/v1/branding,     roles: PUBLIC_ACCESS }   # white-label config; non-sensitive, needed on login/set-password pages
         - { path: ^/v1/version,      roles: PUBLIC_ACCESS }   # build/version identity; non-sensitive, aids deploy diagnosis
         - { path: ^/v1/$,            roles: PUBLIC_ACCESS }
+        # Any authenticated session (staff ROLE_USER or portal ROLE_PORTAL) may
+        # log itself out — it clears the httpOnly refresh cookie + revokes the
+        # token. MUST stay above the ROLE_USER catch-all so portal users aren't
+        # 403'd out of clearing their own cookie.
+        - { path: ^/v1/auth/logout, roles: IS_AUTHENTICATED_FULLY }
         # Portal endpoints require ROLE_PORTAL. Portal users have ONLY that role
         # (User::getRoles() withholds the implicit ROLE_USER from them), so the
         # ROLE_USER baseline below locks them out of every staff endpoint, and
