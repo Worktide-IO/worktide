@@ -8,8 +8,13 @@ use ApiPlatform\Doctrine\Orm\Extension\QueryCollectionExtensionInterface;
 use ApiPlatform\Doctrine\Orm\Extension\QueryItemExtensionInterface;
 use ApiPlatform\Doctrine\Orm\Util\QueryNameGeneratorInterface;
 use ApiPlatform\Metadata\Operation;
+use App\Entity\DomainEventLog;
+use App\Entity\Project;
+use App\Entity\ProjectMember;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Entity\User;
+use App\Entity\UserCapacity;
+use App\Entity\UserContactInfo;
 use App\Entity\Workspace;
 use App\Entity\WorkspaceMember;
 use Doctrine\ORM\QueryBuilder;
@@ -77,10 +82,17 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         $isWorkspaceItself = $resourceClass === Workspace::class;
         $isUser = $resourceClass === User::class;
         $isMembership = $resourceClass === WorkspaceMember::class;
-        // Workspace / User / WorkspaceMember have no scopable `.workspace` of
-        // the usual shape, so they get bespoke subqueries below; everything
-        // else is scoped only if it carries WorkspaceScopedTrait.
-        if (!$isWorkspaceItself && !$isUser && !$isMembership && !$this->isWorkspaceScoped($resourceClass)) {
+        // Per-user rows scoped to the caller themselves (no cross-user reads).
+        $isSelfOwned = $resourceClass === UserContactInfo::class || $resourceClass === UserCapacity::class;
+        // ProjectMember scopes through its parent project's workspace.
+        $isProjectMember = $resourceClass === ProjectMember::class;
+        // DomainEventLog has a plain (nullable) .workspace → generic branch below.
+        // Workspace / User / WorkspaceMember / the above have no
+        // WorkspaceScopedTrait, so they get bespoke handling; everything else is
+        // scoped only if it carries the trait.
+        if (!$isWorkspaceItself && !$isUser && !$isMembership && !$isSelfOwned
+            && !$isProjectMember && $resourceClass !== DomainEventLog::class
+            && !$this->isWorkspaceScoped($resourceClass)) {
             return;
         }
 
@@ -93,6 +105,54 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         }
 
         $userParam = $queryNameGenerator->generateParameterName('scopeUserId');
+
+        // UserContactInfo / UserCapacity: per-user PII/capacity rows, visible
+        // only to their owner. Simple self-scope; no cross-user reads at all.
+        if ($isSelfOwned) {
+            $queryBuilder
+                ->andWhere(sprintf('%s.user = :%s', $rootAlias, $userParam))
+                ->setParameter($userParam, $user->getId(), UuidType::NAME);
+            return;
+        }
+
+        // ProjectMember: scope via the parent project's workspace — a row is
+        // visible iff the caller is a member of the workspace that owns the
+        // project. Prevents enumerating/tampering with other tenants' project
+        // memberships (which grant task access via TaskVoter).
+        if ($isProjectMember) {
+            $wmAlias = $queryNameGenerator->generateJoinAlias('wmpm');
+            $projAlias = $queryNameGenerator->generateJoinAlias('projpm');
+            $subDql = sprintf(
+                'SELECT 1 FROM %s %s, %s %s WHERE %s = %s.project AND %s.workspace = %s.workspace AND %s.user = :%s',
+                WorkspaceMember::class, $wmAlias,
+                Project::class, $projAlias,
+                $projAlias, $rootAlias,
+                $wmAlias, $projAlias,
+                $wmAlias, $userParam,
+            );
+            $queryBuilder
+                ->andWhere(sprintf('EXISTS (%s)', $subDql))
+                ->setParameter($userParam, $user->getId(), UuidType::NAME);
+
+            $requested = $this->requestStack->getCurrentRequest()?->headers->get('X-Workspace-Id');
+            if ($requested !== null && $requested !== '') {
+                try {
+                    $requestedUuid = Uuid::fromString($requested);
+                } catch (\InvalidArgumentException) {
+                    $queryBuilder->andWhere('1 = 0');
+                    return;
+                }
+                $wsParam = $queryNameGenerator->generateParameterName('scopeWsId');
+                $projNarrow = $queryNameGenerator->generateJoinAlias('projnarrow');
+                $queryBuilder
+                    ->andWhere(sprintf(
+                        'EXISTS (SELECT 1 FROM %s %s WHERE %s = %s.project AND %s.workspace = :%s)',
+                        Project::class, $projNarrow, $projNarrow, $rootAlias, $projNarrow, $wsParam,
+                    ))
+                    ->setParameter($wsParam, $requestedUuid, UuidType::NAME);
+            }
+            return;
+        }
 
         // User is scoped by CO-MEMBERSHIP: a user row is visible iff it shares
         // at least one workspace with the caller. Without this, GET /v1/users

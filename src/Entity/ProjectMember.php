@@ -26,11 +26,16 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiResource(
     shortName: 'ProjectMember',
     operations: [
-        new GetCollection(),
-        new Get(),
-        new Post(),
-        new Patch(),
-        new Delete(),
+        // Collection is scoped to the caller's workspaces by
+        // WorkspaceScopeExtension (via .project.workspace); item + write ops are
+        // gated on the parent project so members of one workspace can't read or
+        // tamper with another workspace's project memberships (which would grant
+        // task access via TaskVoter).
+        new GetCollection(security: "is_granted('ROLE_USER')"),
+        new Get(security: "is_granted('VIEW', object.getProject())"),
+        new Post(securityPostDenormalize: "is_granted('EDIT', object.getProject())"),
+        new Patch(security: "is_granted('EDIT', object.getProject())"),
+        new Delete(security: "is_granted('EDIT', object.getProject())"),
     ],
     mercure: true,
 )]

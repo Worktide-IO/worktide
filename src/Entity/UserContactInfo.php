@@ -33,11 +33,15 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiResource(
     shortName: 'UserContactInfo',
     operations: [
+        // Per-user PII (private phone numbers, addresses). Reads are scoped to
+        // the caller's OWN rows by WorkspaceScopeExtension (root.user == caller);
+        // every item/write op is self-only. Previously any ROLE_USER could read
+        // or modify every user's contact info across all tenants.
         new GetCollection(security: "is_granted('ROLE_USER')"),
-        new Get(security: "is_granted('ROLE_USER')"),
-        new Post(security: "is_granted('ROLE_USER')"),
-        new Patch(security: "is_granted('ROLE_USER')"),
-        new Delete(security: "is_granted('ROLE_USER')"),
+        new Get(security: "object.getUser() == user"),
+        new Post(securityPostDenormalize: "object.getUser() == user"),
+        new Patch(security: "object.getUser() == user"),
+        new Delete(security: "object.getUser() == user"),
     ],
 )]
 #[ApiFilter(SearchFilter::class, properties: ['user' => 'exact', 'type' => 'exact', 'subType' => 'exact', 'value' => 'partial'])]
