@@ -9,6 +9,8 @@ use App\Egress\EgressModule;
 use App\Entity\Enum\WebhookDeliveryStatus;
 use App\Entity\Webhook;
 use App\Entity\WebhookDelivery;
+use App\Http\OutboundUrlGuard;
+use App\Http\UnsafeUrlException;
 use App\Message\SendWebhookMessage;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -50,6 +52,7 @@ final class SendWebhookHandler
         private readonly EntityManagerInterface $em,
         private readonly LoggerInterface $logger,
         private readonly EgressGuard $egress,
+        private readonly OutboundUrlGuard $urlGuard,
     ) {}
 
     public function __invoke(SendWebhookMessage $msg): void
@@ -108,6 +111,23 @@ final class SendWebhookHandler
         $delivery->setAttemptedAt(new \DateTimeImmutable());
         $webhook->setLastTriggeredAt($delivery->getAttemptedAt());
 
+        // SSRF guard: the target URL is operator-supplied. Refuse anything that
+        // isn't a public http(s) host and pin the connection to the validated
+        // IP (defeats DNS rebinding between here and the request).
+        try {
+            $target = $this->urlGuard->assertPublicHttpUrl($webhook->getUrl());
+        } catch (UnsafeUrlException $e) {
+            $delivery
+                ->setStatus(WebhookDeliveryStatus::Failure)
+                ->setErrorMessage('Refused (unsafe URL): ' . $e->getMessage())
+                ->setDurationMs(0);
+            $this->registerFailure($webhook);
+            $this->em->persist($delivery);
+            $this->em->flush();
+            // Bad target won't fix itself on retry → straight to the failed transport.
+            throw new UnrecoverableMessageHandlingException('Webhook URL is not a safe public target: ' . $e->getMessage());
+        }
+
         try {
             $response = $this->http->request('POST', $webhook->getUrl(), [
                 'headers' => [
@@ -119,6 +139,10 @@ final class SendWebhookHandler
                 ],
                 'body' => $body,
                 'timeout' => self::TIMEOUT_SECONDS,
+                // Pin DNS to the validated IP and never follow redirects — a 3xx
+                // to an internal URL would otherwise bypass the SSRF guard.
+                'max_redirects' => 0,
+                'resolve' => [$target['host'] => $target['ip']],
             ]);
             $code = $response->getStatusCode();
             $responseBody = $response->getContent(throw: false);
