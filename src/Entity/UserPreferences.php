@@ -74,6 +74,32 @@ class UserPreferences
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $favoriteProjectIds = null;
 
+    /**
+     * Notification delivery preferences. Null = defaults (see
+     * {@see \App\Notification\Preference\NotificationPreferences}). In-app
+     * (the bell) is always on and NOT represented here — this only governs
+     * the email channel. Expected shape:
+     *
+     *   {
+     *     "email": true,                 // master email switch
+     *     "frequency": "instant",        // instant | daily | weekly
+     *     "types": { "comment": true, "task_assigned": true, ... },
+     *     "quietHours": { "start": "22:00", "end": "07:00" } | null
+     *   }
+     *
+     * @var array<string, mixed>|null
+     */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $notificationPreferences = null;
+
+    /**
+     * When the last digest email was sent to this user — the lower bound for
+     * the next digest's "unread since" window. Server state (mutated by the
+     * digest command), not a user-editable preference.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastNotificationDigestAt = null;
+
     public function __construct(User $user)
     {
         $this->user = $user;
@@ -124,6 +150,32 @@ class UserPreferences
     public function setFavoriteProjectIds(?array $ids): self
     {
         $this->favoriteProjectIds = $ids;
+
+        return $this;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function getNotificationPreferences(): ?array
+    {
+        return $this->notificationPreferences;
+    }
+
+    /** @param array<string, mixed>|null $prefs */
+    public function setNotificationPreferences(?array $prefs): self
+    {
+        $this->notificationPreferences = $prefs;
+
+        return $this;
+    }
+
+    public function getLastNotificationDigestAt(): ?\DateTimeImmutable
+    {
+        return $this->lastNotificationDigestAt;
+    }
+
+    public function setLastNotificationDigestAt(?\DateTimeImmutable $at): self
+    {
+        $this->lastNotificationDigestAt = $at;
 
         return $this;
     }

@@ -1,0 +1,36 @@
+{% extends 'email/base.html.twig' %}
+
+{% set primary = brand.primaryColor %}
+
+{% block title %}Ihre Benachrichtigungen{% endblock %}
+
+{% block content %}
+    <tr>
+        <td style="font-size:18px; font-weight:600; padding-bottom:16px;">
+            {% if count == 1 %}Eine neue Benachrichtigung{% else %}{{ count }} neue Benachrichtigungen{% endif %}
+        </td>
+    </tr>
+    <tr>
+        <td style="font-size:14px; line-height:1.6; padding-bottom:16px;">
+            {% if firstName %}Hallo {{ firstName }},{% else %}Hallo,{% endif %}<br><br>
+            hier ist Ihre Zusammenfassung:
+        </td>
+    </tr>
+    {% for item in items %}
+    <tr>
+        <td style="padding-bottom:12px;">
+            <div style="border:1px solid #e4e4e7; border-radius:8px; padding:12px 14px;">
+                <a href="{{ item.url }}" style="color:#18181b; text-decoration:none; font-size:14px; font-weight:600;">{{ item.title }}</a>
+                {% if item.body %}<div style="font-size:13px; line-height:1.5; color:#52525b; padding-top:4px;">{{ item.body }}</div>{% endif %}
+                <div style="font-size:11px; color:#a1a1aa; padding-top:6px;">{{ item.occurredAt|date('d.m.Y H:i') }} Uhr</div>
+            </div>
+        </td>
+    </tr>
+    {% endfor %}
+    <tr>
+        <td style="font-size:12px; line-height:1.6; color:#71717a; border-top:1px solid #e4e4e7; padding-top:16px;">
+            Sie erhalten diese Zusammenfassung, weil Sie E-Mail-Benachrichtigungen als Digest eingestellt haben.
+            Die Häufigkeit können Sie jederzeit in den Einstellungen ändern.
+        </td>
+    </tr>
+{% endblock %}

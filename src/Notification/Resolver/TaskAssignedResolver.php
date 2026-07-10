@@ -12,12 +12,18 @@ use App\Notification\ResolvedNotification;
 use App\Repository\TaskRepository;
 
 /**
- * Notify users assigned to a task at creation time.
+ * Notify users assigned to a task — at creation and on later re-assignment.
  *
- * `task.created` carries `payload.assignedUsers` (a list of user IRIs — added
- * by DomainEventEmitterSubscriber::enrichPayload). Note: assignee CHANGES on an
- * existing task are not yet emitted (a future `task.assignees_changed` event is
- * the intended trigger); v1 covers assignment-at-create.
+ *  - `task.created` carries `payload.assignedUsers` (user IRIs added by
+ *    DomainEventEmitterSubscriber::enrichPayload) — assignment-at-create.
+ *  - `task.assignees_changed` carries `payload.addedUsers` (user IRIs), emitted
+ *    by TaskActionsController::setAssignees when the assignee set changes on an
+ *    existing task. Only the NEWLY-added users are notified; already-assigned
+ *    and removed users are not.
+ *
+ * The two events produce distinct DomainEventLog ids, so the dispatcher's
+ * (recipient, source_event_id, type) dedupe lets a genuine re-assignment
+ * notify again without re-firing for unchanged assignees.
  */
 final class TaskAssignedResolver implements NotificationResolverInterface
 {
@@ -28,12 +34,15 @@ final class TaskAssignedResolver implements NotificationResolverInterface
 
     public function supports(DomainEventLog $event): bool
     {
-        return $event->getName() === 'task.created';
+        return \in_array($event->getName(), ['task.created', 'task.assignees_changed'], true);
     }
 
     public function resolve(DomainEventLog $event): iterable
     {
-        $assignees = $event->getPayload()['assignedUsers'] ?? null;
+        $payload = $event->getPayload();
+        $assignees = $event->getName() === 'task.assignees_changed'
+            ? ($payload['addedUsers'] ?? null)
+            : ($payload['assignedUsers'] ?? null);
         if (!\is_array($assignees) || $assignees === []) {
             return;
         }

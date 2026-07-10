@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Entity\DomainEventLog;
 use App\Entity\Enum\AssigneePrincipalType;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Task;
@@ -151,6 +152,7 @@ final class TaskActionsController
         // what actually changed.
         $desiredUserIds = array_map(static fn (User $u) => $u->getId()?->toRfc4122(), $users);
         $existingUserIds = [];
+        $removedUserIris = [];
         foreach ($task->getAssignedPrincipals()->toArray() as $existing) {
             \assert($existing instanceof TaskAssignee);
             if ($existing->getPrincipalType() !== AssigneePrincipalType::User) {
@@ -161,8 +163,10 @@ final class TaskActionsController
                 $existingUserIds[] = $pid;       // keep
             } else {
                 $task->removeAssignedPrincipal($existing); // no longer wanted
+                $removedUserIris[] = '/v1/users/' . $pid;
             }
         }
+        $addedUserIris = [];
         foreach ($users as $u) {
             if (\in_array($u->getId()?->toRfc4122(), $existingUserIds, true)) {
                 continue; // already assigned
@@ -172,8 +176,30 @@ final class TaskActionsController
                     ->setPrincipalType(AssigneePrincipalType::User)
                     ->setPrincipalId($u->getId())
             );
+            $addedUserIris[] = '/v1/users/' . $u->getId()?->toRfc4122();
         }
         $this->em->flush();
+
+        // Assignee CHANGES on an existing task aren't picked up by the generic
+        // emitter (TaskAssignee join rows aren't TRACKED, and the ManyToMany-ish
+        // edit never dirties the Task itself). Emit an explicit domain event so
+        // TaskAssignedResolver notifies the newly-assigned users — the "future
+        // set-assignees controller" the emitter's docblock anticipated.
+        if ($addedUserIris !== [] || $removedUserIris !== []) {
+            $actor = $this->security->getUser();
+            $this->em->persist(new DomainEventLog(
+                'task.assignees_changed',
+                'Task',
+                $task->getId(),
+                $task->getWorkspace(),
+                $actor instanceof User ? $actor : null,
+                [
+                    'addedUsers' => $addedUserIris,
+                    'removedUsers' => $removedUserIris,
+                ],
+            ));
+            $this->em->flush();
+        }
 
         return new JsonResponse([
             'id' => $task->getId()?->toRfc4122(),

@@ -14,6 +14,46 @@ Kundenportal pro Workspace. CRM-Kontakte werden freigeschaltet und erhalten eine
 
 ---
 
+## Umsetzungsstand §7 & §8 (Analyse 2026-07-10)
+
+Ergebnis einer Codebase-Analyse (Backend `worktide`, SPAs `worktide-web` / `worktide-portal`)
+vor Inangriffnahme von §7. Viel Fundament existiert bereits — der Fokus liegt auf *Lücken
+schließen* und *ans Portal ausliefern*, nicht auf Greenfield.
+
+**§7 Kommunikation & Termine**
+
+| Punkt | Stand | Lücke |
+|---|---|---|
+| Event-Log + Inbox + 6 Resolver (`DomainEventLog`→`Notification`, Mercure-Push) | ✅ geliefert | — |
+| Glocke + Inbox-Seite (beide SPAs) | ✅ geliefert | — |
+| **Portal Echtzeit (Mercure)** | ✅ **erledigt 2026-07-10** — Glocke + Inbox live via `worktide-portal/src/lib/mercure.ts` (scoped Token-Endpoint `/v1/portal/mercure-token`, Vite-Proxy für CORS in dev) | — |
+| Inbox-Nacharbeit: `task.assignees_changed` | ✅ **erledigt 2026-07-10** — Event aus `TaskActionsController::setAssignees`, `TaskAssignedResolver` behandelt beide Events | — |
+| Inbox-Nacharbeit: katalogweite Launches | ⚠️ offen | Audience für globale `product.created` definieren (`LaunchResolver.php:22-27`) |
+| HMAC-Webhooks (in/out) | ✅ geliefert | — |
+| **Benachrichtigungskanäle** (In-App + E-Mail pro User) | ✅ **erledigt 2026-07-10** — `notificationPreferences` auf `UserPreferences`; Portal `/v1/portal/notification-preferences` + Seite `/einstellungen`; Instant-E-Mail via `NotificationEmailNotifier` (Egress-Gate, Ruhezeiten, pro Typ) | Chat-Adapter (Slack/Mattermost/Teams) weiterhin offen |
+| E-Mail-Digest (Täglich/Wöchentlich) | ✅ **erledigt 2026-07-10** — `app:notifications:send-digest` + Cron (`frankenphp/crontab` + `.ddev`) | — |
+| **Newsletter-Baum** (Opt-in) | ✅ **erledigt 2026-07-10** — `Newsletter`-Baum (Self-Ref) + `NewsletterSubscription` + `Customer.enabledNewsletterIds`; Admin-Baum-Editor (`worktide-web` /newsletter) + Kunden-Reiter „Newsletter"; Portal `/newsletter` Opt-in (`PortalNewslettersController`) | Drag-Reorder verschoben (Move via Parent-Auswahl); i18n der Titel verschoben |
+| Terminbuchung / Meeting-Slots | ❌ fehlt (Calendly-Klon, Phase E `ROADMAP.md:253`) | großes Greenfield + ICS |
+| Broadcast-Ankündigungen | ❌ fehlt | verwandt mit Newsletter/Launch-Audience |
+
+**§8 Wissen & Assets**
+
+| Punkt | Stand | Lücke |
+|---|---|---|
+| `File`/`FileVersion`, polymorph, Flysystem local↔S3/MinIO, Upload+Versionierung+ETag | ✅ geliefert | — |
+| Wiki/KB = `Document` + `DocumentSpace` + Revisions + Workflow | ✅ geliefert (Portal **read-only, flache Liste**) | Baum-/Space-Navigation im Portal |
+| **Nativer Dateiaustausch (Portal-Modul)** | ⚠️ nur Ticket-Anhänge (`<input>`, Download-only) | Drag-&-Drop, Inline-Vorschau, Datei-im-Kontext; `FileTarget::Document` ist Stub |
+| Presigned URLs | ❌ zurückgestellt (alles streamt durch die App) | S3-Presign up/down |
+| Verschlüsselter Credentials-Tresor | ❌ heute Klartext (`CustomerSystem.credentialsNotes`) | Encryption-at-Rest + Entität |
+| Virenscan (ClamAV) | ❌ fehlt | Scan-on-Upload |
+| Marken-Asset-Bibliothek | ❌ fehlt (nur Instanz-Logo + `BRAND_*`-Env-Farben) | Entität + Library-UI |
+
+**Struktur-Hebel:** neue Notification-Typen = Enum-Case + Resolver (keine Transport-Plumbing);
+Portal-Feature freischalten = `PortalAccessResolver::FEATURE_KEYS` + `Workspace.settings.portal.features`
+minus `Contact.portalHiddenFeatures`. `Contact` hat **kein** `locale`-Feld (i18n-Tier-1-Voraussetzung).
+
+---
+
 ## 1. Dashboard & Einstieg
 
 - Zentrales Kunden-Dashboard mit Überblick
@@ -101,6 +141,14 @@ Eine schlanke Produkt-/Feature-Roadmap, die im Portal sichtbar gemacht werden ka
   - **Verwaltung (Admin-Web):** CRUD + Baum-Editor (anlegen, umbenennen, verschieben, verschachteln) im Admin-SPA.
   - **Freischaltung pro Kunde:** im Kunden-Datensatz einzeln freischaltbar (analog zur Portal-Freischaltung); nur freigeschaltete Newsletter erscheinen im Portal des jeweiligen Kunden.
   - **Portal (Kunde):** freigeschaltete Newsletter im Baum an-/abwählen (Opt-in/Opt-out je Knoten); Abo-Status pro Contact.
+  - **TODO (offen, 2026-07-10): Newsletter-Vorlagen (Templates) + editierbar.** Pro Newsletter-Knoten
+    wiederverwendbare Inhalts-/Versand-Vorlagen anlegen und **im Admin bearbeiten** (Editor). Nutzt den
+    bereits queryfähigen `NewsletterSubscription`-Join als Empfängerliste, sobald „Newsletter versenden"
+    gebaut wird. Offene Punkte: Template-Datenmodell (eigene Entität `NewsletterTemplate` mit Betreff +
+    Rich-Text-Body, FK auf `Newsletter`?), Editor im Admin-SPA (BlockNote wie bei Documents oder
+    einfacher Markdown/HTML-Editor), Platzhalter/Variablen (Anrede, Firmenname), Vorschau, und
+    Anbindung an den Versand (Mailer + Egress-Gate wie beim Notification-Digest, siehe
+    [notifications-go-live.md](notifications-go-live.md)).
 
 ## 8. Wissen & Assets
 

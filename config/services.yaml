@@ -160,6 +160,15 @@ services:
             $mailFrom: '%env(MAILER_FROM)%'
             $mailFromName: '%env(string:MAILER_FROM_NAME)%'
 
+    # Notification → email bridge (instant channel) + the digest command both
+    # build deep-links (portal vs staff base) and a system from-address.
+    App\Notification\NotificationEmailNotifier:
+        arguments:
+            $spaBaseUrl: '%env(SPA_BASE_URL)%'
+            $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
+            $mailFrom: '%env(MAILER_FROM)%'
+            $mailFromName: '%env(string:MAILER_FROM_NAME)%'
+
     # White-label branding, resolved from BRAND_* env. Source of truth for the
     # public /v1/branding endpoint (SPAs) and the `brand` Twig global (emails).
     # string: keeps empty values as '' (BrandingConfig applies the fall-backs).

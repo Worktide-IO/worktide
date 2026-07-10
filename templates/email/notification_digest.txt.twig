@@ -1,0 +1,11 @@
+{% extends 'email/base.txt.twig' %}
+
+{% block content %}{% if firstName %}Hallo {{ firstName }},{% else %}Hallo,{% endif %}
+
+{% if count == 1 %}Eine neue Benachrichtigung{% else %}{{ count }} neue Benachrichtigungen{% endif %}:
+{% for item in items %}
+- {{ item.title }}{% if item.body %} — {{ item.body }}{% endif %}
+  {{ item.url }}
+{% endfor %}
+
+Sie erhalten diese Zusammenfassung, weil Sie E-Mail-Benachrichtigungen als Digest eingestellt haben. Die Häufigkeit können Sie in den Einstellungen ändern.{% endblock %}

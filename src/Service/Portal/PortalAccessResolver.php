@@ -110,6 +110,7 @@ final class PortalAccessResolver
         'documents',
         'proposals',
         'invoices',
+        'newsletters',
     ];
 
     /**

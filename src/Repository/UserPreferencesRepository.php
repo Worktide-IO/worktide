@@ -23,4 +23,20 @@ class UserPreferencesRepository extends ServiceEntityRepository
     {
         return $this->findOneBy(['user' => $user]);
     }
+
+    /**
+     * Every row that carries a notification-preference block — the digest
+     * command's candidate set (only users who changed a default can opt into a
+     * digest cadence, so this stays small). Filtering by frequency happens in
+     * PHP against the JSON.
+     *
+     * @return list<UserPreferences>
+     */
+    public function findWithNotificationPreferences(): array
+    {
+        return $this->createQueryBuilder('p')
+            ->andWhere('p.notificationPreferences IS NOT NULL')
+            ->getQuery()
+            ->getResult();
+    }
 }
