@@ -60,6 +60,13 @@ services:
       AUTO_MIGRATE: "1"
       # Coolify maps the domain to this service:port. Traefik terminates TLS.
       SERVER_NAME: ":80"
+    # Pin Traefik to the shared `coolify` network. This `app` service is on two
+    # networks (default + coolify); without this label Traefik can keep routing
+    # to the OLD, now-stopped container after a redeploy → external requests to
+    # the API hang (curl 000) until a manual Restart. Coolify still generates the
+    # router/service labels; this only tells Traefik which network to dial.
+    labels:
+      - "traefik.docker.network=coolify"
     # Tell Coolify which domain + port serves this service (or set it in the UI).
     # Replace with the value from Coolify's "Domains" field:
     #   SERVICE_FQDN_APP: https://api.worktide.wappler.systems
