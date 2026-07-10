@@ -11,7 +11,10 @@ use App\Entity\WorkspaceMember;
 use App\Repository\UserRepository;
 use App\Repository\WorkspaceInvitationRepository;
 use App\Repository\WorkspaceMemberRepository;
+use App\Security\RefreshTokenCookieFactory;
 use Doctrine\ORM\EntityManagerInterface;
+use Gesdinet\JWTRefreshTokenBundle\Generator\RefreshTokenGeneratorInterface;
+use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -39,6 +42,9 @@ use Symfony\Component\Routing\Attribute\Route;
  */
 final class WorkspaceInvitationAcceptController
 {
+    /** Refresh-token TTL in seconds (mirrors gesdinet_jwt_refresh_token.ttl: 30 days). */
+    private const REFRESH_TTL = 2592000;
+
     public function __construct(
         private readonly WorkspaceInvitationRepository $invitations,
         private readonly UserRepository $users,
@@ -46,6 +52,8 @@ final class WorkspaceInvitationAcceptController
         private readonly EntityManagerInterface $em,
         private readonly UserPasswordHasherInterface $hasher,
         private readonly JWTTokenManagerInterface $jwt,
+        private readonly RefreshTokenGeneratorInterface $refreshTokenGenerator,
+        private readonly RefreshTokenManagerInterface $refreshTokenManager,
     ) {}
 
     #[Route(
@@ -87,12 +95,20 @@ final class WorkspaceInvitationAcceptController
         $invitation->markAccepted($user);
         $this->em->flush();
 
-        return new JsonResponse([
+        // M1: issue a refresh token as an httpOnly cookie (like login/setup) so
+        // the invitee gets a durable session — access token stays in memory.
+        $refreshToken = $this->refreshTokenGenerator->createForUserWithTtl($user, self::REFRESH_TTL);
+        $this->refreshTokenManager->save($refreshToken);
+
+        $response = new JsonResponse([
             'invitationId' => $invitation->getId()?->toRfc4122(),
             'workspaceId' => $invitation->getWorkspace()->getId()?->toRfc4122(),
             'userId' => $user->getId()?->toRfc4122(),
             'token' => $this->jwt->create($user),
         ], 200);
+        $response->headers->setCookie(RefreshTokenCookieFactory::create($refreshToken->getRefreshToken(), self::REFRESH_TTL));
+
+        return $response;
     }
 
     /** @return array<string, mixed> */

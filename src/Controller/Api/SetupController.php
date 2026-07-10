@@ -18,6 +18,7 @@ use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use App\Security\RefreshTokenCookieFactory;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -146,12 +147,16 @@ final class SetupController
         $refreshToken = $this->refreshTokenGenerator->createForUserWithTtl($user, self::REFRESH_TTL);
         $this->refreshTokenManager->save($refreshToken);
 
-        return new JsonResponse([
+        // M1: refresh token as an httpOnly cookie (not the JSON body), matching
+        // the login flow — the SPA holds only the access token, in memory.
+        $response = new JsonResponse([
             'token' => $this->jwt->create($user),
-            'refresh_token' => $refreshToken->getRefreshToken(),
             'workspaceId' => $workspace->getId()?->toRfc4122(),
             'userId' => $user->getId()?->toRfc4122(),
         ], 201);
+        $response->headers->setCookie(RefreshTokenCookieFactory::create($refreshToken->getRefreshToken(), self::REFRESH_TTL));
+
+        return $response;
     }
 
     private function needsSetup(): bool

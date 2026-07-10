@@ -64,8 +64,14 @@ final class SetupControllerTest extends WebTestCase
         self::assertSame(201, $this->client->getResponse()->getStatusCode());
         $body = $this->json();
         self::assertNotEmpty($body['token']);
-        self::assertNotEmpty($body['refresh_token']);
         self::assertNotEmpty($body['workspaceId']);
+        // M1: the refresh token is delivered as an httpOnly cookie, not in the body.
+        self::assertArrayNotHasKey('refresh_token', $body);
+        $cookie = $this->client->getResponse()->headers->getCookies()[0] ?? null;
+        self::assertNotNull($cookie);
+        self::assertSame('refresh_token', $cookie->getName());
+        self::assertTrue($cookie->isHttpOnly());
+        self::assertNotEmpty($cookie->getValue());
 
         // The graph is correct: user, workspace (slugified), owner membership.
         $this->em->clear();
