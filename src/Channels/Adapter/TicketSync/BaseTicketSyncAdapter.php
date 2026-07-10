@@ -94,6 +94,23 @@ abstract class BaseTicketSyncAdapter implements InboundAdapter, SyncableAdapter
     abstract protected function baseUrl(Channel $channel): string;
 
     /**
+     * The admin-configured base URL, validated before we send this channel's
+     * stored credentials to it. Self-hosted Jira/Redmine legitimately live on an
+     * internal network, so RFC1918 is allowed; only the cloud-metadata endpoint
+     * (169.254.169.254), loopback and other reserved ranges are refused — the
+     * SSRF / credential-theft targets.
+     *
+     * @throws \App\Http\UnsafeUrlException when the host resolves to a reserved address
+     */
+    protected function guardedBaseUrl(Channel $channel): string
+    {
+        $url = $this->baseUrl($channel);
+        \App\Http\OutboundUrlGuard::ensureNotReservedHost($url);
+
+        return $url;
+    }
+
+    /**
      * HTTP headers carrying the auth credential. Reads
      * Channel.authConfig (already decrypted by the cipher listener).
      *
@@ -183,7 +200,7 @@ abstract class BaseTicketSyncAdapter implements InboundAdapter, SyncableAdapter
 
     public function pullEntities(Channel $channel, ?\DateTimeImmutable $changedSince = null): array
     {
-        $url = $this->baseUrl($channel) . $this->listPath($channel, $changedSince);
+        $url = $this->guardedBaseUrl($channel) . $this->listPath($channel, $changedSince);
         $headers = $this->authHeaders($channel) + ['Accept' => 'application/json'];
 
         $snapshots = [];
@@ -224,7 +241,7 @@ abstract class BaseTicketSyncAdapter implements InboundAdapter, SyncableAdapter
             );
         }
 
-        $url = $this->baseUrl($channel) . $this->entityPath($channel, $mapping->getExternalId());
+        $url = $this->guardedBaseUrl($channel) . $this->entityPath($channel, $mapping->getExternalId());
         $headers = $this->authHeaders($channel) + [
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
@@ -324,6 +341,10 @@ abstract class BaseTicketSyncAdapter implements InboundAdapter, SyncableAdapter
      */
     protected function jsonGet(string $url, array $headers): ResponseInterface
     {
+        // Re-validate every GET target (incl. API-supplied next-page links) so a
+        // paginated response can't redirect the crawler onto an internal host.
+        \App\Http\OutboundUrlGuard::ensureNotReservedHost($url);
+
         return $this->httpClient->request('GET', $url, [
             'headers' => $headers,
             'timeout' => 12,
