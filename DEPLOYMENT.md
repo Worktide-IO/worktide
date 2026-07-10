@@ -113,6 +113,11 @@ Notes:
     then restart the app (invalidates all existing tokens — expected on rotation).
 - Tune the cron cadences in `frankenphp/crontab`; lexoffice syncs are disabled
   there by default (need `--apply` + per-channel API key).
+- **Build/version identity** (`GET /v1/version`): the image bakes `APP_COMMIT`
+  (from Coolify's `SOURCE_COMMIT` build arg, wired in `compose.prod.yaml`),
+  `BUILD_TIME` (stamped at build), and optional `APP_VERSION` (set a Coolify
+  build var to the release tag, e.g. `v0.1.1`; falls back to the short commit).
+  Lets you confirm which build is live — the SPAs also surface it.
 
 ### Deploy & verify
 

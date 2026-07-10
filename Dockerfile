@@ -75,6 +75,14 @@ CMD [ "frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile", "--watch" ]
 ########################
 FROM frankenphp_base AS frankenphp_prod
 
+# Build/version identity surfaced at GET /v1/version. Pass APP_COMMIT (git SHA,
+# e.g. Coolify's SOURCE_COMMIT) and optionally APP_VERSION (release tag) as
+# build args; BUILD_TIME is stamped below. All degrade gracefully if unset.
+ARG APP_VERSION=""
+ARG APP_COMMIT=""
+ENV APP_VERSION=$APP_VERSION
+ENV APP_COMMIT=$APP_COMMIT
+
 ENV APP_ENV=prod
 # Classic per-request mode by default (zero extra deps). To enable FrankenPHP
 # worker mode: `composer require runtime/frankenphp-symfony`, keep worker.Caddyfile,
@@ -103,6 +111,7 @@ RUN set -eux; \
 	# .env.example. Real secrets come from the runtime environment (Coolify),
 	# which always wins over the baked .env.local.php.
 	cp .env.example .env; \
+	date -u +%Y-%m-%dT%H:%M:%SZ > BUILD_TIME; \
 	composer dump-autoload --classmap-authoritative --no-dev; \
 	composer dump-env prod; \
 	composer run-script --no-dev post-install-cmd || true; \
