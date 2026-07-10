@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Controller\Api\Concern\ResolvesWorkspaceMembership;
 use App\Entity\Task;
 use App\Entity\User;
-use App\Entity\Workspace;
-use App\Entity\WorkspaceMember;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -15,7 +14,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Uid\Uuid;
 
 /**
  * Dashboard read-model for the "Offene Kunden-Aufgaben" widget.
@@ -39,6 +37,8 @@ use Symfony\Component\Uid\Uuid;
  */
 final class DashboardOpenCustomerTasksController
 {
+    use ResolvesWorkspaceMembership;
+
     private const CAP = 200;
 
     public function __construct(
@@ -115,27 +115,5 @@ final class DashboardOpenCustomerTasksController
                 'name' => $customer->getName(),
             ],
         ];
-    }
-
-    private function resolveWorkspace(Request $request, User $user): ?Workspace
-    {
-        $hdr = $request->headers->get('X-Workspace-Id') ?? $request->query->get('workspace');
-        if (\is_string($hdr) && $hdr !== '') {
-            try {
-                $ws = $this->em->find(Workspace::class, Uuid::fromString($hdr));
-            } catch (\InvalidArgumentException) {
-                return null;
-            }
-            // Membership-checked: never trust a client-supplied workspace id.
-            if ($ws === null || $this->em->getRepository(WorkspaceMember::class)
-                    ->findOneBy(['workspace' => $ws, 'user' => $user]) === null) {
-                return null;
-            }
-
-            return $ws;
-        }
-        $membership = $this->em->getRepository(WorkspaceMember::class)->findOneBy(['user' => $user]);
-
-        return $membership?->getWorkspace();
     }
 }
