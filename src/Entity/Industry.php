@@ -23,6 +23,7 @@ use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\IndustryRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
+use App\Entity\Trait\TranslatableTrait;
 
 /**
  * A workspace-managed industry/sector ("Branche") a {@see Customer} can be
@@ -48,8 +49,9 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ApiFilter(SearchFilter::class, properties: ['workspace' => 'exact', 'name' => 'partial'])]
 #[ApiFilter(BooleanFilter::class, properties: ['isArchived'])]
 #[ApiFilter(OrderFilter::class, properties: ['position', 'name'])]
-class Industry
+class Industry implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
@@ -76,4 +78,12 @@ class Industry
 
     public function isArchived(): bool { return $this->isArchived; }
     public function setIsArchived(bool $v): self { $this->isArchived = $v; return $this; }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['name'];
+    }
+
 }

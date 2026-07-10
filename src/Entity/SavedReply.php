@@ -21,6 +21,7 @@ use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\SavedReplyRepository;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Trait\TranslatableTrait;
 
 /**
  * A workspace-scoped canned response (Phase C Schicht 2). The {@see $body} may
@@ -52,8 +53,9 @@ use Doctrine\ORM\Mapping as ORM;
     'shortcut' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt'])]
-class SavedReply
+class SavedReply implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
@@ -86,4 +88,12 @@ class SavedReply
 
     public function getBody(): string { return $this->body; }
     public function setBody(string $body): self { $this->body = $body; return $this; }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['name', 'description', 'body'];
+    }
+
 }

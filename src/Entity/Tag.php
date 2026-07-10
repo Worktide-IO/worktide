@@ -22,6 +22,7 @@ use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\TagRepository;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Trait\TranslatableTrait;
 
 #[ORM\Entity(repositoryClass: TagRepository::class)]
 #[ORM\Table(name: 'tags')]
@@ -44,8 +45,9 @@ use Doctrine\ORM\Mapping as ORM;
     'scope' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt'])]
-class Tag
+class Tag implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use WorkspaceScopedTrait;
@@ -94,4 +96,12 @@ class Tag
         $this->scope = $scope;
         return $this;
     }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['name'];
+    }
+
 }

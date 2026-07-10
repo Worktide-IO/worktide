@@ -22,6 +22,7 @@ use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\TypeOfWorkRepository;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Trait\TranslatableTrait;
 
 /**
  * Classification of time entries — "Development", "Project Management",
@@ -49,8 +50,9 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiFilter(SearchFilter::class, properties: ['workspace' => 'exact', 'name' => 'partial'])]
 #[ApiFilter(BooleanFilter::class, properties: ['isArchived', 'isBillableByDefault'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt'])]
-class TypeOfWork
+class TypeOfWork implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use WorkspaceScopedTrait;
@@ -99,4 +101,12 @@ class TypeOfWork
 
     public function getPosition(): int { return $this->position; }
     public function setPosition(int $p): self { $this->position = $p; return $this; }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['name', 'description'];
+    }
+
 }

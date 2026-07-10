@@ -70,6 +70,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastLoginAt = null;
 
+    /**
+     * Preferred display language (a supported-locale code, e.g. "de" / "en").
+     * Null = no explicit preference → the LocaleResolver falls back to the
+     * workspace locale, then the app default. Applies to both the staff SPA
+     * and the customer portal (both are User rows). Written only via
+     * MeProfileController, validated against app.supported_locales.
+     */
+    #[ORM\Column(length: 8, nullable: true)]
+    private ?string $preferredLanguage = null;
+
     /** @var Collection<int, WorkspaceMember> */
     #[ORM\OneToMany(targetEntity: WorkspaceMember::class, mappedBy: 'user', orphanRemoval: true)]
     private Collection $workspaceMemberships;
@@ -163,6 +173,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setLastLoginAt(?\DateTimeImmutable $when): self
     {
         $this->lastLoginAt = $when;
+        return $this;
+    }
+
+    public function getPreferredLanguage(): ?string
+    {
+        return $this->preferredLanguage;
+    }
+
+    public function setPreferredLanguage(?string $locale): self
+    {
+        $this->preferredLanguage = $locale;
         return $this;
     }
 

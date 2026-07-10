@@ -8,6 +8,7 @@ use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Repository\CustomFieldOptionRepository;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Trait\TranslatableTrait;
 
 /**
  * One selectable option for a `select` / `multi_select` CustomFieldDefinition.
@@ -23,8 +24,9 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'custom_field_options')]
 #[ORM\Index(name: 'cfo_definition_idx', columns: ['definition_id'])]
 #[ORM\HasLifecycleCallbacks]
-class CustomFieldOption
+class CustomFieldOption implements TranslatableInterface
 {
+    use TranslatableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
 
@@ -52,4 +54,12 @@ class CustomFieldOption
 
     public function getPosition(): int { return $this->position; }
     public function setPosition(int $p): self { $this->position = $p; return $this; }
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['value'];
+    }
+
 }

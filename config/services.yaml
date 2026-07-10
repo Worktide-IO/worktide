@@ -7,6 +7,13 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    # Locales the app can display translatable content + user profiles in.
+    # Extend this list to enable more languages; the LocaleResolver validates
+    # User.preferredLanguage / Workspace.locale against it.
+    app.supported_locales: ['de', 'en']
+    # Fallback when neither the user nor the workspace resolves to a supported
+    # locale. Mirrors framework/translation default_locale.
+    app.default_locale: 'en'
 
 services:
     # default configuration for services in *this* file
@@ -95,6 +102,12 @@ services:
     App\EventSubscriber\SearchIndexingListener:
         arguments:
             $searchProvider: '%env(string:SEARCH_PROVIDER)%'
+
+    # Active display-locale resolution (user preference → workspace → default).
+    App\Service\I18n\LocaleResolver:
+        arguments:
+            $supportedLocales: '%app.supported_locales%'
+            $defaultLocale: '%app.default_locale%'
 
     App\Command\AworkImportCommand:
         arguments:
