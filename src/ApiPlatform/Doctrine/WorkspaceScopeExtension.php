@@ -11,6 +11,7 @@ use ApiPlatform\Metadata\Operation;
 use App\Entity\DomainEventLog;
 use App\Entity\Project;
 use App\Entity\ProjectMember;
+use App\Entity\ProjectShare;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Entity\User;
 use App\Entity\UserCapacity;
@@ -199,7 +200,7 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         // For other resources: filter to entities whose .workspace the user is a member of.
         $wsExpr = $isWorkspaceItself ? $rootAlias : sprintf('%s.workspace', $rootAlias);
 
-        $subDql = sprintf(
+        $memberDql = sprintf(
             'SELECT 1 FROM %s %s WHERE %s.workspace = %s AND %s.user = :%s',
             WorkspaceMember::class,
             $subAlias,
@@ -209,9 +210,26 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
             $userParam,
         );
 
-        $queryBuilder
-            ->andWhere(sprintf('EXISTS (%s)', $subDql))
-            ->setParameter($userParam, $user->getId(), UuidType::NAME);
+        // Cross-workspace project sharing: Project / Task / TimeEntry are also
+        // visible to members of a workspace the owning project is shared INTO
+        // (an accepted ProjectShare), in addition to the host-workspace members.
+        $shareProjectExpr = $isWorkspaceItself ? null : $this->shareProjectExpr($resourceClass, $rootAlias);
+        if ($shareProjectExpr !== null) {
+            $psAlias = $queryNameGenerator->generateJoinAlias('psscope');
+            $wmShareAlias = $queryNameGenerator->generateJoinAlias('wmshare');
+            $shareDql = sprintf(
+                'SELECT 1 FROM %s %s, %s %s WHERE %s.project = %s AND %s.sharedWithWorkspace = %s.workspace AND %s.user = :%s',
+                ProjectShare::class, $psAlias,
+                WorkspaceMember::class, $wmShareAlias,
+                $psAlias, $shareProjectExpr,
+                $psAlias, $wmShareAlias,
+                $wmShareAlias, $userParam,
+            );
+            $queryBuilder->andWhere(sprintf('(EXISTS (%s) OR EXISTS (%s))', $memberDql, $shareDql));
+        } else {
+            $queryBuilder->andWhere(sprintf('EXISTS (%s)', $memberDql));
+        }
+        $queryBuilder->setParameter($userParam, $user->getId(), UuidType::NAME);
 
         // X-Workspace-Id narrowing — only meaningful for workspace-scoped resources
         // (Workspace itself is already filtered to membership).
@@ -231,9 +249,39 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         }
 
         $wsParam = $queryNameGenerator->generateParameterName('scopeWsId');
-        $queryBuilder
-            ->andWhere(sprintf('%s.workspace = :%s', $rootAlias, $wsParam))
-            ->setParameter($wsParam, $requestedUuid, UuidType::NAME);
+        if ($shareProjectExpr !== null) {
+            // The narrowed workspace may be the host workspace OR one the project
+            // is shared into — otherwise a B-member with X-Workspace-Id=B would
+            // never see the shared (workspace-A) rows.
+            $psNarrow = $queryNameGenerator->generateJoinAlias('psnarrow');
+            $queryBuilder->andWhere(sprintf(
+                '(%s.workspace = :%s OR EXISTS (SELECT 1 FROM %s %s WHERE %s.project = %s AND %s.sharedWithWorkspace = :%s))',
+                $rootAlias, $wsParam,
+                ProjectShare::class, $psNarrow,
+                $psNarrow, $shareProjectExpr,
+                $psNarrow, $wsParam,
+            ));
+        } else {
+            $queryBuilder->andWhere(sprintf('%s.workspace = :%s', $rootAlias, $wsParam));
+        }
+        $queryBuilder->setParameter($wsParam, $requestedUuid, UuidType::NAME);
+    }
+
+    /**
+     * How to reach the shared Project from the query root, for the classes that
+     * participate in cross-workspace sharing. Null = the resource is not shared
+     * (only host-workspace membership applies). Comment is intentionally omitted
+     * for now (polymorph targetId + the hidden-for-connect-users flag need their
+     * own handling — a follow-up; until then shared workspaces simply don't see
+     * host comments, which under-shares rather than leaks).
+     */
+    private function shareProjectExpr(string $resourceClass, string $rootAlias): ?string
+    {
+        return match ($resourceClass) {
+            Project::class => $rootAlias,
+            \App\Entity\Task::class, \App\Entity\TimeEntry::class => sprintf('%s.project', $rootAlias),
+            default => null,
+        };
     }
 
     private function isWorkspaceScoped(string $resourceClass): bool

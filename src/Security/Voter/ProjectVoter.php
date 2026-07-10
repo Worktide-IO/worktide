@@ -9,6 +9,7 @@ use App\Entity\Enum\WorkspaceMemberRole;
 use App\Entity\Project;
 use App\Entity\User;
 use App\Repository\ProjectMemberRepository;
+use App\Repository\ProjectShareRepository;
 use App\Repository\WorkspaceMemberRepository;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\Vote;
@@ -33,6 +34,7 @@ final class ProjectVoter extends Voter
     public function __construct(
         private readonly WorkspaceMemberRepository $wsMembers,
         private readonly ProjectMemberRepository $projectMembers,
+        private readonly ProjectShareRepository $projectShares,
     ) {}
 
     protected function supports(string $attribute, mixed $subject): bool
@@ -66,10 +68,14 @@ final class ProjectVoter extends Voter
             };
         }
 
+        // ProjectMember on this project, OR — for cross-workspace sharing — the
+        // role granted by an accepted ProjectShare into a workspace the user
+        // belongs to. Same role→permission mapping either way.
         $projectRole = $this->projectMembers->findOneBy([
             'project' => $subject,
             'user' => $user,
-        ])?->getRole();
+        ])?->getRole()
+            ?? $this->projectShares->findRoleForUser($subject, $user);
 
         if ($projectRole === null) {
             return false;

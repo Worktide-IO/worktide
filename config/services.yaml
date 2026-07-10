@@ -148,6 +148,13 @@ services:
             $mailFrom: '%env(MAILER_FROM)%'
             $mailFromName: '%env(string:MAILER_FROM_NAME)%'
 
+    # Cross-workspace project-share invitation email (branded accept link → SPA).
+    App\Service\ProjectShareInvitationMailer:
+        arguments:
+            $spaBaseUrl: '%env(SPA_BASE_URL)%'
+            $mailFrom: '%env(MAILER_FROM)%'
+            $mailFromName: '%env(string:MAILER_FROM_NAME)%'
+
     # Brute-force / abuse limiters for the remaining public endpoints.
     App\EventSubscriber\PublicEndpointRateLimitSubscriber:
         arguments:

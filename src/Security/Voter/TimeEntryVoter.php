@@ -8,6 +8,7 @@ use App\Entity\Enum\Capability;
 use App\Entity\Enum\WorkspaceMemberRole;
 use App\Entity\TimeEntry;
 use App\Entity\User;
+use App\Repository\ProjectShareRepository;
 use App\Repository\WorkspaceMemberRepository;
 use App\Security\PermissionResolver;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
@@ -30,6 +31,7 @@ final class TimeEntryVoter extends Voter
     public function __construct(
         private readonly WorkspaceMemberRepository $wsMembers,
         private readonly PermissionResolver $permissions,
+        private readonly ProjectShareRepository $projectShares,
     ) {}
 
     protected function supports(string $attribute, mixed $subject): bool
@@ -67,6 +69,16 @@ final class TimeEntryVoter extends Voter
             'user' => $user,
         ])?->getRole();
         if ($wsRole === null) {
+            // Cross-workspace share: a collaborator on the entry's project may
+            // VIEW its time entries. Write access to other people's entries
+            // stays with the host workspace (conservative).
+            $project = $subject->getProject();
+            if ($attribute === WorktidePermission::VIEW
+                && $project !== null
+                && $this->projectShares->findRoleForUser($project, $user) !== null
+            ) {
+                return true;
+            }
             return false;
         }
         // Workspace owner can see everything; let the matrix decide for the rest.
