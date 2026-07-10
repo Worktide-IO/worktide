@@ -6,6 +6,7 @@ namespace App\Controller\Api;
 
 use App\Entity\User;
 use App\Entity\UserPreferences;
+use App\Notification\Preference\NotificationPreferences;
 use App\Repository\UserPreferencesRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -58,6 +59,7 @@ final class UserPreferencesController
             'dashboardLayout' => $prefs?->getDashboardLayout(),
             'idleTimeoutMinutes' => $prefs?->getIdleTimeoutMinutes(),
             'favoriteProjectIds' => $prefs?->getFavoriteProjectIds() ?? [],
+            'notificationPreferences' => NotificationPreferences::fromArray($prefs?->getNotificationPreferences())->toArray(),
             'updatedAt' => $prefs?->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
         ]);
     }
@@ -127,26 +129,34 @@ final class UserPreferencesController
                 throw new BadRequestHttpException('favoriteProjectIds must be an array.');
             }
         }
+        if (array_key_exists('notificationPreferences', $body)) {
+            $raw = $body['notificationPreferences'];
+            if ($raw !== null && !is_array($raw)) {
+                throw new BadRequestHttpException('notificationPreferences must be an object or null.');
+            }
+            // Normalise through the value object so only known, valid keys land.
+            $prefs->setNotificationPreferences(
+                NotificationPreferences::fromArray(is_array($raw) ? $raw : null)->toArray(),
+            );
+        }
         $this->em->flush();
+
+        $payload = [
+            'dashboardLayout' => $prefs->getDashboardLayout(),
+            'idleTimeoutMinutes' => $prefs->getIdleTimeoutMinutes(),
+            'favoriteProjectIds' => $prefs->getFavoriteProjectIds() ?? [],
+            'notificationPreferences' => NotificationPreferences::fromArray($prefs->getNotificationPreferences())->toArray(),
+            'updatedAt' => $prefs->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
+        ];
 
         $userIri = '/v1/users/' . $user->getId()?->toRfc4122();
         $this->hub->publish(new Update(
             topics: [$userIri . '/preferences'],
-            data: json_encode([
-                'dashboardLayout' => $prefs->getDashboardLayout(),
-                'idleTimeoutMinutes' => $prefs->getIdleTimeoutMinutes(),
-                'favoriteProjectIds' => $prefs->getFavoriteProjectIds() ?? [],
-                'updatedAt' => $prefs->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
-            ]) ?: '{}',
+            data: json_encode($payload) ?: '{}',
             private: true,
         ));
 
-        return new JsonResponse([
-            'dashboardLayout' => $prefs->getDashboardLayout(),
-            'idleTimeoutMinutes' => $prefs->getIdleTimeoutMinutes(),
-            'favoriteProjectIds' => $prefs->getFavoriteProjectIds() ?? [],
-            'updatedAt' => $prefs->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
-        ]);
+        return new JsonResponse($payload);
     }
 
     private function requireUser(): User

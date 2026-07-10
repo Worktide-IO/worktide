@@ -6,6 +6,7 @@ namespace App\EventSubscriber;
 
 use App\Entity\DomainEventLog;
 use App\Notification\NotificationDispatcher;
+use App\Notification\NotificationEmailNotifier;
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
 use Doctrine\ORM\Event\PostFlushEventArgs;
 use Doctrine\ORM\Event\PostPersistEventArgs;
@@ -36,6 +37,7 @@ final class NotificationDispatchSubscriber
 
     public function __construct(
         private readonly NotificationDispatcher $dispatcher,
+        private readonly NotificationEmailNotifier $emailNotifier,
     ) {}
 
     public function postPersist(PostPersistEventArgs $args): void
@@ -66,6 +68,9 @@ final class NotificationDispatchSubscriber
             if ($created !== []) {
                 $em->flush();
                 $this->dispatcher->publish($created);
+                // Email delivery for recipients who opted into instant email.
+                // Async (Messenger) + best-effort; never aborts the flush.
+                $this->emailNotifier->onCreated($created);
             }
         } finally {
             $this->draining = false;

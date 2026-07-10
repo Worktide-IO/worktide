@@ -208,6 +208,30 @@ class Customer
     public function isPortalEnabled(): bool { return $this->portalEnabled; }
     public function setPortalEnabled(bool $v): self { $this->portalEnabled = $v; return $this; }
 
+    /**
+     * UUIDs of the Newsletter tree nodes this customer is granted ("einzeln
+     * freigeschaltet"). Only these appear in the customer's portal newsletter
+     * tree, where its contacts opt in/out per node. Mirrors the
+     * {@see Contact::$portalHiddenFeatures} JSON-list convention (null when empty).
+     *
+     * @var list<string>|null
+     */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $enabledNewsletterIds = null;
+
+    /** @return list<string> */
+    public function getEnabledNewsletterIds(): array { return $this->enabledNewsletterIds ?? []; }
+
+    /** @param list<string>|null $ids */
+    public function setEnabledNewsletterIds(?array $ids): self
+    {
+        $this->enabledNewsletterIds = $ids === null || $ids === []
+            ? null
+            : array_values(array_unique($ids));
+
+        return $this;
+    }
+
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $revenueSyncedAt = null;
 

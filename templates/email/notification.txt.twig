@@ -1,0 +1,11 @@
+{% extends 'email/base.txt.twig' %}
+
+{% block content %}{% if firstName %}Hallo {{ firstName }},{% else %}Hallo,{% endif %}
+
+{{ title }}
+{% if body %}
+{{ body }}
+{% endif %}
+Im Portal öffnen: {{ actionUrl }}
+
+Sie erhalten diese E-Mail, weil E-Mail-Benachrichtigungen für Ihr {{ brand.name }}-Konto aktiv sind. Sie können dies jederzeit in den Einstellungen anpassen.{% endblock %}

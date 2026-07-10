@@ -72,6 +72,29 @@ class NotificationRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
     }
 
+    /**
+     * Unread notifications for a recipient with `occurredAt >= $since` (or all
+     * unread if `$since` is null), newest first, capped. Feeds the email digest.
+     *
+     * @return list<Notification>
+     */
+    public function findUnreadForRecipientSince(User $recipient, ?\DateTimeImmutable $since, int $limit = 50): array
+    {
+        $qb = $this->createQueryBuilder('n')
+            ->andWhere('n.recipient = :recipient')
+            ->andWhere('n.readAt IS NULL')
+            ->setParameter('recipient', $recipient)
+            ->orderBy('n.occurredAt', 'DESC')
+            ->setMaxResults(max(1, $limit));
+
+        if ($since !== null) {
+            $qb->andWhere('n.occurredAt >= :since')
+                ->setParameter('since', $since);
+        }
+
+        return $qb->getQuery()->getResult();
+    }
+
     public function countUnread(User $recipient): int
     {
         return (int) $this->createQueryBuilder('n')

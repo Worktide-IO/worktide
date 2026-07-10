@@ -35,6 +35,12 @@
 # Expire CRM agreements past their end date (daily 03:11)
 11 3 * * * cd /app && php bin/console app:crm:agreements:expire
 
+# Notification email digests — bundle unread notifications for users who chose
+# a "daily"/"weekly" cadence (instant-email users are served inline, not here).
+# Daily at 07:00, weekly Monday 07:05.
+0 7 * * * cd /app && php bin/console app:notifications:send-digest --frequency=daily
+5 7 * * 1 cd /app && php bin/console app:notifications:send-digest --frequency=weekly
+
 # --- Disabled by default: need per-workspace setup / --apply ---------------
 # lexoffice syncs default to dry-run and require an API key on the channel:
 #*/30 * * * * cd /app && php bin/console app:lexoffice:sync-invoices --apply
