@@ -72,6 +72,12 @@ final class MastodonAdapter implements SocialPublisherAdapter
         if ($instance === '' || $token === '') {
             return SocialPublishResult::failed('Mastodon channel missing instanceUrl or accessToken.');
         }
+        // Never send the access token to an internal/private host (SSRF).
+        try {
+            \App\Http\OutboundUrlGuard::ensureNotReservedHost($instance);
+        } catch (\App\Http\UnsafeUrlException $e) {
+            return SocialPublishResult::failed($e->getMessage());
+        }
         $auth = ['Authorization' => 'Bearer ' . $token];
 
         try {

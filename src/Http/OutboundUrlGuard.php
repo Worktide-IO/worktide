@@ -22,6 +22,55 @@ namespace App\Http;
 final class OutboundUrlGuard
 {
     /**
+     * Stateless convenience for callers that only need to REJECT a non-public
+     * target (no IP pinning) — e.g. channel adapters validating an
+     * admin-supplied instance/base URL before sending stored credentials to it.
+     *
+     * @throws UnsafeUrlException when the URL is not a safe public http(s) target
+     */
+    public static function ensurePublic(string $url): void
+    {
+        (new self())->assertPublicHttpUrl($url);
+    }
+
+    /**
+     * Looser guard for admin-configured INTEGRATION endpoints (self-hosted Jira,
+     * Redmine, Mastodon, Discourse, a Bluesky PDS, …), which legitimately live
+     * on an internal network. Unlike {@see self::ensurePublic()} it ALLOWS
+     * RFC1918 private ranges, but still blocks the cloud-metadata endpoint
+     * (169.254.169.254), loopback and other reserved ranges — the SSRF /
+     * credential-theft targets. A host that doesn't resolve is allowed (no
+     * reachable target = no SSRF).
+     *
+     * @throws UnsafeUrlException when the scheme is not http(s) or the host
+     *                            resolves to a reserved address
+     */
+    public static function ensureNotReservedHost(string $url): void
+    {
+        $parts = parse_url($url);
+        if (!\is_array($parts) || !isset($parts['scheme'], $parts['host'])) {
+            throw new UnsafeUrlException('URL must be an absolute http(s) URL.');
+        }
+        $scheme = strtolower((string) $parts['scheme']);
+        if ($scheme !== 'http' && $scheme !== 'https') {
+            throw new UnsafeUrlException(\sprintf('URL scheme "%s" is not allowed (http/https only).', $scheme));
+        }
+        $host = trim((string) $parts['host'], '[]');
+        if ($host === '') {
+            throw new UnsafeUrlException('URL has no host.');
+        }
+        foreach ((new self())->resolve($host) as $ip) {
+            if (filter_var($ip, \FILTER_VALIDATE_IP, \FILTER_FLAG_NO_RES_RANGE) === false) {
+                throw new UnsafeUrlException(\sprintf(
+                    'Host "%s" resolves to a reserved address (%s); refusing to connect.',
+                    $host,
+                    $ip,
+                ));
+            }
+        }
+    }
+
+    /**
      * @return array{host: string, ip: string} validated host + public IP to pin the connection to
      *
      * @throws UnsafeUrlException when the URL is not a safe public http(s) target
