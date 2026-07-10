@@ -6,7 +6,10 @@ namespace App\Controller\Api;
 
 use App\Entity\Project;
 use App\Entity\Task;
+use App\Entity\Enum\Capability;
 use App\Entity\TimeEntry;
+use App\Entity\User;
+use App\Security\PermissionResolver;
 use App\Security\Voter\WorktidePermission;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -52,6 +55,7 @@ final class BatchOperationsController
     public function __construct(
         private readonly Security $security,
         private readonly EntityManagerInterface $em,
+        private readonly PermissionResolver $permissions,
     ) {}
 
     #[Route('/v1/projects/batch', name: 'api_projects_batch', methods: ['POST'])]
@@ -124,7 +128,7 @@ final class BatchOperationsController
             }
 
             match ($operation) {
-                'set' => $this->applySet($entity, $class, $fields),
+                'set' => $this->applySet($entity, $class, $this->guardBilled($class, $fields, $entity)),
                 'archive' => $this->applyArchive($entity, true),
                 'unarchive' => $this->applyArchive($entity, false),
                 'delete' => $this->applyDelete($entity),
@@ -146,6 +150,37 @@ final class BatchOperationsController
 
     /**
      * @param class-string $class
+     * Drops the accounting-sensitive billed flags from a TimeEntry `set` unless
+     * the caller holds {@see Capability::TimeEntryToggleBilledOwn} in that
+     * entry's workspace — other fields (e.g. note) still apply. Previously the
+     * per-item EDIT check alone let anyone flip isBilled/isBillable in bulk,
+     * bypassing the billed-toggle capability.
+     *
+     * @param array<string, mixed> $fields
+     *
+     * @return array<string, mixed>
+     */
+    private function guardBilled(string $class, array $fields, object $entity): array
+    {
+        if ($class !== TimeEntry::class) {
+            return $fields;
+        }
+        $billedKeys = ['isBilled', 'isBillable'];
+        if (array_intersect_key($fields, array_flip($billedKeys)) === []) {
+            return $fields;
+        }
+        \assert($entity instanceof TimeEntry);
+        $user = $this->security->getUser();
+        if ($user instanceof User
+            && $this->permissions->can($user, Capability::TimeEntryToggleBilledOwn, $entity->getWorkspace())
+        ) {
+            return $fields;
+        }
+
+        return array_diff_key($fields, array_flip($billedKeys));
+    }
+
+    /**
      * @param array<string, mixed> $fields
      */
     private function applySet(object $entity, string $class, array $fields): void
