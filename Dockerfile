@@ -23,8 +23,13 @@ FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-php${PHP_VERSION} AS frankenphp_ba
 
 WORKDIR /app
 
-# Persistent, so we can reuse them across builds
-VOLUME /app/var/
+# NOTE: intentionally NO `VOLUME /app/var/`.
+# An anonymous VOLUME here made Docker mint a fresh unnamed volume on every
+# container (re)create — app/worker/scheduler each — and orphan the previous
+# one. Over many Coolify redeploys these piled up (100+ orphans, ~15k inodes
+# each) and exhausted the host's inodes, breaking deploys. /app/var only holds
+# ephemeral cache/log (uploads go to S3 via FILE_STORAGE_ADAPTER=s3), so it
+# needs no persistence — let it live in the container's writable layer.
 
 # php extensions installer (bundled in the frankenphp image)
 RUN install-php-extensions \
