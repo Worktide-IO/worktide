@@ -192,6 +192,17 @@ services:
         arguments:
             $mailFrom: '%env(MAILER_FROM)%'
 
+    # Newsletter bulk send: per-recipient mail (from-address) + the HMAC-signed
+    # unsubscribe link (APP_SECRET seed, portal base for the /newsletter/unsubscribe page).
+    App\Service\Newsletter\NewsletterMailer:
+        arguments:
+            $mailFrom: '%env(MAILER_FROM)%'
+            $mailFromName: '%env(string:MAILER_FROM_NAME)%'
+    App\Service\Newsletter\NewsletterUnsubscribeSigner:
+        arguments:
+            $appSecret: '%env(APP_SECRET)%'
+            $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
+
     # White-label branding, resolved from BRAND_* env. Source of truth for the
     # public /v1/branding endpoint (SPAs) and the `brand` Twig global (emails).
     # string: keeps empty values as '' (BrandingConfig applies the fall-backs).
