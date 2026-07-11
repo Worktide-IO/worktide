@@ -55,6 +55,16 @@ class WorkspaceMember
     #[ORM\Column(length: 16, enumType: WorkspaceMemberRole::class)]
     private WorkspaceMemberRole $role = WorkspaceMemberRole::Member;
 
+    /**
+     * A deactivated member keeps their row (history, re-activation) but is
+     * treated as a non-member for access: WorkspaceScopeExtension and every
+     * membership-based voter ignore rows where this is false, so the user can
+     * no longer see or touch anything in this workspace until re-enabled.
+     * Toggled via PATCH /v1/workspace_members/{id} (MANAGE), like `role`.
+     */
+    #[ORM\Column(options: ['default' => true])]
+    private bool $isActive = true;
+
     public function getWorkspace(): Workspace
     {
         return $this->workspace;
@@ -85,6 +95,21 @@ class WorkspaceMember
     public function setRole(WorkspaceMemberRole $role): self
     {
         $this->role = $role;
+        return $this;
+    }
+
+    // Named getIsActive() (not isActive()) so API Platform / Symfony PropertyInfo
+    // maps it to the `isActive` property — an `isActive()` accessor would bind to
+    // a phantom `active` property and the field would silently vanish from the
+    // serialized response.
+    public function getIsActive(): bool
+    {
+        return $this->isActive;
+    }
+
+    public function setIsActive(bool $isActive): self
+    {
+        $this->isActive = $isActive;
         return $this;
     }
 }

@@ -43,6 +43,7 @@ final class PermissionResolver
         $member = $this->wsMembers->findOneBy([
             'workspace' => $workspace,
             'user' => $user,
+            'isActive' => true,
         ]);
         if ($member === null) {
             return false;

@@ -39,7 +39,7 @@ final class WorkspaceVoter extends Voter
             return false;
         }
 
-        $membership = $this->members->findOneBy(['workspace' => $subject, 'user' => $user]);
+        $membership = $this->members->findOneBy(['workspace' => $subject, 'user' => $user, 'isActive' => true]);
         if ($membership === null) {
             return false;
         }

@@ -67,6 +67,7 @@ final class TimeEntryVoter extends Voter
         $wsRole = $this->wsMembers->findOneBy([
             'workspace' => $workspace,
             'user' => $user,
+            'isActive' => true,
         ])?->getRole();
         if ($wsRole === null) {
             // Cross-workspace share: a collaborator on the entry's project may
