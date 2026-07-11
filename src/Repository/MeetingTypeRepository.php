@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Entity\MeetingType;
+use App\Entity\Workspace;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -35,5 +36,24 @@ class MeetingTypeRepository extends ServiceEntityRepository
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+    }
+
+    /**
+     * Enabled, non-deleted meeting types in a workspace — the bookable list a
+     * logged-in portal customer sees. Custom query (bypasses the member-only
+     * WorkspaceScopeExtension, which would zero out a ROLE_PORTAL request).
+     *
+     * @return list<MeetingType>
+     */
+    public function findAllEnabledForWorkspace(Workspace $workspace): array
+    {
+        return $this->createQueryBuilder('m')
+            ->andWhere('m.workspace = :ws')
+            ->andWhere('m.isEnabled = true')
+            ->andWhere('m.deletedAt IS NULL')
+            ->setParameter('ws', $workspace)
+            ->orderBy('m.title', 'ASC')
+            ->getQuery()
+            ->getResult();
     }
 }

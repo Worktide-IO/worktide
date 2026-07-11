@@ -6,8 +6,10 @@ namespace App\Service\Booking;
 
 use App\Entity\Booking;
 use App\Entity\MeetingType;
+use App\Repository\AbsenceRepository;
 use App\Repository\BookingRepository;
 use App\Repository\CalendarBusyBlockRepository;
+use App\Repository\WorkspaceAbsenceRepository;
 
 /**
  * Computes bookable slots for a {@see MeetingType}.
@@ -27,6 +29,8 @@ final class BookingSlotService
     public function __construct(
         private readonly BookingRepository $bookings,
         private readonly CalendarBusyBlockRepository $busyBlocks,
+        private readonly AbsenceRepository $absences,
+        private readonly WorkspaceAbsenceRepository $workspaceAbsences,
     ) {}
 
     /**
@@ -74,6 +78,28 @@ final class BookingSlotService
         if ($host !== null) {
             foreach ($this->busyBlocks->findForOwnerBetween($host, $slackFrom, $slackTo) as $bb) {
                 $busy[] = [$bb->getStartAt(), $bb->getEndAt()];
+            }
+        }
+
+        // Whole-day absences blank out slots: the host's personal absences +
+        // workspace-wide closures. Half-day flags are ignored (v1) — a half-day
+        // absence blocks the whole day, which over-blocks safely rather than
+        // risking a booking while the host is away.
+        $dayBlock = static function (\DateTimeImmutable $startsOn, \DateTimeImmutable $endsOn) use ($tz, $utc): array {
+            $s = new \DateTimeImmutable($startsOn->format('Y-m-d') . ' 00:00:00', $tz);
+            $e = (new \DateTimeImmutable($endsOn->format('Y-m-d') . ' 00:00:00', $tz))->modify('+1 day');
+
+            return [$s->setTimezone($utc), $e->setTimezone($utc)];
+        };
+        $workspace = $type->getWorkspace();
+        if ($host !== null && $workspace !== null) {
+            foreach ($this->absences->findForUserBetween($host, $workspace, $slackFrom, $slackTo) as $absence) {
+                $busy[] = $dayBlock($absence->getStartsOn(), $absence->getEndsOn());
+            }
+        }
+        if ($workspace !== null) {
+            foreach ($this->workspaceAbsences->findForWorkspaceBetween($workspace, $slackFrom, $slackTo) as $closure) {
+                $busy[] = $dayBlock($closure->getStartsOn(), $closure->getEndsOn());
             }
         }
 
