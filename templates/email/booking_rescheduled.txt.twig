@@ -2,16 +2,17 @@
 
 {% block content %}{% if inviteeName %}Hallo {{ inviteeName }},{% else %}Hallo,{% endif %}
 
-Ihr Termin ist bestätigt. Details:
+Ihr Termin wurde verschoben. Aktualisierte Details:
 
 {{ title }}
-Datum: {{ start|date('l, d.m.Y') }}
+{% if oldStart %}Bisher: {{ oldStart|date('l, d.m.Y') }}, {{ oldStart|date('H:i') }}
+{% endif %}Datum: {{ start|date('l, d.m.Y') }}
 Zeit:  {{ start|date('H:i') }}-{{ end|date('H:i') }} ({{ durationMinutes }} Min., {{ timezone }})
 Ort:   {{ location }}
 {% if hostName %}Mit:   {{ hostName }}
 {% endif %}{% if notes %}Notiz: {{ notes }}
 {% endif %}
-Der Termin liegt als Kalender-Datei (.ics) bei.
+Der aktualisierte Termin liegt als Kalender-Datei (.ics) bei.
 
-{% if rescheduleUrl is defined %}Termin verschieben: {{ rescheduleUrl }}
-Termin absagen:     {{ cancelUrl }}{% else %}Termin absagen: {{ cancelUrl }}{% endif %}{% endblock %}
+Erneut verschieben: {{ rescheduleUrl }}
+Termin absagen:     {{ cancelUrl }}{% endblock %}

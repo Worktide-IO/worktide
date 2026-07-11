@@ -49,15 +49,17 @@ class BookingRepository extends ServiceEntityRepository
 
     /**
      * Does a confirmed booking overlap [start, end)? Used to reject a
-     * double-booking at submit time.
+     * double-booking at submit time. `$exclude` skips one booking — the one
+     * being rescheduled — so moving it onto a slot adjacent to its own current
+     * time doesn't collide with itself.
      */
-    public function hasConfirmedOverlap(MeetingType $type, \DateTimeImmutable $start, \DateTimeImmutable $end): bool
+    public function hasConfirmedOverlap(MeetingType $type, \DateTimeImmutable $start, \DateTimeImmutable $end, ?Booking $exclude = null): bool
     {
         $tz = new \DateTimeZone(date_default_timezone_get());
         $start = $start->setTimezone($tz);
         $end = $end->setTimezone($tz);
 
-        return null !== $this->createQueryBuilder('b')
+        $qb = $this->createQueryBuilder('b')
             ->select('1')
             ->andWhere('b.meetingType = :type')
             ->andWhere('b.status = :status')
@@ -67,9 +69,13 @@ class BookingRepository extends ServiceEntityRepository
             ->setParameter('status', Booking::STATUS_CONFIRMED)
             ->setParameter('start', $start)
             ->setParameter('end', $end)
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
+            ->setMaxResults(1);
+
+        if ($exclude !== null && $exclude->getId() !== null) {
+            $qb->andWhere('b != :exclude')->setParameter('exclude', $exclude);
+        }
+
+        return null !== $qb->getQuery()->getOneOrNullResult();
     }
 
     public function findOneByCancelToken(string $token): ?Booking

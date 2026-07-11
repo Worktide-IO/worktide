@@ -31,6 +31,10 @@ final class IcsGenerator
         $uid = ($booking->getId()?->toRfc4122() ?? bin2hex(random_bytes(8))) . '@worktide';
         $stamp = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Ymd\THis\Z');
 
+        // SEQUENCE must strictly increase for a client to accept an update: one
+        // per reschedule, plus a final bump on cancellation.
+        $sequence = $booking->getRescheduledCount() + ($booking->isCancelled() ? 1 : 0);
+
         $lines = [
             'BEGIN:VCALENDAR',
             'VERSION:2.0',
@@ -48,7 +52,7 @@ final class IcsGenerator
             'ORGANIZER;CN=' . $this->esc($organizerName) . ':mailto:' . $organizerEmail,
             'ATTENDEE;CN=' . $this->esc($booking->getInviteeName()) . ';RSVP=TRUE:mailto:' . $booking->getInviteeEmail(),
             'STATUS:' . ($booking->isCancelled() ? 'CANCELLED' : 'CONFIRMED'),
-            'SEQUENCE:' . ($booking->isCancelled() ? '1' : '0'),
+            'SEQUENCE:' . $sequence,
             'END:VEVENT',
             'END:VCALENDAR',
         ];

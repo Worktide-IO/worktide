@@ -43,7 +43,16 @@ final class BookingMailer
         $this->send($booking, 'cancelled', 'Termin storniert');
     }
 
-    private function send(Booking $booking, string $template, string $subjectPrefix): void
+    /**
+     * Confirms the moved appointment and shows where it came from. `$oldStart`
+     * is the pre-move start, already stamped in the app tz.
+     */
+    public function sendReschedule(Booking $booking, \DateTimeImmutable $oldStart): void
+    {
+        $this->send($booking, 'rescheduled', 'Termin verschoben', $oldStart);
+    }
+
+    private function send(Booking $booking, string $template, string $subjectPrefix, ?\DateTimeImmutable $oldStart = null): void
     {
         if ($booking->getInviteeEmail() === '' || !$this->egress->isAllowed(EgressModule::EmailOutbound)) {
             return;
@@ -69,6 +78,8 @@ final class BookingMailer
                 'location' => $this->locationLabel($type->getLocationType(), $type->getLocationDetail()),
                 'notes' => $booking->getNotes(),
                 'cancelUrl' => rtrim($this->portalBaseUrl, '/') . '/book/cancel/' . $booking->getCancelToken(),
+                'rescheduleUrl' => rtrim($this->portalBaseUrl, '/') . '/book/reschedule/' . $booking->getCancelToken(),
+                'oldStart' => $oldStart?->setTimezone($tz),
             ]);
 
         // Attach the calendar invite (only meaningful for a live booking).
