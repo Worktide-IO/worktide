@@ -108,6 +108,10 @@ services:
         arguments:
             $supportedLocales: '%app.supported_locales%'
             $defaultLocale: '%app.default_locale%'
+    App\Service\I18n\RecipientLocaleResolver:
+        arguments:
+            $supportedLocales: '%app.supported_locales%'
+            $defaultLocale: '%app.default_locale%'
 
     App\Command\AworkImportCommand:
         arguments:
