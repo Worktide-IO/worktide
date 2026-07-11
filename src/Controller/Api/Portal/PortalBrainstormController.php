@@ -13,6 +13,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Customer-portal "Brainstorming" board (wireframe screen 5) — a shared, free-
@@ -27,11 +28,6 @@ use Symfony\Component\Routing\Attribute\Route;
  */
 final class PortalBrainstormController
 {
-    private const ORIGIN_LABELS = [
-        'customer' => 'Sie',
-        'agency' => 'Agentur',
-        'ai' => 'KI',
-    ];
 
     private const MAX_LENGTH = 2000;
 
@@ -39,6 +35,7 @@ final class PortalBrainstormController
         private readonly PortalAccessResolver $portal,
         private readonly BrainstormNoteRepository $notes,
         private readonly EntityManagerInterface $em,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -103,7 +100,7 @@ final class PortalBrainstormController
             'body' => $note->getBody(),
             'authorName' => $note->getAuthorName(),
             'origin' => $origin,
-            'originLabel' => self::ORIGIN_LABELS[$origin] ?? $origin,
+            'originLabel' => $this->translator->trans('label.brainstorm_origin.' . $origin),
             'isMine' => $note->getAuthorContact()?->getId()?->toRfc4122() === $selfContactId
                 && $selfContactId !== null,
             'createdAt' => $note->getCreatedAt()?->format(\DateTimeInterface::ATOM),

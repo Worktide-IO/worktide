@@ -1,2 +1,95 @@
 # Base UI message catalog (English is the source/fallback language).
-# Semantic keys, filled per phase — see docs/i18n-plan.md. Empty for Phase 0.
+# Semantic keys. See docs/i18n-plan.md. Filled per phase.
+label:
+  priority:
+    low: Low
+    normal: Normal
+    high: High
+    urgent: Urgent
+  invoice_status:
+    open: Open
+    paid: Paid
+    voided: Voided
+    overdue: Overdue
+  agreement_status:
+    draft: Draft
+    in_negotiation: In negotiation
+    signed: Signed
+    expired: Expired
+    superseded: Superseded
+    terminated: Terminated
+  subscription_status:
+    trial: Trial
+    active: Active
+    paused: Paused
+    cancelled: Cancelled
+  billing:
+    monthly: monthly
+    quarterly: quarterly
+    half_yearly: half-yearly
+    yearly: yearly
+    once: one-time
+  offer_status:
+    open: Open
+    accepted: Accepted
+    declined: Declined
+  goal_status:
+    on_track: On track
+    at_risk: At risk
+    reached: Reached
+    missed: Missed
+  idea_status:
+    proposed: Proposed
+    under_review: Under review
+    accepted: Accepted
+    rejected: Rejected
+    done: Done
+  idea_origin:
+    customer: By you
+    agency: By the agency
+    ai: AI suggestion
+  proposal_status:
+    new: New
+    in_review: In review
+    accepted: Accepted
+    rejected: Rejected
+  proposal_origin:
+    ai: AI suggestion
+    agency: By the agency
+  brainstorm_origin:
+    customer: You
+    agency: Agency
+    ai: AI
+  social_status:
+    draft: Draft
+    pending_approval: Awaiting approval
+    scheduled: Approved · scheduled
+    publishing: Publishing
+    published: Published
+    partially_failed: Partially failed
+    failed: Failed
+    canceled: Rejected
+  system_env:
+    production: Production
+    staging: Staging
+    development: Development
+  system_status:
+    inactive: Inactive
+    down: Outage
+    degraded: Slow
+    maintenance: Maintenance
+    operational: Online
+  incident_kind:
+    outage: Outage
+    degraded: Slow
+    maintenance: Maintenance
+  activity:
+    task_created: Ticket created
+    task_updated: Ticket updated
+  actor:
+    self: You
+    agency: Agency
+  error:
+    ai_suggestion_unavailable: AI suggestion is currently unavailable.
+    ai_suggestion_failed: AI suggestion failed.
+    form_closed: This form is no longer accepting submissions.

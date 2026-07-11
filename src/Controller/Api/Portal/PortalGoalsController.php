@@ -9,6 +9,7 @@ use App\Repository\CustomerGoalRepository;
 use App\Service\Portal\PortalAccessResolver;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Customer-portal "Ziele" (goals) — read-only KPI goals for the customer
@@ -18,16 +19,11 @@ use Symfony\Component\Routing\Attribute\Route;
  */
 final class PortalGoalsController
 {
-    private const STATUS_LABELS = [
-        'on_track' => 'Unterwegs',
-        'at_risk' => 'Gefährdet',
-        'reached' => 'Erreicht',
-        'missed' => 'Verfehlt',
-    ];
 
     public function __construct(
         private readonly PortalAccessResolver $portal,
         private readonly CustomerGoalRepository $goals,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -73,7 +69,7 @@ final class PortalGoalsController
             'targetValue' => $target,
             'currentValue' => $current,
             'status' => $status,
-            'statusLabel' => self::STATUS_LABELS[$status] ?? $status,
+            'statusLabel' => $this->translator->trans('label.goal_status.' . $status),
             'progressPct' => $progressPct,
             'targetDate' => $goal->getTargetDate()?->format('Y-m-d'),
         ];

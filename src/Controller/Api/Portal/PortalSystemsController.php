@@ -14,6 +14,7 @@ use App\Service\Portal\PortalAccessResolver;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Customer-portal "Monitoring" screen (wireframe screen 3): the customer's
@@ -34,23 +35,14 @@ final class PortalSystemsController
     private const ALLOWED_WINDOWS = [7, 30, 90];
     private const DEFAULT_WINDOW_DAYS = 30;
 
-    private const ENV_LABELS = [
-        'production' => 'Produktion',
-        'staging' => 'Staging',
-        'development' => 'Entwicklung',
-    ];
 
-    private const INCIDENT_LABELS = [
-        'outage' => 'Störung',
-        'degraded' => 'Langsam',
-        'maintenance' => 'Wartung',
-    ];
 
     public function __construct(
         private readonly PortalAccessResolver $portal,
         private readonly CustomerSystemRepository $systems,
         private readonly SystemUptimeDayRepository $uptimeDays,
         private readonly SystemIncidentRepository $incidents,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -111,7 +103,7 @@ final class PortalSystemsController
     private function systemDto(CustomerSystem $system, array $uptime, array $openKinds): array
     {
         $env = $system->getEnvironment()->value;
-        [$status, $statusLabel] = $this->status($system, $openKinds);
+        $status = $this->status($system, $openKinds);
 
         $uptimePct = null;
         $avgResponseMs = null;
@@ -127,12 +119,12 @@ final class PortalSystemsController
             'type' => $system->getType()->value,
             'systemVersion' => $system->getSystemVersion(),
             'environment' => $env,
-            'environmentLabel' => self::ENV_LABELS[$env] ?? $env,
+            'environmentLabel' => $this->translator->trans('label.system_env.' . $env),
             'url' => $system->getUrl(),
             'hostingProvider' => $system->getHostingProvider(),
             'isActive' => $system->isActive(),
             'status' => $status,
-            'statusLabel' => $statusLabel,
+            'statusLabel' => $this->translator->trans('label.system_status.' . $status),
             'uptimePct' => $uptimePct,
             'avgResponseMs' => $avgResponseMs,
             // Oldest→newest daily uptime for the sparkline.
@@ -145,24 +137,23 @@ final class PortalSystemsController
 
     /**
      * @param list<IncidentKind> $openKinds
-     * @return array{0: string, 1: string}
      */
-    private function status(CustomerSystem $system, array $openKinds): array
+    private function status(CustomerSystem $system, array $openKinds): string
     {
         if (!$system->isActive()) {
-            return ['inactive', 'Inaktiv'];
+            return 'inactive';
         }
         // Worst open incident wins.
         if (\in_array(IncidentKind::Outage, $openKinds, true)) {
-            return ['down', 'Störung'];
+            return 'down';
         }
         if (\in_array(IncidentKind::Degraded, $openKinds, true)) {
-            return ['degraded', 'Langsam'];
+            return 'degraded';
         }
         if (\in_array(IncidentKind::Maintenance, $openKinds, true)) {
-            return ['maintenance', 'Wartung'];
+            return 'maintenance';
         }
-        return ['operational', 'Online'];
+        return 'operational';
     }
 
     /**
@@ -176,7 +167,7 @@ final class PortalSystemsController
             'id' => $incident->getId()?->toRfc4122(),
             'systemName' => $incident->getSystem()->getName(),
             'kind' => $kind,
-            'kindLabel' => self::INCIDENT_LABELS[$kind] ?? $kind,
+            'kindLabel' => $this->translator->trans('label.incident_kind.' . $kind),
             'title' => $incident->getTitle(),
             'startedAt' => $incident->getStartedAt()->format(\DateTimeInterface::ATOM),
             'resolvedAt' => $incident->getResolvedAt()?->format(\DateTimeInterface::ATOM),

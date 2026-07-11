@@ -14,6 +14,7 @@ use App\Repository\ProjectOfferRepository;
 use App\Repository\ServiceSubscriptionRepository;
 use App\Service\Crm\AgreementService;
 use App\Service\Portal\PortalAccessResolver;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -37,36 +38,6 @@ use Symfony\Component\Uid\Uuid;
  */
 final class PortalAgreementsController
 {
-    private const AGREEMENT_STATUS_LABELS = [
-        'draft' => 'Entwurf',
-        'in_negotiation' => 'In Verhandlung',
-        'signed' => 'Signiert',
-        'expired' => 'Abgelaufen',
-        'superseded' => 'Ersetzt',
-        'terminated' => 'Gekündigt',
-    ];
-
-    private const SUBSCRIPTION_STATUS_LABELS = [
-        'trial' => 'Test',
-        'active' => 'Aktiv',
-        'paused' => 'Pausiert',
-        'cancelled' => 'Beendet',
-    ];
-
-    private const BILLING_LABELS = [
-        'monthly' => 'monatlich',
-        'quarterly' => 'vierteljährlich',
-        'half_yearly' => 'halbjährlich',
-        'yearly' => 'jährlich',
-        'once' => 'einmalig',
-    ];
-
-    private const OFFER_STATUS_LABELS = [
-        'open' => 'Offen',
-        'accepted' => 'Angenommen',
-        'declined' => 'Abgelehnt',
-    ];
-
     public function __construct(
         private readonly PortalAccessResolver $portal,
         private readonly CustomerAgreementRepository $agreements,
@@ -74,6 +45,7 @@ final class PortalAgreementsController
         private readonly ProjectOfferRepository $offers,
         private readonly AgreementService $agreementService,
         private readonly EntityManagerInterface $em,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -230,7 +202,7 @@ final class PortalAgreementsController
             'amountCents' => $offer->getAmountCents(),
             'currency' => $offer->getCurrency(),
             'status' => $status,
-            'statusLabel' => self::OFFER_STATUS_LABELS[$status] ?? $status,
+            'statusLabel' => $this->translator->trans('label.offer_status.' . $status),
             'createdAt' => $offer->getCreatedAt()?->format('Y-m-d'),
         ];
     }
@@ -271,7 +243,7 @@ final class PortalAgreementsController
             'type' => $agreement->getType()->getName(),
             'typeSlug' => $agreement->getTypeSlug(),
             'status' => $status,
-            'statusLabel' => self::AGREEMENT_STATUS_LABELS[$status] ?? $status,
+            'statusLabel' => $this->translator->trans('label.agreement_status.' . $status),
             'isSigned' => $agreement->getIsSigned(),
             'reference' => $revision?->getReference(),
             'signedOn' => $agreement->getSignedOn()?->format('Y-m-d'),
@@ -304,9 +276,9 @@ final class PortalAgreementsController
             'priceCents' => $subscription->getPriceCents(),
             'currency' => $subscription->getCurrency(),
             'billingCycle' => $cycle,
-            'billingLabel' => self::BILLING_LABELS[$cycle] ?? $cycle,
+            'billingLabel' => $this->translator->trans('label.billing.' . $cycle),
             'status' => $status,
-            'statusLabel' => self::SUBSCRIPTION_STATUS_LABELS[$status] ?? $status,
+            'statusLabel' => $this->translator->trans('label.subscription_status.' . $status),
             'nextBillingOn' => $subscription->getNextBillingOn()?->format('Y-m-d'),
             'systemName' => $subscription->getSystem()?->getName(),
         ];

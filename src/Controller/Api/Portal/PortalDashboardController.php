@@ -14,6 +14,7 @@ use App\Repository\TimeEntryRepository;
 use App\Service\Portal\PortalAccessResolver;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Customer-portal dashboard — the post-login landing (wireframe screen 1).
@@ -37,9 +38,9 @@ final class PortalDashboardController
     private const HIGH_PRIORITIES = ['high', 'urgent'];
 
     /** DomainEvent name → customer-facing German label. Anything else is dropped. */
-    private const ACTIVITY_LABELS = [
-        'task.created' => 'Ticket erstellt',
-        'task.updated' => 'Ticket aktualisiert',
+    private const ACTIVITY_KEYS = [
+        'task.created' => 'task_created',
+        'task.updated' => 'task_updated',
     ];
 
     public function __construct(
@@ -49,6 +50,7 @@ final class PortalDashboardController
         private readonly TimeEntryRepository $timeEntries,
         private readonly SystemIncidentRepository $incidents,
         private readonly DomainEventLogRepository $events,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -205,8 +207,8 @@ final class PortalDashboardController
 
         $out = [];
         foreach ($this->events->findRecentForAggregate('Task', $ids) as $event) {
-            $label = self::ACTIVITY_LABELS[$event->getName()] ?? null;
-            if ($label === null) {
+            $suffix = self::ACTIVITY_KEYS[$event->getName()] ?? null;
+            if ($suffix === null) {
                 continue;
             }
             $task = $byId[$event->getAggregateId()?->toRfc4122() ?? ''] ?? null;
@@ -214,8 +216,8 @@ final class PortalDashboardController
 
             $out[] = [
                 'id' => $event->getId()?->toRfc4122(),
-                'label' => $label,
-                'actor' => $actorId !== null && $actorId === $selfUserId ? 'Sie' : 'Agentur',
+                'label' => $this->translator->trans('label.activity.' . $suffix),
+                'actor' => $this->translator->trans($actorId !== null && $actorId === $selfUserId ? 'label.actor.self' : 'label.actor.agency'),
                 'ticketIdentifier' => $task?->getIdentifier(),
                 'ticketTitle' => $task?->getTitle(),
                 'occurredAt' => $event->getOccurredAt()->format(\DateTimeInterface::ATOM),

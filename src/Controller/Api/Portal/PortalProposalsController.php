@@ -27,6 +27,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Customer-portal "Ideen-Pitch" — project proposals the customer reviews
@@ -41,17 +42,7 @@ use Symfony\Component\Uid\Uuid;
  */
 final class PortalProposalsController
 {
-    private const STATUS_LABELS = [
-        'new' => 'Neu',
-        'in_review' => 'In Prüfung',
-        'accepted' => 'Angenommen',
-        'rejected' => 'Abgelehnt',
-    ];
 
-    private const ORIGIN_LABELS = [
-        'ai' => 'KI-Vorschlag',
-        'agency' => 'Von der Agentur',
-    ];
 
     public function __construct(
         private readonly PortalAccessResolver $portal,
@@ -59,6 +50,7 @@ final class PortalProposalsController
         private readonly TaskStatusRepository $taskStatuses,
         private readonly EntityManagerInterface $em,
         private readonly Security $security,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -264,9 +256,9 @@ final class PortalProposalsController
             'currency' => $p->getCurrency(),
             'timeframeText' => $p->getTimeframeText(),
             'status' => $status,
-            'statusLabel' => self::STATUS_LABELS[$status] ?? $status,
+            'statusLabel' => $this->translator->trans('label.proposal_status.' . $status),
             'origin' => $origin,
-            'originLabel' => self::ORIGIN_LABELS[$origin] ?? $origin,
+            'originLabel' => $this->translator->trans('label.proposal_origin.' . $origin),
             'variants' => $p->getVariants(),
             'mockupBeforeUrl' => $p->getMockupBeforeUrl(),
             'mockupAfterUrl' => $p->getMockupAfterUrl(),

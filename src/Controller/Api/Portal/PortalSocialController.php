@@ -20,6 +20,7 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Customer-portal "Social-Freigabe" (wireframe screen 6): the customer reviews
@@ -33,22 +34,13 @@ use Symfony\Component\Uid\Uuid;
  */
 final class PortalSocialController
 {
-    private const STATUS_LABELS = [
-        'draft' => 'Entwurf',
-        'pending_approval' => 'Wartet auf Freigabe',
-        'scheduled' => 'Freigegeben · geplant',
-        'publishing' => 'Wird veröffentlicht',
-        'published' => 'Veröffentlicht',
-        'partially_failed' => 'Teilweise fehlgeschlagen',
-        'failed' => 'Fehlgeschlagen',
-        'canceled' => 'Abgelehnt',
-    ];
 
     public function __construct(
         private readonly PortalAccessResolver $portal,
         private readonly SocialPostRepository $posts,
         private readonly EntityManagerInterface $em,
         private readonly Security $security,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -180,7 +172,7 @@ final class PortalSocialController
             'body' => $post->getBody(),
             'mediaCount' => \count($post->getMediaRefs()),
             'status' => $status,
-            'statusLabel' => self::STATUS_LABELS[$status] ?? $status,
+            'statusLabel' => $this->translator->trans('label.social_status.' . $status),
             'scheduledAt' => $post->getScheduledAt()?->format(\DateTimeInterface::ATOM),
             'publishedAt' => $post->getPublishedAt()?->format(\DateTimeInterface::ATOM),
             'changeRequestNote' => $post->getChangeRequestNote(),
