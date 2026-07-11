@@ -181,6 +181,19 @@ services:
             $mailFrom: '%env(MAILER_FROM)%'
             $mailFromName: '%env(string:MAILER_FROM_NAME)%'
 
+    # Notification → chat bridge (Slack/Mattermost/Teams). Needs the deep-link
+    # bases (portal vs staff); SecretBox + OutboundUrlGuard are autowired.
+    App\Notification\NotificationChatNotifier:
+        arguments:
+            $spaBaseUrl: '%env(SPA_BASE_URL)%'
+            $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
+    App\Controller\Api\ChatWebhookController:
+        arguments:
+            $spaBaseUrl: '%env(SPA_BASE_URL)%'
+    App\Controller\Api\Portal\PortalChatWebhookController:
+        arguments:
+            $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
+
     # Booking (Calendly-style) confirmation/cancellation mail + ICS: needs the
     # portal base (cancel link) and a system from-address.
     App\Service\Booking\BookingMailer:

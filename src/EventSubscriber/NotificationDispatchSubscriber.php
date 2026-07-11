@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\EventSubscriber;
 
 use App\Entity\DomainEventLog;
+use App\Notification\NotificationChatNotifier;
 use App\Notification\NotificationDispatcher;
 use App\Notification\NotificationEmailNotifier;
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
@@ -38,6 +39,7 @@ final class NotificationDispatchSubscriber
     public function __construct(
         private readonly NotificationDispatcher $dispatcher,
         private readonly NotificationEmailNotifier $emailNotifier,
+        private readonly NotificationChatNotifier $chatNotifier,
     ) {}
 
     public function postPersist(PostPersistEventArgs $args): void
@@ -71,6 +73,9 @@ final class NotificationDispatchSubscriber
                 // Email delivery for recipients who opted into instant email.
                 // Async (Messenger) + best-effort; never aborts the flush.
                 $this->emailNotifier->onCreated($created);
+                // Chat delivery (Slack/Mattermost/Teams) for recipients who
+                // enabled it + configured a webhook. Same async + best-effort.
+                $this->chatNotifier->onCreated($created);
             }
         } finally {
             $this->draining = false;
