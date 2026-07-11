@@ -187,6 +187,11 @@ final class MeProfileController
             'lastLoginAt' => $user->getLastLoginAt()?->format(\DateTimeInterface::ATOM),
             'preferredLanguage' => $user->getPreferredLanguage(),
             'supportedLanguages' => $this->localeResolver->supportedLocales(),
+            // The fully-resolved display locale: user preference → current
+            // workspace's locale (via X-Workspace-Id) → app default. The SPA
+            // uses this directly so an unset preference follows the workspace
+            // language rather than the config's first supported locale.
+            'resolvedLanguage' => $this->localeResolver->resolve(),
         ];
     }
 
