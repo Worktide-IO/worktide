@@ -112,6 +112,7 @@ final class PortalAccessResolver
         'invoices',
         'newsletters',
         'booking',
+        'absence',
     ];
 
     /**
