@@ -63,6 +63,23 @@ final class ChannelAuthConfigCipherListener
         if (!is_array($new)) {
             return;
         }
+        // Preserve secrets the client omitted. A merge-patch update replaces the
+        // whole authConfig object, but write-only secrets (passwords, API keys,
+        // tokens) are never sent back to the browser, so the client can't resend
+        // them — the SourceWizard leaves the password field blank ("leer =
+        // unverändert"). Carry over any key present in the stored (old) value but
+        // ABSENT from the incoming one, otherwise editing any unrelated field
+        // silently wipes the password → IMAP/Jira/Redmine auth starts failing.
+        // The old value is already encrypted; encryptTree leaves it untouched.
+        // An explicit null still clears a key (omission != null).
+        $old = $event->getOldValue('authConfig');
+        if (is_array($old)) {
+            foreach ($old as $k => $v) {
+                if (!array_key_exists($k, $new)) {
+                    $new[$k] = $v;
+                }
+            }
+        }
         $encrypted = $this->encryptTree($new);
         // The DB row holds the encrypted form…
         $event->setNewValue('authConfig', $encrypted);
