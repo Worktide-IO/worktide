@@ -56,6 +56,17 @@ Goal: make the whole product translatable, **German + English** for now. Two axe
 - **Phase 1 — High-visibility UI:** 32 label maps + nav + 298 toasts (web), portal nav + label maps;
   convert the 57 Portal controller label maps to translator-resolved labels (needs Accept-Language +
   Contact.locale).
+  - ✅ **Backend done** (commit `41b0f6c`): all 12 Portal controllers now resolve `*Label` fields via
+    `$translator->trans('label.<domain>.<value>')`; catalogs hold priority/invoice/agreement/
+    subscription/offer/goal/idea/proposal status, billing, {brainstorm,idea,proposal} origin, social
+    status, system env/status, incident kind, activity, actor, and error keys. Verified de↔en on every
+    portal endpoint. **Two foundation fixes shipped here:** (1) `LocaleSubscriber` pushes the locale
+    into the translator itself — it runs at prio 6 (after firewall, to see the user) which is *after*
+    Symfony's `LocaleAwareListener` (15), so without this every `->trans()`/email `|trans` silently used
+    the default locale; (2) `LocaleResolver` falls back to the portal user's linked-contact→customer→
+    workspace locale when no `X-Workspace-Id` header is present (portal never sends it).
+  - ⏳ **Frontend remaining:** web 32 label maps + nav `meta.label` + 298 toasts; portal nav +
+    `SettingsPage` maps.
 - **Phase 2 — Full UI sweep:** remaining inline JSX (both SPAs), validation, locale-aware
   dates/numbers/currency (+ FullCalendar locale), email templates + subjects, notification resolvers
   (build title/body via translator per recipient).
