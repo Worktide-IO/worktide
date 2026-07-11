@@ -192,6 +192,80 @@ final class PublicBookingController
         return new JsonResponse(['success' => true, 'cancelled' => true]);
     }
 
+    #[Route(path: '/v1/book/reschedule/{token}', name: 'api_public_booking_reschedule_info', requirements: ['token' => '[a-zA-Z0-9]{1,64}'], methods: ['GET'])]
+    public function rescheduleInfo(string $token): JsonResponse
+    {
+        $booking = $this->bookings->findOneByCancelToken($token);
+        if ($booking === null) {
+            throw new NotFoundHttpException();
+        }
+        $type = $booking->getMeetingType();
+        $tz = new \DateTimeZone($booking->getInviteeTimezone() ?: $type->getTimezone());
+
+        return new JsonResponse([
+            'slug' => $type->getSlug(),
+            'title' => $type->getTitle(),
+            'start' => $booking->getStartAt()->setTimezone($tz)->format(\DateTimeInterface::ATOM),
+            'timezone' => $tz->getName(),
+            'durationMinutes' => $type->getDurationMinutes(),
+            'cancelled' => $booking->isCancelled(),
+        ]);
+    }
+
+    #[Route(path: '/v1/book/reschedule/{token}', name: 'api_public_booking_reschedule', requirements: ['token' => '[a-zA-Z0-9]{1,64}'], methods: ['POST'])]
+    public function reschedule(string $token, Request $request): JsonResponse
+    {
+        // Per-IP throttle first (reuses the public-form submit limiter).
+        $limiter = $this->publicFormSubmitLimiter->create($request->getClientIp() ?? 'unknown');
+        $reservation = $limiter->consume(1);
+        if (!$reservation->isAccepted()) {
+            $retryAfter = max(1, (int) ceil($reservation->getRetryAfter()->getTimestamp() - time()));
+            throw new TooManyRequestsHttpException($retryAfter, sprintf('Too many requests — retry in %ds.', $retryAfter));
+        }
+
+        $booking = $this->bookings->findOneByCancelToken($token);
+        if ($booking === null) {
+            throw new NotFoundHttpException();
+        }
+        if ($booking->isCancelled()) {
+            throw new ConflictHttpException('This booking is cancelled and can no longer be moved.');
+        }
+
+        $type = $booking->getMeetingType();
+        $startRaw = (string) ($this->decode($request)['start'] ?? '');
+        if ($startRaw === '') {
+            throw new BadRequestHttpException('start is required.');
+        }
+        try {
+            $start = (new \DateTimeImmutable($startRaw))->setTimezone(new \DateTimeZone('UTC'));
+        } catch (\Exception) {
+            throw new BadRequestHttpException('Invalid start.');
+        }
+        $end = $start->modify('+' . $type->getDurationMinutes() . ' minutes');
+
+        // Re-validate the target slot (grid + notice window + free), then move it
+        // under a transaction with an overlap re-check that ignores this booking.
+        if (!$this->slots->isBookable($type, $start)) {
+            throw new ConflictHttpException('This slot is no longer available.');
+        }
+
+        $oldStart = $booking->getStartAt();
+        $this->em->wrapInTransaction(function () use ($type, $booking, $start, $end): void {
+            if ($this->bookings->hasConfirmedOverlap($type, $start, $end, $booking)) {
+                throw new ConflictHttpException('This slot was just taken.');
+            }
+            $booking->setStartAt($start)->setEndAt($end)->incrementRescheduledCount();
+        });
+
+        $this->mailer->sendReschedule($booking, $oldStart);
+
+        return new JsonResponse([
+            'success' => true,
+            'cancelToken' => $booking->getCancelToken(),
+            'start' => $start->format(\DateTimeInterface::ATOM),
+        ]);
+    }
+
     private function requireType(string $slug): MeetingType
     {
         $type = $this->meetingTypes->findOneEnabledBySlug($slug);

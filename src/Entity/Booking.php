@@ -80,9 +80,17 @@ class Booking
     #[ORM\Column(length: 16)]
     private string $status = self::STATUS_CONFIRMED;
 
-    /** Opaque token that lets the invitee cancel without an account. */
+    /** Opaque token that lets the invitee cancel or reschedule without an account. */
     #[ORM\Column(length: 64)]
     private string $cancelToken = '';
+
+    /**
+     * How many times the invitee has moved this booking. Drives the iCalendar
+     * SEQUENCE so a rescheduled .ics supersedes the previous one in the
+     * invitee's calendar, and lets the endpoint cap reschedules.
+     */
+    #[ORM\Column(type: 'integer', options: ['default' => 0])]
+    private int $rescheduledCount = 0;
 
     public function getMeetingType(): MeetingType
     {
@@ -199,6 +207,25 @@ class Booking
     public function setCancelToken(string $token): self
     {
         $this->cancelToken = $token;
+
+        return $this;
+    }
+
+    public function getRescheduledCount(): int
+    {
+        return $this->rescheduledCount;
+    }
+
+    public function setRescheduledCount(int $count): self
+    {
+        $this->rescheduledCount = $count;
+
+        return $this;
+    }
+
+    public function incrementRescheduledCount(): self
+    {
+        ++$this->rescheduledCount;
 
         return $this;
     }
