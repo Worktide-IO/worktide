@@ -59,6 +59,9 @@ framework:
             # Newsletter fan-out — one mail per recipient off the send request.
             App\Message\SendNewsletterMessage: async
 
+            # Chat notification delivery (Slack/Mattermost/Teams) off the flush.
+            App\Message\NotifyChatMessage: async
+
             # AI ticket triage — slow LLM call on its own transport so it never
             # starves the fast async queue.
             App\Message\TriageTicketMessage: ai_agents

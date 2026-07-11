@@ -35,11 +35,12 @@ final class NotificationPreferences
         public readonly string $frequency,
         private readonly array $types,
         public readonly ?array $quietHours,
+        public readonly bool $chat = false,
     ) {}
 
     public static function defaults(): self
     {
-        return new self(true, self::FREQ_INSTANT, [], null);
+        return new self(true, self::FREQ_INSTANT, [], null, false);
     }
 
     /**
@@ -77,7 +78,9 @@ final class NotificationPreferences
             }
         }
 
-        return new self($email, $frequency, $types, $quietHours);
+        $chat = (bool) ($data['chat'] ?? false);
+
+        return new self($email, $frequency, $types, $quietHours, $chat);
     }
 
     public function typeEnabled(string $type): bool
@@ -115,6 +118,18 @@ final class NotificationPreferences
             && !$this->isWithinQuietHours($now, $tz);
     }
 
+    /**
+     * Should a just-created notification of `$type` be pushed to chat now? Chat is
+     * instant-only (no digest) and honours the same per-type opt-outs + quiet hours
+     * as email.
+     */
+    public function shouldSendChat(string $type, \DateTimeImmutable $now, \DateTimeZone $tz): bool
+    {
+        return $this->chat
+            && $this->typeEnabled($type)
+            && !$this->isWithinQuietHours($now, $tz);
+    }
+
     /** Should a notification of `$type` be rolled into a `$frequency` digest? */
     public function includeInDigest(string $type, string $frequency): bool
     {
@@ -139,6 +154,7 @@ final class NotificationPreferences
 
         return [
             'email' => $this->email,
+            'chat' => $this->chat,
             'frequency' => $this->frequency,
             'types' => $types,
             'quietHours' => $this->quietHours,
