@@ -98,7 +98,11 @@ class WorkspaceMember
         return $this;
     }
 
-    public function isActive(): bool
+    // Named getIsActive() (not isActive()) so API Platform / Symfony PropertyInfo
+    // maps it to the `isActive` property — an `isActive()` accessor would bind to
+    // a phantom `active` property and the field would silently vanish from the
+    // serialized response.
+    public function getIsActive(): bool
     {
         return $this->isActive;
     }
