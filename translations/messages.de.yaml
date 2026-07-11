@@ -1,2 +1,95 @@
 # German UI message catalog. Semantic keys mirror messages.en.yaml.
-# Filled per phase — see docs/i18n-plan.md. Empty for Phase 0.
+# See docs/i18n-plan.md. Filled per phase.
+label:
+  priority:
+    low: Niedrig
+    normal: Mittel
+    high: Hoch
+    urgent: Dringend
+  invoice_status:
+    open: Offen
+    paid: Bezahlt
+    voided: Storniert
+    overdue: Überfällig
+  agreement_status:
+    draft: Entwurf
+    in_negotiation: In Verhandlung
+    signed: Signiert
+    expired: Abgelaufen
+    superseded: Ersetzt
+    terminated: Gekündigt
+  subscription_status:
+    trial: Test
+    active: Aktiv
+    paused: Pausiert
+    cancelled: Beendet
+  billing:
+    monthly: monatlich
+    quarterly: vierteljährlich
+    half_yearly: halbjährlich
+    yearly: jährlich
+    once: einmalig
+  offer_status:
+    open: Offen
+    accepted: Angenommen
+    declined: Abgelehnt
+  goal_status:
+    on_track: Unterwegs
+    at_risk: Gefährdet
+    reached: Erreicht
+    missed: Verfehlt
+  idea_status:
+    proposed: Vorgeschlagen
+    under_review: In Prüfung
+    accepted: Angenommen
+    rejected: Abgelehnt
+    done: Umgesetzt
+  idea_origin:
+    customer: Von Ihnen
+    agency: Von der Agentur
+    ai: KI-Vorschlag
+  proposal_status:
+    new: Neu
+    in_review: In Prüfung
+    accepted: Angenommen
+    rejected: Abgelehnt
+  proposal_origin:
+    ai: KI-Vorschlag
+    agency: Von der Agentur
+  brainstorm_origin:
+    customer: Sie
+    agency: Agentur
+    ai: KI
+  social_status:
+    draft: Entwurf
+    pending_approval: Wartet auf Freigabe
+    scheduled: Freigegeben · geplant
+    publishing: Wird veröffentlicht
+    published: Veröffentlicht
+    partially_failed: Teilweise fehlgeschlagen
+    failed: Fehlgeschlagen
+    canceled: Abgelehnt
+  system_env:
+    production: Produktion
+    staging: Staging
+    development: Entwicklung
+  system_status:
+    inactive: Inaktiv
+    down: Störung
+    degraded: Langsam
+    maintenance: Wartung
+    operational: Online
+  incident_kind:
+    outage: Störung
+    degraded: Langsam
+    maintenance: Wartung
+  activity:
+    task_created: Ticket erstellt
+    task_updated: Ticket aktualisiert
+  actor:
+    self: Sie
+    agency: Agentur
+  error:
+    ai_suggestion_unavailable: KI-Vorschlag ist derzeit nicht verfügbar.
+    ai_suggestion_failed: KI-Vorschlag fehlgeschlagen.
+    form_closed: Dieser Fragebogen nimmt keine Antworten mehr an.

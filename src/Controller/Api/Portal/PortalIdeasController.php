@@ -21,6 +21,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Customer-portal "Ideen fürs Business" — the idea board with upvoting
@@ -32,19 +33,7 @@ use Symfony\Component\Uid\Uuid;
  */
 final class PortalIdeasController
 {
-    private const STATUS_LABELS = [
-        'proposed' => 'Vorgeschlagen',
-        'under_review' => 'In Prüfung',
-        'accepted' => 'Angenommen',
-        'rejected' => 'Abgelehnt',
-        'done' => 'Umgesetzt',
-    ];
 
-    private const ORIGIN_LABELS = [
-        'customer' => 'Von Ihnen',
-        'agency' => 'Von der Agentur',
-        'ai' => 'KI-Vorschlag',
-    ];
 
     public function __construct(
         private readonly PortalAccessResolver $portal,
@@ -52,6 +41,7 @@ final class PortalIdeasController
         private readonly IdeaVoteRepository $votes,
         private readonly EntityManagerInterface $em,
         private readonly Security $security,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -201,9 +191,9 @@ final class PortalIdeasController
             'title' => $idea->getTitle(),
             'description' => $idea->getDescription(),
             'status' => $status,
-            'statusLabel' => self::STATUS_LABELS[$status] ?? $status,
+            'statusLabel' => $this->translator->trans('label.idea_status.' . $status),
             'origin' => $origin,
-            'originLabel' => self::ORIGIN_LABELS[$origin] ?? $origin,
+            'originLabel' => $this->translator->trans('label.idea_origin.' . $origin),
             'submittedBy' => $contact !== null ? trim($contact->getFirstName() . ' ' . $contact->getLastName()) : null,
             'voteCount' => $idea->getVoteCount(),
             'hasVoted' => $hasVoted,

@@ -7,6 +7,7 @@ namespace App\Controller\Api\Portal;
 use App\Entity\Invoice;
 use App\Repository\InvoiceRepository;
 use App\Service\Portal\PortalAccessResolver;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 
@@ -18,15 +19,10 @@ use Symfony\Component\Routing\Attribute\Route;
  */
 final class PortalInvoicesController
 {
-    private const STATUS_LABELS = [
-        'open' => 'Offen',
-        'paid' => 'Bezahlt',
-        'voided' => 'Storniert',
-    ];
-
     public function __construct(
         private readonly PortalAccessResolver $portal,
         private readonly InvoiceRepository $invoices,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -63,7 +59,7 @@ final class PortalInvoicesController
             'openCents' => $invoice->getOpenCents(),
             'currency' => $invoice->getCurrency(),
             'status' => $overdue ? 'overdue' : $status,
-            'statusLabel' => $overdue ? 'Überfällig' : (self::STATUS_LABELS[$status] ?? $status),
+            'statusLabel' => $this->translator->trans('label.invoice_status.' . ($overdue ? 'overdue' : $status)),
         ];
     }
 }

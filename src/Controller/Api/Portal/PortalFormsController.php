@@ -22,6 +22,7 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Customer-portal questionnaires (wireframe screen 8, "SEO-Fragebogen").
@@ -47,6 +48,7 @@ final class PortalFormsController
         private readonly EntityManagerInterface $em,
         private readonly FormSchemaNormalizer $normalizer,
         private readonly FormPrefillResolver $prefill,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -136,7 +138,7 @@ final class PortalFormsController
 
         $limit = $form->getSubmissionLimit();
         if ($limit !== null && $form->getSubmissionCount() >= $limit) {
-            return new JsonResponse(['error' => 'Dieser Fragebogen nimmt keine Antworten mehr an.'], 409);
+            return new JsonResponse(['error' => $this->translator->trans('label.error.form_closed')], 409);
         }
 
         $values = $this->body($request);
@@ -154,7 +156,7 @@ final class PortalFormsController
         } catch (PublicFormValidationException $e) {
             return new JsonResponse(['errors' => $e->getErrors()], 422);
         } catch (PublicFormSubmissionClosedException) {
-            return new JsonResponse(['error' => 'This form is no longer accepting submissions.'], 409);
+            return new JsonResponse(['error' => $this->translator->trans('label.error.form_closed')], 409);
         }
 
         // Submitted → discard any saved draft for this contact.

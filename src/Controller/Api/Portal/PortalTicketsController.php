@@ -18,6 +18,7 @@ use App\Repository\TaskRepository;
 use App\Repository\TaskStatusRepository;
 use App\Service\Llm\LlmException;
 use App\Service\Portal\PortalAccessResolver;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use App\Service\Portal\PortalSlaCalculator;
 use App\Service\Portal\PortalTicketSuggester;
 use Doctrine\ORM\EntityManagerInterface;
@@ -42,14 +43,6 @@ use Symfony\Component\Uid\Uuid;
  */
 final class PortalTicketsController
 {
-    /** low/normal/high/urgent → customer-facing German label. */
-    private const PRIORITY_LABELS = [
-        'low' => 'Niedrig',
-        'normal' => 'Mittel',
-        'high' => 'Hoch',
-        'urgent' => 'Dringend',
-    ];
-
     /** Memoized per-request effective SLA policy (customer over workspace). */
     private ?array $slaPolicy = null;
 
@@ -66,6 +59,7 @@ final class PortalTicketsController
         private readonly Security $security,
         private readonly PortalSlaCalculator $sla,
         private readonly PortalTicketSuggester $suggester,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -175,7 +169,7 @@ final class PortalTicketsController
         $this->portal->assertPortalEnabled();
 
         if (!$this->suggester->isAvailable()) {
-            throw new ServiceUnavailableHttpException(null, 'KI-Vorschlag ist derzeit nicht verfügbar.');
+            throw new ServiceUnavailableHttpException(null, $this->translator->trans('label.error.ai_suggestion_unavailable'));
         }
 
         $body = $this->body($request);
@@ -188,7 +182,7 @@ final class PortalTicketsController
         try {
             $suggestion = $this->suggester->suggest($description, $projects);
         } catch (LlmException) {
-            throw new ServiceUnavailableHttpException(null, 'KI-Vorschlag fehlgeschlagen.');
+            throw new ServiceUnavailableHttpException(null, $this->translator->trans('label.error.ai_suggestion_failed'));
         }
 
         $projectName = null;
@@ -202,7 +196,7 @@ final class PortalTicketsController
         return new JsonResponse([
             'title' => $suggestion['title'],
             'priority' => $suggestion['priority'],
-            'priorityLabel' => self::PRIORITY_LABELS[$suggestion['priority']] ?? $suggestion['priority'],
+            'priorityLabel' => $this->translator->trans('label.priority.' . $suggestion['priority']),
             'projectId' => $suggestion['projectId'],
             'projectName' => $projectName,
         ]);
@@ -312,7 +306,7 @@ final class PortalTicketsController
             'statusLabel' => $task->getStatus()->getName(),
             'waitingForYou' => $task->getStatus()->isWaitingForCustomer(),
             'priority' => $priority,
-            'priorityLabel' => self::PRIORITY_LABELS[$priority] ?? $priority,
+            'priorityLabel' => $this->translator->trans('label.priority.' . $priority),
             'dueOn' => $task->getDueOn()?->format(\DateTimeInterface::ATOM),
             'createdAt' => $task->getCreatedAt()?->format(\DateTimeInterface::ATOM),
             'updatedAt' => $task->getUpdatedAt()?->format(\DateTimeInterface::ATOM),

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\I18n;
 
+use App\Entity\Contact;
 use App\Entity\User;
 use App\Entity\Workspace;
 use Doctrine\ORM\EntityManagerInterface;
@@ -87,13 +88,28 @@ final class LocaleResolver implements ResetInterface
         }
 
         // 2) Current workspace default (only when the user has no preference).
-        $workspaceLocale = $this->currentWorkspaceLocale();
+        //    Staff carry the workspace on X-Workspace-Id; portal users don't send
+        //    that header, so fall back to the workspace behind their contact so an
+        //    existing German workspace's portal stays German until the customer
+        //    picks a language.
+        $workspaceLocale = $this->currentWorkspaceLocale() ?? $this->portalWorkspaceLocale($user);
         if ($workspaceLocale !== null && $this->isSupported($workspaceLocale)) {
             return $workspaceLocale;
         }
 
         // 3) App default.
         return $this->defaultLocale;
+    }
+
+    private function portalWorkspaceLocale(?object $user): ?string
+    {
+        if (!$user instanceof User) {
+            return null;
+        }
+
+        $contact = $this->em->getRepository(Contact::class)->findOneBy(['linkedUser' => $user]);
+
+        return $contact?->getCustomer()?->getWorkspace()?->getLocale();
     }
 
     private function currentWorkspaceLocale(): ?string
