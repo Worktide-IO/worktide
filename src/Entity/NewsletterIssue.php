@@ -7,6 +7,7 @@ namespace App\Entity;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
@@ -69,12 +70,17 @@ class NewsletterIssue
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $body = null;
 
+    // Send state is server-owned: only NewsletterSendController sets it. Clients
+    // can create/edit drafts (subject/body) but never mark one sent or forge a count.
+    #[ApiProperty(writable: false)]
     #[ORM\Column(length: 16, enumType: NewsletterIssueStatus::class)]
     private NewsletterIssueStatus $status = NewsletterIssueStatus::Draft;
 
+    #[ApiProperty(writable: false)]
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $sentAt = null;
 
+    #[ApiProperty(writable: false)]
     #[ORM\Column(type: 'integer', options: ['default' => 0])]
     private int $recipientCount = 0;
 

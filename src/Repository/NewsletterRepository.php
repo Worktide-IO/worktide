@@ -37,4 +37,38 @@ class NewsletterRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * `$root` plus every descendant node (its whole subtree), for a
+     * "send to sub-topics too" fan-out. Built in PHP from the flat workspace
+     * list — cheap (one query) and avoids a recursive CTE.
+     *
+     * @return list<Newsletter>
+     */
+    public function findSubtree(Newsletter $root): array
+    {
+        $workspace = $root->getWorkspace();
+        if ($workspace === null) {
+            return [$root];
+        }
+
+        $childrenByParent = [];
+        foreach ($this->findAllForWorkspace($workspace) as $node) {
+            $parentId = $node->getParent()?->getId()?->toRfc4122() ?? '';
+            $childrenByParent[$parentId][] = $node;
+        }
+
+        $subtree = [];
+        $stack = [$root];
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            $subtree[] = $node;
+            $id = $node->getId()?->toRfc4122() ?? '';
+            foreach ($childrenByParent[$id] ?? [] as $child) {
+                $stack[] = $child;
+            }
+        }
+
+        return $subtree;
+    }
 }

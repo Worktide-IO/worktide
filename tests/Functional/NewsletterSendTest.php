@@ -165,6 +165,78 @@ final class NewsletterSendTest extends WebTestCase
         self::assertSame(404, $this->client->getResponse()->getStatusCode());
     }
 
+    public function testDescendantFanoutIncludesChildSubscribersAndDedupes(): void
+    {
+        $this->boot('newsletter_send');
+        $ctx = $this->seed(); // node P, contact subscribed to P (customer grants P)
+        $parent = $ctx['node'];
+
+        $child = (new Newsletter())->setTitle('Unterthema');
+        $child->setParent($parent); // auto-stamps workspace
+        $this->em->persist($child);
+        $this->em->flush();
+
+        // The seed contact is ALSO subscribed to the child (must be deduped),
+        // and its customer now grants both nodes.
+        $ctx['customer']->setEnabledNewsletterIds([
+            $parent->getId()->toRfc4122(),
+            $child->getId()->toRfc4122(),
+        ]);
+        $this->subscribe($child, $ctx['contact']);
+        // A second contact opted into ONLY the child.
+        $childOnly = $this->contact($this->customer($ctx['ws'], [$child->getId()->toRfc4122()]), 'child-only@example.test');
+        $this->subscribe($child, $childOnly);
+        $this->em->flush();
+
+        // Node-only: just the parent subscriber.
+        $issue1 = $this->issue($parent);
+        $this->postJson('/v1/newsletter_issues/' . $issue1->getId()?->toRfc4122() . '/send', $ctx['owner'], []);
+        self::assertSame(1, $this->json()['recipientCount'], 'node-only send hits only the parent subscriber');
+
+        // With descendants: parent subscriber (deduped though also on child) + child-only.
+        $issue2 = $this->issue($parent);
+        $this->postJson('/v1/newsletter_issues/' . $issue2->getId()?->toRfc4122() . '/send', $ctx['owner'], ['includeDescendants' => true]);
+        self::assertSame(2, $this->json()['recipientCount'], 'fan-out adds child subscribers, deduping shared contacts');
+    }
+
+    public function testSentIssueCannotBeEdited(): void
+    {
+        $this->boot();
+        $ctx = $this->seed();
+        $issue = $this->issue($ctx['node']);
+        $issue->setStatus(NewsletterIssueStatus::Sent);
+        $this->em->flush();
+
+        $this->patch('/v1/newsletter_issues/' . $issue->getId()?->toRfc4122(), $ctx['owner'], ['subject' => 'geändert']);
+        self::assertSame(409, $this->client->getResponse()->getStatusCode());
+    }
+
+    public function testDraftCanBeEdited(): void
+    {
+        $this->boot();
+        $ctx = $this->seed();
+        $issue = $this->issue($ctx['node']);
+
+        $this->patch('/v1/newsletter_issues/' . $issue->getId()?->toRfc4122(), $ctx['owner'], ['subject' => 'Neuer Betreff']);
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        self::assertSame('Neuer Betreff', $this->json()['subject']);
+    }
+
+    public function testStatusIsNotClientWritable(): void
+    {
+        $this->boot();
+        $ctx = $this->seed();
+
+        $this->postJson(
+            '/v1/newsletter_issues',
+            $ctx['owner'],
+            ['newsletter' => '/v1/newsletters/' . $ctx['node']->getId()?->toRfc4122(), 'subject' => 'X', 'status' => 'sent'],
+            'application/ld+json',
+        );
+        self::assertSame(201, $this->client->getResponse()->getStatusCode());
+        self::assertSame('draft', $this->json()['status'], 'client cannot forge the sent status');
+    }
+
     /**
      * @return array{ws: Workspace, owner: User, customer: Customer, node: Newsletter, contact: Contact}
      */
@@ -238,5 +310,33 @@ final class NewsletterSendTest extends WebTestCase
             'CONTENT_TYPE' => 'application/json',
             'HTTP_AUTHORIZATION' => 'Bearer ' . $token,
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function json(): array
+    {
+        return json_decode((string) $this->client->getResponse()->getContent(), true, 32, \JSON_THROW_ON_ERROR);
+    }
+
+    /** @param array<string, mixed> $body */
+    private function postJson(string $uri, User $as, array $body, string $contentType = 'application/json'): void
+    {
+        $token = self::getContainer()->get(JWTTokenManagerInterface::class)->create($as);
+        $this->client->request('POST', $uri, [], [], [
+            'CONTENT_TYPE' => $contentType,
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $token,
+            'HTTP_ACCEPT' => 'application/ld+json',
+        ], json_encode($body, \JSON_THROW_ON_ERROR));
+    }
+
+    /** @param array<string, mixed> $body */
+    private function patch(string $uri, User $as, array $body): void
+    {
+        $token = self::getContainer()->get(JWTTokenManagerInterface::class)->create($as);
+        $this->client->request('PATCH', $uri, [], [], [
+            'CONTENT_TYPE' => 'application/merge-patch+json',
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $token,
+            'HTTP_ACCEPT' => 'application/ld+json',
+        ], json_encode($body, \JSON_THROW_ON_ERROR));
     }
 }
