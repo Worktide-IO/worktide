@@ -128,6 +128,15 @@ class Contact
     #[ORM\Column]
     private bool $isActive = true;
 
+    /**
+     * Preferred language (a supported-locale code, e.g. "de"/"en") for mail sent
+     * TO this contact (newsletter, portal). Null = fall back to the customer's
+     * workspace locale, then the app default. Mirrors User.preferredLanguage, but
+     * a Contact isn't always a portal User — this closes the recipient-locale gap.
+     */
+    #[ORM\Column(length: 8, nullable: true)]
+    private ?string $locale = null;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
@@ -232,6 +241,9 @@ class Contact
 
     public function isActive(): bool { return $this->isActive; }
     public function setIsActive(bool $v): self { $this->isActive = $v; return $this; }
+
+    public function getLocale(): ?string { return $this->locale; }
+    public function setLocale(?string $locale): self { $this->locale = $locale; return $this; }
 
     public function getNotes(): ?string { return $this->notes; }
     public function setNotes(?string $v): self { $this->notes = $v; return $this; }
