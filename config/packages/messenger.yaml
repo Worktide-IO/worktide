@@ -56,6 +56,9 @@ framework:
             # Social post fan-out — network calls off the request thread.
             App\Message\PublishSocialPostMessage: async
 
+            # Newsletter fan-out — one mail per recipient off the send request.
+            App\Message\SendNewsletterMessage: async
+
             # AI ticket triage — slow LLM call on its own transport so it never
             # starves the fast async queue.
             App\Message\TriageTicketMessage: ai_agents

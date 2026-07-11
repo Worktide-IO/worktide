@@ -43,4 +43,41 @@ class NewsletterSubscriptionRepository extends ServiceEntityRepository
     {
         return $this->findOneBy(['newsletter' => $newsletter, 'contact' => $contact]);
     }
+
+    /**
+     * Recipient list for a newsletter send: active, emailable contacts opted
+     * into `$newsletter` whose customer STILL has the node granted (the grant
+     * lives in the JSON `Customer.enabledNewsletterIds`, so that leg is filtered
+     * in PHP — recipient counts are modest).
+     *
+     * @return list<Contact>
+     */
+    public function findActiveRecipientsForNewsletter(Newsletter $newsletter): array
+    {
+        $nodeId = $newsletter->getId()?->toRfc4122();
+        if ($nodeId === null) {
+            return [];
+        }
+
+        /** @var list<NewsletterSubscription> $subs */
+        $subs = $this->createQueryBuilder('s')
+            ->join('s.contact', 'c')->addSelect('c')
+            ->join('c.customer', 'cu')->addSelect('cu')
+            ->andWhere('s.newsletter = :nl')
+            ->andWhere('c.isActive = true')
+            ->andWhere("c.email IS NOT NULL AND c.email != ''")
+            ->setParameter('nl', $newsletter)
+            ->getQuery()
+            ->getResult();
+
+        $recipients = [];
+        foreach ($subs as $sub) {
+            $contact = $sub->getContact();
+            if (\in_array($nodeId, $contact->getCustomer()->getEnabledNewsletterIds(), true)) {
+                $recipients[] = $contact;
+            }
+        }
+
+        return $recipients;
+    }
 }

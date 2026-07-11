@@ -1,0 +1,10 @@
+{% extends 'email/base.txt.twig' %}
+
+{% block content %}{{ newsletterTitle }}
+{{ subject }}
+
+{{ bodyText }}
+
+--
+Sie erhalten diese E-Mail, weil Sie "{{ newsletterTitle }}" abonniert haben.
+Abbestellen: {{ unsubscribeUrl }}{% endblock %}
