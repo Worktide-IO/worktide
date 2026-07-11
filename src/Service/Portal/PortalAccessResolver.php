@@ -111,6 +111,7 @@ final class PortalAccessResolver
         'proposals',
         'invoices',
         'newsletters',
+        'booking',
     ];
 
     /**
