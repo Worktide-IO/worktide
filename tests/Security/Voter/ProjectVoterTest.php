@@ -10,6 +10,7 @@ use App\Entity\User;
 use App\Entity\Workspace;
 use App\Entity\WorkspaceMember;
 use App\Repository\ProjectMemberRepository;
+use App\Repository\ProjectShareRepository;
 use App\Repository\WorkspaceMemberRepository;
 use App\Security\Voter\ProjectVoter;
 use App\Security\Voter\WorktidePermission;
@@ -66,12 +67,14 @@ final class ProjectVoterTest extends TestCase
         );
         $projectMembers = $this->createStub(ProjectMemberRepository::class);
         $projectMembers->method('findOneBy')->willReturn(null);
+        $projectShares = $this->createStub(ProjectShareRepository::class);
+        $projectShares->method('findRoleForUser')->willReturn(null);
 
         $token = $this->createStub(TokenInterface::class);
         $token->method('getUser')->willReturn(new User());
 
         $project = (new Project())->setWorkspace(new Workspace());
 
-        return (new ProjectVoter($wsMembers, $projectMembers))->vote($token, $project, [$attribute]);
+        return (new ProjectVoter($wsMembers, $projectMembers, $projectShares))->vote($token, $project, [$attribute]);
     }
 }

@@ -124,12 +124,13 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
             $wmAlias = $queryNameGenerator->generateJoinAlias('wmpm');
             $projAlias = $queryNameGenerator->generateJoinAlias('projpm');
             $subDql = sprintf(
-                'SELECT 1 FROM %s %s, %s %s WHERE %s = %s.project AND %s.workspace = %s.workspace AND %s.user = :%s',
+                'SELECT 1 FROM %s %s, %s %s WHERE %s = %s.project AND %s.workspace = %s.workspace AND %s.user = :%s AND %s.isActive = true',
                 WorkspaceMember::class, $wmAlias,
                 Project::class, $projAlias,
                 $projAlias, $rootAlias,
                 $wmAlias, $projAlias,
                 $wmAlias, $userParam,
+                $wmAlias,
             );
             $queryBuilder
                 ->andWhere(sprintf('EXISTS (%s)', $subDql))
@@ -162,12 +163,13 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
             $selfAlias = $queryNameGenerator->generateJoinAlias('wmself');
             $callerAlias = $queryNameGenerator->generateJoinAlias('wmcaller');
             $coMembership = sprintf(
-                'SELECT 1 FROM %s %s, %s %s WHERE %s.user = %s AND %s.workspace = %s.workspace AND %s.user = :%s',
+                'SELECT 1 FROM %s %s, %s %s WHERE %s.user = %s AND %s.workspace = %s.workspace AND %s.user = :%s AND %s.isActive = true',
                 WorkspaceMember::class, $selfAlias,
                 WorkspaceMember::class, $callerAlias,
                 $selfAlias, $rootAlias,
                 $selfAlias, $callerAlias,
                 $callerAlias, $userParam,
+                $callerAlias,
             );
             $queryBuilder
                 ->andWhere(sprintf('EXISTS (%s)', $coMembership))
@@ -201,13 +203,14 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         $wsExpr = $isWorkspaceItself ? $rootAlias : sprintf('%s.workspace', $rootAlias);
 
         $memberDql = sprintf(
-            'SELECT 1 FROM %s %s WHERE %s.workspace = %s AND %s.user = :%s',
+            'SELECT 1 FROM %s %s WHERE %s.workspace = %s AND %s.user = :%s AND %s.isActive = true',
             WorkspaceMember::class,
             $subAlias,
             $subAlias,
             $wsExpr,
             $subAlias,
             $userParam,
+            $subAlias,
         );
 
         // Cross-workspace project sharing: Project / Task / TimeEntry are also
@@ -218,12 +221,13 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
             $psAlias = $queryNameGenerator->generateJoinAlias('psscope');
             $wmShareAlias = $queryNameGenerator->generateJoinAlias('wmshare');
             $shareDql = sprintf(
-                'SELECT 1 FROM %s %s, %s %s WHERE %s.project = %s AND %s.sharedWithWorkspace = %s.workspace AND %s.user = :%s',
+                'SELECT 1 FROM %s %s, %s %s WHERE %s.project = %s AND %s.sharedWithWorkspace = %s.workspace AND %s.user = :%s AND %s.isActive = true',
                 ProjectShare::class, $psAlias,
                 WorkspaceMember::class, $wmShareAlias,
                 $psAlias, $shareProjectExpr,
                 $psAlias, $wmShareAlias,
                 $wmShareAlias, $userParam,
+                $wmShareAlias,
             );
             $queryBuilder->andWhere(sprintf('(EXISTS (%s) OR EXISTS (%s))', $memberDql, $shareDql));
         } else {

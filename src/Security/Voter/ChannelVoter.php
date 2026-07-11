@@ -54,6 +54,7 @@ final class ChannelVoter extends Voter
         $member = $this->members->findOneBy([
             'workspace' => $subject->getWorkspace(),
             'user' => $user,
+            'isActive' => true,
         ]);
         if ($member === null) {
             return false;
