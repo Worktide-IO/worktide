@@ -10,11 +10,13 @@ use App\Entity\Enum\NewsletterIssueStatus;
 use App\Entity\NewsletterIssue;
 use App\Entity\User;
 use App\Message\SendNewsletterMessage;
+use App\Repository\NewsletterRepository;
 use App\Repository\NewsletterSubscriptionRepository;
 use App\Security\Voter\WorktidePermission;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -36,6 +38,7 @@ final class NewsletterSendController
         private readonly Security $security,
         private readonly EntityManagerInterface $em,
         private readonly NewsletterSubscriptionRepository $subscriptions,
+        private readonly NewsletterRepository $newsletters,
         private readonly EgressGuard $egress,
         private readonly MessageBusInterface $bus,
     ) {}
@@ -46,11 +49,13 @@ final class NewsletterSendController
         requirements: ['id' => '[0-9a-fA-F-]{36}'],
         methods: ['POST'],
     )]
-    public function __invoke(string $id): JsonResponse
+    public function __invoke(string $id, Request $request): JsonResponse
     {
         if (!$this->security->getUser() instanceof User) {
             throw new UnauthorizedHttpException('Bearer', 'Not authenticated.');
         }
+        $body = json_decode($request->getContent() ?: '{}', true);
+        $includeDescendants = \is_array($body) && ($body['includeDescendants'] ?? false) === true;
 
         try {
             $issue = $this->em->find(NewsletterIssue::class, Uuid::fromString($id));
@@ -71,7 +76,22 @@ final class NewsletterSendController
         }
 
         $newsletter = $issue->getNewsletter();
-        $recipients = $newsletter !== null ? $this->subscriptions->findActiveRecipientsForNewsletter($newsletter) : [];
+        $nodes = $newsletter === null
+            ? []
+            : ($includeDescendants ? $this->newsletters->findSubtree($newsletter) : [$newsletter]);
+
+        // Union recipients across the target node(s), deduped by contact — a
+        // contact opted into both a parent and a child gets a single mail.
+        $recipients = [];
+        foreach ($nodes as $node) {
+            foreach ($this->subscriptions->findActiveRecipientsForNewsletter($node) as $contact) {
+                $cid = $contact->getId()?->toRfc4122();
+                if ($cid !== null) {
+                    $recipients[$cid] = $contact;
+                }
+            }
+        }
+        $recipients = array_values($recipients);
 
         $issue->setStatus(NewsletterIssueStatus::Sent)
             ->setSentAt(new \DateTimeImmutable())
