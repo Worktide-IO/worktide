@@ -54,6 +54,7 @@ final class ProjectVoter extends Voter
         $wsRole = $this->wsMembers->findOneBy([
             'workspace' => $subject->getWorkspace(),
             'user' => $user,
+            'isActive' => true,
         ])?->getRole();
 
         if ($wsRole !== null) {

@@ -68,6 +68,7 @@ final class CommentVoter extends Voter
             $isWorkspaceMember = $this->wsMembers->findOneBy([
                 'workspace' => $subject->getWorkspace(),
                 'user' => $user,
+                'isActive' => true,
             ]) !== null;
             if (!$isWorkspaceMember) {
                 return false;

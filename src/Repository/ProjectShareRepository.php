@@ -16,7 +16,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<ProjectShare>
  */
-final class ProjectShareRepository extends ServiceEntityRepository
+class ProjectShareRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -36,6 +36,7 @@ final class ProjectShareRepository extends ServiceEntityRepository
             ->innerJoin(WorkspaceMember::class, 'wm', Join::WITH, 'wm.workspace = ps.sharedWithWorkspace')
             ->where('ps.project = :project')
             ->andWhere('wm.user = :user')
+            ->andWhere('wm.isActive = true')
             ->setParameter('project', $project)
             ->setParameter('user', $user)
             ->setMaxResults(1)
