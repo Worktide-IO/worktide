@@ -93,3 +93,24 @@ label:
     ai_suggestion_unavailable: KI-Vorschlag ist derzeit nicht verfügbar.
     ai_suggestion_failed: KI-Vorschlag fehlgeschlagen.
     form_closed: Dieser Fragebogen nimmt keine Antworten mehr an.
+email:
+  invitation:
+    subject: 'Einladung zu %name%'
+    heading: 'Einladung zu %workspace%'
+    greeting: 'Hallo,'
+    body: 'Sie wurden eingeladen, dem Workspace <strong>%workspace%</strong> in %brand% beizutreten%role%. Klicken Sie auf den Button, um die Einladung anzunehmen:'
+    role_suffix: ' (als %role%)'
+    cta: 'Einladung annehmen'
+    fallback_link: 'Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:'
+    valid_until: 'Die Einladung ist bis %date% gültig.'
+    ignore: 'Falls Sie diese Einladung nicht erwartet haben, können Sie diese E-Mail ignorieren.'
+    body_txt: 'Sie wurden eingeladen, dem Workspace "%workspace%" in %brand% beizutreten.'
+    open_link_txt: 'Öffnen Sie den folgenden Link, um die Einladung anzunehmen:'
+  role:
+    admin: Administrator
+    member: Mitglied
+    guest: Gast
+  footer:
+    imprint: Impressum
+    privacy: Datenschutz
+    contact: Kontakt

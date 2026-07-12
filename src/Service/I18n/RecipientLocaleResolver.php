@@ -47,6 +47,15 @@ final class RecipientLocaleResolver
         return $this->workspaceOrDefault($contact->getCustomer()->getWorkspace());
     }
 
+    /**
+     * For a recipient with no stored preference of their own (e.g. an invitee
+     * identified only by email): use the workspace's own language.
+     */
+    public function forWorkspace(?Workspace $workspace): string
+    {
+        return $this->workspaceOrDefault($workspace);
+    }
+
     private function workspaceOrDefault(?Workspace $workspace): string
     {
         $wsLocale = $workspace?->getLocale();

@@ -9,6 +9,8 @@
     Table-based, inline-styled markup for broad email-client compatibility.
 #}
 {% set primary = brand.primaryColor %}
+{# `locale` is passed by localized mailers; unconverted emails fall back to de #}
+{% set loc = locale|default('de') %}
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -47,9 +49,9 @@
                             © {{ 'now'|date('Y') }} {{ brand.legalName }}
                             {% if brand.imprintUrl or brand.privacyUrl %}
                                 <br>
-                                {% if brand.imprintUrl %}<a href="{{ brand.imprintUrl }}" style="color:#a1a1aa; text-decoration:underline;">Impressum</a>{% endif %}
+                                {% if brand.imprintUrl %}<a href="{{ brand.imprintUrl }}" style="color:#a1a1aa; text-decoration:underline;">{{ 'email.footer.imprint'|trans({}, 'messages', loc) }}</a>{% endif %}
                                 {% if brand.imprintUrl and brand.privacyUrl %} &middot; {% endif %}
-                                {% if brand.privacyUrl %}<a href="{{ brand.privacyUrl }}" style="color:#a1a1aa; text-decoration:underline;">Datenschutz</a>{% endif %}
+                                {% if brand.privacyUrl %}<a href="{{ brand.privacyUrl }}" style="color:#a1a1aa; text-decoration:underline;">{{ 'email.footer.privacy'|trans({}, 'messages', loc) }}</a>{% endif %}
                             {% endif %}
                             {% if brand.supportEmail %}
                                 <br><a href="mailto:{{ brand.supportEmail }}" style="color:#a1a1aa; text-decoration:underline;">{{ brand.supportEmail }}</a>

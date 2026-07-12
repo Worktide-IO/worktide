@@ -1,8 +1,9 @@
+{% set loc = locale|default('de') %}
 {% apply spaceless %}{% endapply %}{% block content %}{% endblock %}
 
 --
 {{ brand.legalName }}
-{% if brand.imprintUrl %}Impressum: {{ brand.imprintUrl }}
-{% endif %}{% if brand.privacyUrl %}Datenschutz: {{ brand.privacyUrl }}
-{% endif %}{% if brand.supportEmail %}Kontakt: {{ brand.supportEmail }}
+{% if brand.imprintUrl %}{{ 'email.footer.imprint'|trans({}, 'messages', loc) }}: {{ brand.imprintUrl }}
+{% endif %}{% if brand.privacyUrl %}{{ 'email.footer.privacy'|trans({}, 'messages', loc) }}: {{ brand.privacyUrl }}
+{% endif %}{% if brand.supportEmail %}{{ 'email.footer.contact'|trans({}, 'messages', loc) }}: {{ brand.supportEmail }}
 {% endif %}

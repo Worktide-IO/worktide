@@ -8,9 +8,11 @@ use App\Egress\EgressGuard;
 use App\Egress\EgressModule;
 use App\Entity\WorkspaceInvitation;
 use App\Service\Branding\BrandingConfig;
+use App\Service\I18n\RecipientLocaleResolver;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Address;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Sends the branded workspace-invitation email carrying the magic accept link
@@ -28,6 +30,8 @@ final readonly class WorkspaceInvitationMailer
         private MailerInterface $mailer,
         private EgressGuard $egress,
         private BrandingConfig $branding,
+        private TranslatorInterface $translator,
+        private RecipientLocaleResolver $localeResolver,
         private string $spaBaseUrl,
         private string $mailFrom,
         private string $mailFromName,
@@ -46,10 +50,20 @@ final readonly class WorkspaceInvitationMailer
 
         $acceptUrl = rtrim($this->spaBaseUrl, '/') . '/accept-invitation?token=' . $invitation->getToken();
 
+        // The invitee has no stored preference of their own — use the
+        // workspace's language. Rendered async (Messenger), so the locale
+        // travels in the context and templates apply it via the trans filter.
+        $locale = $this->localeResolver->forWorkspace($invitation->getWorkspace());
+
         $mail = (new TemplatedEmail())
             ->from($this->fromAddress())
             ->to($invitation->getEmail())
-            ->subject(sprintf('Einladung zu %s', $this->branding->name()))
+            ->subject($this->translator->trans(
+                'email.invitation.subject',
+                ['%name%' => $this->branding->name()],
+                null,
+                $locale,
+            ))
             ->htmlTemplate('email/workspace_invitation.html.twig')
             ->textTemplate('email/workspace_invitation.txt.twig')
             ->context([
@@ -57,6 +71,7 @@ final readonly class WorkspaceInvitationMailer
                 'workspaceName' => $invitation->getWorkspace()->getName(),
                 'role' => $invitation->getRole()->value,
                 'expiresAt' => $invitation->getExpiresAt(),
+                'locale' => $locale,
             ]);
 
         // Routed async via Messenger (SendEmailMessage: async).
