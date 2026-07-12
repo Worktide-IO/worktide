@@ -131,6 +131,12 @@ final class NotificationEmailNotifier
 
     private function maybeSend(Notification $notification, \DateTimeImmutable $now): void
     {
+        // Batchable types are held back for the debounce sweep
+        // (NotificationsFlushBatchCommand); only non-batchable go out instantly.
+        if ($notification->getType()->isBatchable()) {
+            return;
+        }
+
         $recipient = $notification->getRecipient();
         $to = $recipient->getEmail();
         if ($to === '') {

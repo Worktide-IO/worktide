@@ -249,3 +249,6 @@ notification:
   mention: 'Mention in %subject%'
   incident: 'Outage: %system%'
   ai_recommendation: 'New AI recommendation for %ticket%'
+  customer_file_upload: '%customer% uploaded a file'
+  file_shared: 'A new file was shared with you'
+  task_updated: '%ticket% was updated'

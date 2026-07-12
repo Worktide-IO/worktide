@@ -249,3 +249,6 @@ notification:
   mention: 'Erwähnung in %subject%'
   incident: 'Störung: %system%'
   ai_recommendation: 'Neue KI-Empfehlung für %ticket%'
+  customer_file_upload: '%customer% hat eine Datei hochgeladen'
+  file_shared: 'Neue Datei für Sie bereitgestellt'
+  task_updated: '%ticket% wurde aktualisiert'

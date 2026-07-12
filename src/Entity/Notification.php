@@ -86,6 +86,15 @@ class Notification
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $readAt = null;
 
+    /**
+     * When the async (email/chat) delivery was handled. Only meaningful for
+     * batchable types (see {@see NotificationType::isBatchable()}): the debounce
+     * sweep sets it once the recipient's window elapses and the batch is sent.
+     * Non-batchable types deliver instantly and leave this null.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $deliveredAt = null;
+
     public function __construct(
         User $recipient,
         NotificationType $type,
@@ -166,6 +175,18 @@ class Notification
     public function markRead(?\DateTimeImmutable $at = null): self
     {
         $this->readAt ??= $at ?? new \DateTimeImmutable();
+
+        return $this;
+    }
+
+    public function getDeliveredAt(): ?\DateTimeImmutable
+    {
+        return $this->deliveredAt;
+    }
+
+    public function markDelivered(?\DateTimeImmutable $at = null): self
+    {
+        $this->deliveredAt ??= $at ?? new \DateTimeImmutable();
 
         return $this;
     }

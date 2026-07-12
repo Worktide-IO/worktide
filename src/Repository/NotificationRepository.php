@@ -95,6 +95,31 @@ class NotificationRepository extends ServiceEntityRepository
         return $qb->getQuery()->getResult();
     }
 
+    /**
+     * All not-yet-delivered notifications of the given (batchable) types, oldest
+     * first, so the debounce sweep can group them per recipient and decide when
+     * the window has elapsed. Read state is irrelevant here — delivery of the
+     * async channels is tracked separately via deliveredAt.
+     *
+     * @param list<NotificationType> $types
+     * @return list<Notification>
+     */
+    public function findUndeliveredOfTypes(array $types, int $limit = 1000): array
+    {
+        if ($types === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('n')
+            ->andWhere('n.type IN (:types)')
+            ->andWhere('n.deliveredAt IS NULL')
+            ->setParameter('types', array_map(static fn (NotificationType $t): string => $t->value, $types))
+            ->orderBy('n.occurredAt', 'ASC')
+            ->setMaxResults(max(1, $limit))
+            ->getQuery()
+            ->getResult();
+    }
+
     public function countUnread(User $recipient): int
     {
         return (int) $this->createQueryBuilder('n')
