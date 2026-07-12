@@ -268,7 +268,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 - **Public/unauth. Endpunkte** sind rate-limitiert + honeypot-geschützt und **info-leak-frei** (keine User-/Record-Enumeration, konstante Antwortzeiten/-inhalte).
 - **Fremdinhalt ist Daten, nie Instruktion (Prompt-Injection)**: Alles, was ein KI-Agent aus untrusted Quellen liest (Email-Bodies, Ticket-/Kommentar-Text, Formular-Eingaben, Dateinamen/-inhalte, externe Ticket-Sync-Payloads), wird strikt vom System-/Tool-Kontext getrennt eingebettet. Ein Agent darf aus solchem Inhalt **keine** Tool-Calls, Egress-Aktionen, Scope-Wechsel oder Preisgabe anderer Datensätze ableiten — die Isolations- und Egress-Regeln oben gelten für Agent-Aktionen genauso wie für Endpunkte.
 
-### In Tests gießen (fail-closed, im CI-Gate)
+### In Tests gießen (fail-closed, im CI-Gate — `.github/workflows/tests.yml`, MySQL 8 + PHP 8.4, läuft bei jedem Push/PR)
 - **Scope-Coverage-Test**: iteriert reflexiv über alle `#[ApiResource]`-Klassen und assertet, dass jede in der Scope-Whitelist steht **oder** explizit als public markiert ist → eine neue Entity ohne Scoping bricht den Build automatisch.
 - **Cross-Tenant-Functional-Tests**: User aus Workspace A bekommt `404/403` auf Collection-Filter, Item-Get **und** Patch-mit-fremder-FK aus Workspace B.
 - **Portal-Isolation-Tests**: pro `/v1/portal/*`-Endpunkt ein Test, dass Kunde X keine Daten von Kunde Y sieht (inkl. Datei-Download + Newsletter/Booking-Token).
