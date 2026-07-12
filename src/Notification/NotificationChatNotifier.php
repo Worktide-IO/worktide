@@ -59,8 +59,41 @@ final class NotificationChatNotifier
         }
     }
 
+    /**
+     * Deliver ONE bundled chat message for a batch of notifications (the debounce
+     * sweep decides channel/type/window gating beforehand). Best-effort, async.
+     *
+     * @param list<Notification> $notifications
+     */
+    public function sendBatch(\App\Entity\User $recipient, array $notifications): void
+    {
+        if ($notifications === [] || !$this->egress->isAllowed(EgressModule::ChatOutbound)) {
+            return;
+        }
+        $webhook = $this->webhooks->findOneByUser($recipient);
+        $webhookId = $webhook?->getId();
+        if ($webhook === null || !$webhook->isEnabled() || $webhookId === null) {
+            return;
+        }
+
+        $first = $notifications[0];
+        $count = \count($notifications);
+        $title = $count === 1 ? $first->getTitle() : $first->getTitle() . ' (+' . ($count - 1) . ')';
+        $isPortal = \in_array('ROLE_PORTAL', $recipient->getRoles(), true);
+        $base = $isPortal ? $this->portalBaseUrl : $this->spaBaseUrl;
+        $actionUrl = rtrim($base, '/') . '/' . ltrim($first->getLink(), '/');
+
+        $this->bus->dispatch(new NotifyChatMessage($webhookId, $title, $first->getBody(), $actionUrl));
+    }
+
     private function maybeDispatch(Notification $notification, \DateTimeImmutable $now): void
     {
+        // Batchable types are held back for the debounce sweep
+        // (NotificationsFlushBatchCommand); only non-batchable go out instantly.
+        if ($notification->getType()->isBatchable()) {
+            return;
+        }
+
         $recipient = $notification->getRecipient();
 
         $webhook = $this->webhooks->findOneByUser($recipient);

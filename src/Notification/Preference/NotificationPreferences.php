@@ -36,11 +36,18 @@ final class NotificationPreferences
         private readonly array $types,
         public readonly ?array $quietHours,
         public readonly bool $chat = false,
+        // Debounce window (minutes) for batchable types: after the first such
+        // event, collect further ones for this long, then deliver ONE batched
+        // email/chat. 0 = no extra wait (sent on the next sweep). Email/chat only.
+        public readonly int $delayMinutes = self::DEFAULT_DELAY_MINUTES,
     ) {}
+
+    public const DEFAULT_DELAY_MINUTES = 30;
+    public const MAX_DELAY_MINUTES = 1440;
 
     public static function defaults(): self
     {
-        return new self(true, self::FREQ_INSTANT, [], null, false);
+        return new self(true, self::FREQ_INSTANT, [], null, false, self::DEFAULT_DELAY_MINUTES);
     }
 
     /**
@@ -80,7 +87,12 @@ final class NotificationPreferences
 
         $chat = (bool) ($data['chat'] ?? false);
 
-        return new self($email, $frequency, $types, $quietHours, $chat);
+        $delayMinutes = self::DEFAULT_DELAY_MINUTES;
+        if (isset($data['delayMinutes']) && (\is_int($data['delayMinutes']) || (\is_string($data['delayMinutes']) && ctype_digit($data['delayMinutes'])))) {
+            $delayMinutes = max(0, min(self::MAX_DELAY_MINUTES, (int) $data['delayMinutes']));
+        }
+
+        return new self($email, $frequency, $types, $quietHours, $chat, $delayMinutes);
     }
 
     public function typeEnabled(string $type): bool
@@ -156,6 +168,7 @@ final class NotificationPreferences
             'email' => $this->email,
             'chat' => $this->chat,
             'frequency' => $this->frequency,
+            'delayMinutes' => $this->delayMinutes,
             'types' => $types,
             'quietHours' => $this->quietHours,
         ];
