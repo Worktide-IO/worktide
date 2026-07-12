@@ -78,7 +78,7 @@ final class CommentResolver implements NotificationResolverInterface
             yield new ResolvedNotification(
                 recipient: $user,
                 type: NotificationType::Comment,
-                title: 'Neuer Kommentar',
+                titleKey: 'notification.comment_new',
                 link: $staffLink,
                 body: $body,
             );
@@ -100,7 +100,8 @@ final class CommentResolver implements NotificationResolverInterface
             yield new ResolvedNotification(
                 recipient: $user,
                 type: NotificationType::Comment,
-                title: 'Neue Antwort auf ' . $task->getIdentifier(),
+                titleKey: 'notification.comment_reply',
+                titleParams: ['%ticket%' => $task->getIdentifier()],
                 link: '/tickets/' . $targetId->toRfc4122(),
                 body: $body,
             );

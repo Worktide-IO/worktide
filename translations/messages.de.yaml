@@ -240,3 +240,12 @@ email:
     reason: 'Sie erhalten diese E-Mail, weil Sie „%title%" abonniert haben.'
     reason_txt: 'Sie erhalten diese E-Mail, weil Sie "%title%" abonniert haben.'
     unsubscribe: 'Abbestellen'
+notification:
+  task_assigned: 'Dir wurde eine Aufgabe zugewiesen'
+  launch_service: 'Neuer Service freigeschaltet'
+  launch_product: 'Neues Produkt freigeschaltet'
+  comment_new: 'Neuer Kommentar'
+  comment_reply: 'Neue Antwort auf %ticket%'
+  mention: 'Erwähnung in %subject%'
+  incident: 'Störung: %system%'
+  ai_recommendation: 'Neue KI-Empfehlung für %ticket%'

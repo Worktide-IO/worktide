@@ -46,7 +46,8 @@ final class SystemIncidentResolver implements NotificationResolverInterface
             yield new ResolvedNotification(
                 recipient: $user,
                 type: NotificationType::System,
-                title: 'Störung: ' . $system->getName(),
+                titleKey: 'notification.incident',
+                titleParams: ['%system%' => $system->getName()],
                 link: '/monitoring',
                 body: $incident->getTitle(),
             );

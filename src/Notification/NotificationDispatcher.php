@@ -7,11 +7,13 @@ namespace App\Notification;
 use App\Entity\DomainEventLog;
 use App\Entity\Notification;
 use App\Repository\NotificationRepository;
+use App\Service\I18n\RecipientLocaleResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Fans one {@see DomainEventLog} out to per-recipient {@see Notification}s.
@@ -35,6 +37,8 @@ final class NotificationDispatcher
         private readonly EntityManagerInterface $em,
         private readonly NotificationRepository $notifications,
         private readonly HubInterface $hub,
+        private readonly TranslatorInterface $translator,
+        private readonly RecipientLocaleResolver $localeResolver,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 
@@ -72,10 +76,22 @@ final class NotificationDispatcher
                     continue;
                 }
 
+                // Render the title in the RECIPIENT's language (resolved from
+                // their stored preference/workspace, not the acting request).
+                $title = $this->translator->trans(
+                    $resolved->titleKey,
+                    $resolved->titleParams,
+                    null,
+                    // Recipient preference → the event's workspace language →
+                    // app default (so a preference-less recipient gets the
+                    // workspace's language, not the global fallback).
+                    $this->localeResolver->forUser($resolved->recipient, $event->getWorkspace()),
+                );
+
                 $notification = new Notification(
                     recipient: $resolved->recipient,
                     type: $resolved->type,
-                    title: mb_substr($resolved->title, 0, 255),
+                    title: mb_substr($title, 0, 255),
                     link: mb_substr($resolved->link, 0, 512),
                     body: $resolved->body,
                     workspace: $event->getWorkspace(),
