@@ -1,0 +1,9 @@
+# Local dev only: run a Symfony Messenger worker so async messages
+# (emails, chat webhooks, Mercure updates, batched notification delivery) are
+# actually consumed. In prod the dedicated `worker` container does this; DDEV
+# has no worker by default. The while-loop restarts the consumer after its
+# time/memory limit or a crash so it stays up across a dev session.
+web_extra_daemons:
+  - name: messenger-async
+    command: "bash -c 'while true; do php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M -v || sleep 2; done'"
+    directory: /var/www/html
