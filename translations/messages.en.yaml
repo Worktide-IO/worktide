@@ -93,3 +93,24 @@ label:
     ai_suggestion_unavailable: AI suggestion is currently unavailable.
     ai_suggestion_failed: AI suggestion failed.
     form_closed: This form is no longer accepting submissions.
+email:
+  invitation:
+    subject: 'Invitation to %name%'
+    heading: 'Invitation to %workspace%'
+    greeting: 'Hello,'
+    body: 'You have been invited to join the workspace <strong>%workspace%</strong> in %brand%%role%. Click the button to accept the invitation:'
+    role_suffix: ' (as %role%)'
+    cta: 'Accept invitation'
+    fallback_link: 'If the button does not work, copy this link into your browser:'
+    valid_until: 'This invitation is valid until %date%.'
+    ignore: 'If you did not expect this invitation, you can ignore this email.'
+    body_txt: 'You have been invited to join the workspace "%workspace%" in %brand%.'
+    open_link_txt: 'Open the following link to accept the invitation:'
+  role:
+    admin: Administrator
+    member: Member
+    guest: Guest
+  footer:
+    imprint: Legal notice
+    privacy: Privacy
+    contact: Contact

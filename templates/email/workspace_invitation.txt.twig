@@ -1,12 +1,12 @@
 {% extends 'email/base.txt.twig' %}
 
-{% block content %}Hallo,
+{% block content %}{{ 'email.invitation.greeting'|trans({}, 'messages', locale) }}
 
-Sie wurden eingeladen, dem Workspace "{{ workspaceName }}" in {{ brand.name }} beizutreten.
-Öffnen Sie den folgenden Link, um die Einladung anzunehmen:
+{{ 'email.invitation.body_txt'|trans({'%workspace%': workspaceName, '%brand%': brand.name}, 'messages', locale) }}
+{{ 'email.invitation.open_link_txt'|trans({}, 'messages', locale) }}
 
 {{ acceptUrl }}
 
-Die Einladung ist bis {{ expiresAt|date('d.m.Y') }} gültig.
+{{ 'email.invitation.valid_until'|trans({'%date%': expiresAt|date('d.m.Y')}, 'messages', locale) }}
 
-Falls Sie diese Einladung nicht erwartet haben, ignorieren Sie diese E-Mail.{% endblock %}
+{{ 'email.invitation.ignore'|trans({}, 'messages', locale) }}{% endblock %}

@@ -9,10 +9,12 @@ use App\Entity\Enum\WorkspaceMemberRole;
 use App\Entity\Workspace;
 use App\Entity\WorkspaceInvitation;
 use App\Service\Branding\BrandingConfig;
+use App\Service\I18n\RecipientLocaleResolver;
 use App\Service\WorkspaceInvitationMailer;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Translation\Translator;
 
 /**
  * Unit coverage for the workspace-invitation mailer: the branded template +
@@ -79,6 +81,8 @@ final class WorkspaceInvitationMailerTest extends TestCase
             $mailer,
             new EgressGuard($allowEmail ? 'email_outbound' : ''),
             $this->branding(),
+            new Translator('de'),
+            new RecipientLocaleResolver(['de', 'en'], 'en'),
             self::SPA_BASE,
             'no-reply@example.test',
             '',
