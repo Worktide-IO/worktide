@@ -67,6 +67,7 @@ final class PortalFormsController
                 'id' => $f->getId()?->toRfc4122(),
                 'title' => $f->getTitle(),
                 'description' => $f->getDescription(),
+                'translations' => $f->getTranslations(),
                 'fieldCount' => \count($this->normalizer->inputBlocks($this->normalizer->normalize($f))),
             ], $forms),
         ]);
@@ -94,6 +95,8 @@ final class PortalFormsController
             'title' => $form->getTitle(),
             'description' => $form->getDescription(),
             'successMessage' => $form->getSuccessMessage(),
+            // Per-locale title/description/successMessage overrides (see localize()).
+            'translations' => $form->getTranslations(),
             'schema' => $this->normalizer->toClientSchema($doc),
             'fields' => $this->normalizer->toClientFields($doc),
             // Resume support: the contact's saved partial answers, if any.

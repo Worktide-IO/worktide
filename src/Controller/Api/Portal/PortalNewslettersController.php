@@ -135,6 +135,8 @@ final class PortalNewslettersController
                 'id' => $id,
                 'title' => $node->getTitle(),
                 'description' => $node->getDescription(),
+                // Per-locale title/description overrides (see localize() in the portal).
+                'translations' => $node->getTranslations(),
                 'subscribable' => $isEnabled,
                 'subscribed' => $isEnabled && isset($subscribed[$id]),
                 'children' => $children,
