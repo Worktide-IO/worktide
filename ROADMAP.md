@@ -255,6 +255,28 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 
 ---
 
+## Phase T — Data-Leak-Prevention & Tenant-Isolation-Guardrails (Querschnitt)
+
+**Ziel:** Mandanten-/Kundendaten dürfen nie über Workspace- oder Customer-Grenzen sickern und nie ungewollt das System verlassen. Die Sicherheitswelle (#48–57) hat Einzelfälle gefixt — dieser Block macht die dahinterstehenden **Regeln explizit** und **fest verdrahtet in Tests**, sodass ein Regelverstoß den Build bricht statt erst im Audit aufzufallen. Querschnitt — läuft **früh und dauerhaft** mit, nicht erst bei Enterprise-Bedarf (Voraussetzung fürs Kundenportal, das Nicht-Mitarbeitern eine reduzierte Sicht öffnet).
+
+### Richtlinien (verbindlich für jede neue Entity / jeden Endpunkt)
+- **Mandanten-Scoping by default**: jede API-Platform-Resource ist workspace-gescoped (`WorkspaceScopeExtension` + Voter). Eine Resource ohne Scope ist ein Fehler, keine Option — Ausnahmen (`PUBLIC_ACCESS`: Forms, Booking, Newsletter-Confirm) sind explizit annotiert + dokumentiert.
+- **Portal-Isolation über einen Seam**: jeder `/v1/portal/*`-Endpunkt löst den Tenant ausschließlich über `PortalAccessResolver` auf (Contact → Customer), nie über rohe IDs aus dem Request-Body/-Pfad. Contact von Kunde X sieht nie Daten von Kunde Y.
+- **Keine Cross-Workspace-Referenzen**: FKs (assignee, project, customer, folder, …) müssen im selben Workspace liegen; Denormalizer/Voter weisen fremde IDs ab (kein „ID-Erraten").
+- **Egress ist default-deny**: jeder Outbound (Mail, LLM, Web-Recherche, Chat-/Forum-/Webhook-Push) läuft durch den `EgressGuard` + `EGRESS_ALLOW`-Kategorie. Kein direkter HTTP-Call an vom User/Admin gelieferte Hosts ohne **SSRF-Guard** (interne IPs, `file://`, Redirect-Rebinding geblockt).
+- **Serialisierung leakt nichts**: Responses whitelisten Felder über Serialization-Groups; Secrets (`authConfig`, Tokens, Passwörter) sind write-only / `is_shown_once` und encrypted-at-rest — nie in Response, Fehlermeldung, `@id`-IRI oder Log.
+- **Public/unauth. Endpunkte** sind rate-limitiert + honeypot-geschützt und **info-leak-frei** (keine User-/Record-Enumeration, konstante Antwortzeiten/-inhalte).
+
+### In Tests gießen (fail-closed, im CI-Gate)
+- **Scope-Coverage-Test**: iteriert reflexiv über alle `#[ApiResource]`-Klassen und assertet, dass jede in der Scope-Whitelist steht **oder** explizit als public markiert ist → eine neue Entity ohne Scoping bricht den Build automatisch.
+- **Cross-Tenant-Functional-Tests**: User aus Workspace A bekommt `404/403` auf Collection-Filter, Item-Get **und** Patch-mit-fremder-FK aus Workspace B.
+- **Portal-Isolation-Tests**: pro `/v1/portal/*`-Endpunkt ein Test, dass Kunde X keine Daten von Kunde Y sieht (inkl. Datei-Download + Newsletter/Booking-Token).
+- **Egress-default-deny-Test**: ohne `EGRESS_ALLOW` schlägt jeder Outbound fehl; SSRF-Payload-Suite (169.254.x, `localhost`, `file://`, DNS-Rebinding, offene Redirects) wird geblockt.
+- **Serialization-Leak-Test**: Assert, dass sensible Felder (`password`, `authConfig`, `*token*`, Fremd-Workspace-Refs) in keiner API-Response auftauchen.
+- **Regression-Verankerung**: jeder der #48–57-Fixes bekommt einen dedizierten Test, damit die Lücke nicht zurückkehrt.
+
+---
+
 ## Phase E — CRM + Customer-Portal
 
 **Ziel:** CRM-3 + CRM-4 abschließen, Kunden bekommen ihre eigene Sicht.
@@ -338,6 +360,8 @@ Die ursprüngliche Sequenz A → C → B → D → D⁺ → E ist **weitgehend a
 **Phase S** (Skalierung) läuft **quer** zu dieser Sequenz, nicht als Schritt:
 - **S3-Adapter — erledigt** (`FILE_STORAGE_ADAPTER`, Dev gegen MinIO verifiziert).
 - **HTTP-Cache + Redis/Valkey** rücken nach oben: Portal + Notifications erhöhen Read-Traffic **und** Queue-/Rate-Limiter-Last (`ai_agents`- + `async`-Transport laufen heute noch auf Doctrine). Zünden, sobald Prod-Last es rechtfertigt — parallel zu jeder Phase möglich, da rein infrastrukturell.
+
+**Phase T** (Data-Leak-Prevention & Tenant-Isolation-Guardrails) läuft **ebenfalls quer** und sollte parallel zu Schritt 1 anlaufen — das Kundenportal öffnet Nicht-Mitarbeitern eine Sicht, also müssen die Isolations-Regeln vorher in fail-closed-Tests verdrahtet sein.
 
 ---
 
