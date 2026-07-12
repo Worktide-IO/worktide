@@ -165,6 +165,7 @@ class Channel
      * @var array<string, mixed>
      */
     #[ORM\Column(type: 'json')]
+    #[ApiProperty(readable: false)] // write-only: secrets must never serialize back out (Phase-T guardrail)
     private array $authConfig = [];
 
     /**
