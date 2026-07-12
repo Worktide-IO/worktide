@@ -1,0 +1,82 @@
+name: Tests
+
+# The Phase-T guardrails (tenant isolation, serialization-leak, prompt-injection)
+# plus the whole PHPUnit suite, run fail-closed on every push to main and every
+# pull request — so a regression that reopens a data-leak breaks the build here
+# instead of shipping. Mirrors the local ddev setup: PHP 8.4 + MySQL 8.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phpunit:
+    name: PHPUnit (guardrails + full suite)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        # Steps only start once MySQL reports healthy.
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      APP_ENV: test
+      # Override .env.test's ddev host (db:3306) with the CI service on localhost.
+      # NB: the test env appends `_test` to the db name (doctrine.yaml
+      # dbname_suffix), so the base name here is `worktide` and the real database
+      # is `worktide_test` — created by the doctrine:database:create step below.
+      DATABASE_URL: "mysql://root:root@127.0.0.1:3306/worktide?serverVersion=8.0&charset=utf8mb4"
+      # .env.test.local (real secrets) is gitignored, so provide CI-only values.
+      # These are throwaway test secrets, not production credentials.
+      JWT_PASSPHRASE: ci-test-passphrase
+      MERCURE_JWT_SECRET: ci-test-mercure-secret-0000000000000000000000000000
+      # LLM / egress / mailer stay at their fail-closed defaults: tests stub the
+      # LLM, egress is deny-by-default, mailer is null:// — no real network.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, intl, pdo_mysql, sodium, ctype, iconv, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache Composer packages
+        id: composer-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist --no-scripts
+
+      - name: Generate JWT keypair
+        run: php bin/console lexik:jwt:generate-keypair --overwrite --no-interaction --env=test
+
+      - name: Create test database
+        run: php bin/console doctrine:database:create --if-not-exists --env=test
+
+      - name: Create schema (run migrations)
+        run: php bin/console doctrine:migrations:migrate --no-interaction --env=test
+
+      - name: PHPUnit
+        run: php vendor/bin/phpunit
