@@ -7,8 +7,10 @@ namespace App\Service\Newsletter;
 use App\Egress\EgressGuard;
 use App\Egress\EgressModule;
 use App\Entity\Contact;
+use App\Entity\Newsletter;
 use App\Entity\NewsletterIssue;
 use App\Entity\NewsletterSubscription;
+use App\Entity\Workspace;
 use App\Service\I18n\RecipientLocaleResolver;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
@@ -74,9 +76,9 @@ final class NewsletterMailer
         // The subject/body stay author-written content and are not translated.
         $locale = $this->localeResolver->forContact($contact);
 
-        $fromName = $this->mailFromName !== '' ? $this->mailFromName : 'Worktide';
+        [$from, $replyTo] = $this->resolveSender($newsletter);
         $mail = (new TemplatedEmail())
-            ->from(new Address($this->mailFrom, $fromName))
+            ->from($from)
             ->to(new Address($to, trim($contact->getFirstName() . ' ' . $contact->getLastName())))
             ->subject($this->fillPlaceholders($issue->getSubject(), $contact))
             ->htmlTemplate('email/newsletter.html.twig')
@@ -90,6 +92,9 @@ final class NewsletterMailer
                 'unsubscribeUrl' => $this->signer->unsubscribeUrl($contactId, $newsletterId),
                 'locale' => $locale,
             ]);
+        if ($replyTo !== null) {
+            $mail->replyTo($replyTo);
+        }
 
         $this->mailer->send($mail);
 
@@ -118,9 +123,9 @@ final class NewsletterMailer
         }
 
         $locale = $this->localeResolver->forContact($contact);
-        $fromName = $this->mailFromName !== '' ? $this->mailFromName : 'Worktide';
+        [$from, $replyTo] = $this->resolveSender($newsletter);
         $mail = (new TemplatedEmail())
-            ->from(new Address($this->mailFrom, $fromName))
+            ->from($from)
             ->to(new Address($to, trim($contact->getFirstName() . ' ' . $contact->getLastName())))
             ->subject($newsletter->getTitle())
             ->htmlTemplate('email/newsletter_confirm.html.twig')
@@ -131,10 +136,41 @@ final class NewsletterMailer
                 'confirmUrl' => $this->confirmSigner->confirmUrl($contactId, $newsletterId),
                 'locale' => $locale,
             ]);
+        if ($replyTo !== null) {
+            $mail->replyTo($replyTo);
+        }
 
         $this->mailer->send($mail);
 
         return true;
+    }
+
+    /**
+     * Resolve the From address and optional Reply-To for a newsletter's workspace.
+     * The From ADDRESS stays the global MAILER_FROM (deliverability/SPF); only the
+     * display name is overridden per workspace (settings.newsletter.senderName), and
+     * a workspace Reply-To (settings.newsletter.replyTo) is added when valid.
+     *
+     * @return array{0: Address, 1: Address|null}
+     */
+    private function resolveSender(Newsletter $newsletter): array
+    {
+        $settings = $newsletter->getWorkspace()->getSettings();
+        $ns = \is_array($settings['newsletter'] ?? null) ? $settings['newsletter'] : [];
+
+        $senderName = \is_string($ns['senderName'] ?? null) ? trim($ns['senderName']) : '';
+        if ($senderName === '') {
+            $senderName = $this->mailFromName !== '' ? $this->mailFromName : 'Worktide';
+        }
+        $from = new Address($this->mailFrom, $senderName);
+
+        $replyTo = null;
+        $replyToRaw = \is_string($ns['replyTo'] ?? null) ? trim($ns['replyTo']) : '';
+        if ($replyToRaw !== '' && filter_var($replyToRaw, \FILTER_VALIDATE_EMAIL) !== false) {
+            $replyTo = new Address($replyToRaw);
+        }
+
+        return [$from, $replyTo];
     }
 
     private function fillPlaceholders(string $text, Contact $contact): string
