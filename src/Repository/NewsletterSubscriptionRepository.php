@@ -65,6 +65,12 @@ class NewsletterSubscriptionRepository extends ServiceEntityRepository
             return [];
         }
 
+        // Mandatory/transactional node: every active contact of a granted customer,
+        // no subscription row, no opt-out.
+        if ($newsletter->isMandatory()) {
+            return $this->findMandatoryRecipients($newsletter, $nodeId);
+        }
+
         /** @var list<NewsletterSubscription> $subs */
         $subs = $this->createQueryBuilder('s')
             ->join('s.contact', 'c')->addSelect('c')
@@ -80,6 +86,38 @@ class NewsletterSubscriptionRepository extends ServiceEntityRepository
         $recipients = [];
         foreach ($subs as $sub) {
             $contact = $sub->getContact();
+            if (\in_array($nodeId, $contact->getCustomer()->getEnabledNewsletterIds(), true)) {
+                $recipients[] = $contact;
+            }
+        }
+
+        return $recipients;
+    }
+
+    /**
+     * Recipients for a mandatory node: all active, emailable contacts in the
+     * newsletter's workspace whose customer STILL has the node granted (grant
+     * lives in the JSON `Customer.enabledNewsletterIds`, filtered in PHP). No
+     * subscription rows are involved — mandatory enrolment is implicit.
+     *
+     * @return list<Contact>
+     */
+    private function findMandatoryRecipients(Newsletter $newsletter, string $nodeId): array
+    {
+        /** @var list<Contact> $contacts */
+        $contacts = $this->getEntityManager()->createQueryBuilder()
+            ->select('c', 'cu')
+            ->from(Contact::class, 'c')
+            ->join('c.customer', 'cu')
+            ->andWhere('cu.workspace = :ws')
+            ->andWhere('c.isActive = true')
+            ->andWhere("c.email IS NOT NULL AND c.email != ''")
+            ->setParameter('ws', $newsletter->getWorkspace())
+            ->getQuery()
+            ->getResult();
+
+        $recipients = [];
+        foreach ($contacts as $contact) {
             if (\in_array($nodeId, $contact->getCustomer()->getEnabledNewsletterIds(), true)) {
                 $recipients[] = $contact;
             }

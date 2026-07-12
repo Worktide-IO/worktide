@@ -162,6 +162,62 @@ final class PortalNewsletterConsentTest extends WebTestCase
         self::assertTrue($roots[0]['children'][0]['subscribable']);
     }
 
+    public function testMandatoryNodeIsForcedOnAndMailsAllContacts(): void
+    {
+        $ws = (new Workspace())->setName('Mand WS')->setSlug('mand-ws-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
+            ->setLocale('de')->setTimezone('Europe/Berlin')
+            ->setSettings(['portal' => ['enabled' => true, 'features' => ['newsletters' => true]]]);
+        $this->em->persist($ws);
+
+        $node = (new Newsletter())->setTitle('Service-Ansagen')->setIsMandatory(true);
+        $node->setWorkspace($ws);
+        $this->em->persist($node);
+        $this->em->flush();
+
+        $customer = (new Customer())->setWorkspace($ws)->setName('Kunde')->setIsCompany(true)
+            ->setStatus(CustomerStatus::Active)->setPortalEnabled(true)
+            ->setEnabledNewsletterIds([$node->getId()->toRfc4122()]);
+        $this->em->persist($customer);
+
+        $portalUser = (new User())->setEmail('mand.contact@example.test')->setFirstName('T')->setLastName('U')
+            ->setRoles(['ROLE_PORTAL']);
+        $portalUser->setPassword('noop');
+        $this->em->persist($portalUser);
+        // Two active, emailable contacts — neither has a subscription row.
+        $this->em->persist(
+            (new Contact())->setCustomer($customer)->setFirstName('A')->setLastName('A')
+                ->setEmail('mand.contact@example.test')->setLinkedUser($portalUser),
+        );
+        $this->em->persist(
+            (new Contact())->setCustomer($customer)->setFirstName('B')->setLastName('B')
+                ->setEmail('mand.b@example.test'),
+        );
+        $this->em->flush();
+        $nodeId = $node->getId()->toRfc4122();
+        $this->em->clear();
+
+        $token = $this->token($portalUser);
+
+        // Portal shows it forced on, not togglable.
+        $this->request('GET', '/v1/portal/newsletters', $token);
+        $dto = $this->json()['newsletters'][0];
+        self::assertTrue($dto['mandatory']);
+        self::assertTrue($dto['subscribed']);
+        self::assertFalse($dto['subscribable']);
+
+        // (Un)subscribe on a mandatory node is a 409.
+        $this->request('POST', '/v1/portal/newsletters/' . $nodeId . '/subscription', $token);
+        self::assertSame(409, $this->client->getResponse()->getStatusCode());
+        $this->request('DELETE', '/v1/portal/newsletters/' . $nodeId . '/subscription', $token);
+        self::assertSame(409, $this->client->getResponse()->getStatusCode());
+
+        // Recipients = both active contacts, no subscription rows involved.
+        $node = $this->em->find(Newsletter::class, Uuid::fromString($nodeId));
+        $recipients = self::getContainer()->get(NewsletterSubscriptionRepository::class)
+            ->findActiveRecipientsForNewsletter($node);
+        self::assertCount(2, $recipients);
+    }
+
     private function reloadSubscription(array $ctx): ?NewsletterSubscription
     {
         $this->em->clear();
