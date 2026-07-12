@@ -67,7 +67,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'slug' => 'exact',
     'tags.id' => 'exact',
 ])]
-#[ApiFilter(BooleanFilter::class, properties: ['isArchived', 'isSubscribable'])]
+#[ApiFilter(BooleanFilter::class, properties: ['isArchived', 'isSubscribable', 'isMandatory'])]
 #[ApiFilter(ExistsFilter::class, properties: ['parent', 'deletedAt'])]
 #[ApiFilter(OrderFilter::class, properties: ['position', 'title', 'updatedAt'])]
 class Newsletter implements TranslatableInterface, TaggableInterface
@@ -128,6 +128,15 @@ class Newsletter implements TranslatableInterface, TaggableInterface
      */
     #[ORM\Column(options: ['default' => true])]
     private bool $isSubscribable = true;
+
+    /**
+     * Transactional/mandatory newsletter: every active contact of a customer that
+     * has this node granted is a recipient, with no subscription row and no opt-out
+     * (service announcements, not marketing). Consent-exempt by design — this is the
+     * ONLY consent-free enrolment, deliberately not a marketing default opt-in.
+     */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $isMandatory = false;
 
     public function __construct()
     {
@@ -257,6 +266,18 @@ class Newsletter implements TranslatableInterface, TaggableInterface
     public function setIsSubscribable(bool $isSubscribable): self
     {
         $this->isSubscribable = $isSubscribable;
+
+        return $this;
+    }
+
+    public function isMandatory(): bool
+    {
+        return $this->isMandatory;
+    }
+
+    public function setIsMandatory(bool $isMandatory): self
+    {
+        $this->isMandatory = $isMandatory;
 
         return $this;
     }

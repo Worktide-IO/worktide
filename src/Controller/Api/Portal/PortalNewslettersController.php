@@ -12,6 +12,7 @@ use App\Repository\NewsletterSubscriptionRepository;
 use App\Service\Portal\PortalAccessResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
@@ -78,6 +79,10 @@ final class PortalNewslettersController
         $this->portal->assertFeatureEnabled('newsletters');
 
         $newsletter = $this->findEnabledNewsletterOr404($id);
+        if ($newsletter->isMandatory()) {
+            // Mandatory nodes are always on — nothing to (un)subscribe.
+            throw new ConflictHttpException('This newsletter is mandatory and cannot be changed.');
+        }
         $contact = $this->portal->contact();
 
         // One row per (newsletter, contact): create it, or reactivate a
@@ -108,6 +113,9 @@ final class PortalNewslettersController
         $this->portal->assertFeatureEnabled('newsletters');
 
         $newsletter = $this->findEnabledNewsletterOr404($id);
+        if ($newsletter->isMandatory()) {
+            throw new ConflictHttpException('This newsletter is mandatory and cannot be changed.');
+        }
         // Soft opt-out: keep the row (consent audit trail), stamp revokedAt.
         $existing = $this->subscriptions->findOneForContact($newsletter, $this->portal->contact());
         if ($existing !== null && $existing->isActive()) {
@@ -138,11 +146,14 @@ final class PortalNewslettersController
                 continue; // archived nodes (and their subtree) are hidden from the portal
             }
             $children = $this->buildForest($childrenByParent[$id] ?? [], $childrenByParent, $enabled, $subscribed);
-            // Subscribable only if granted AND the node itself allows opt-in;
-            // a granted-but-non-subscribable node is a pure category header.
-            $isSubscribable = isset($enabled[$id]) && $node->isSubscribable();
-            if (!$isSubscribable && $children === []) {
-                continue; // neither an opt-in target nor an ancestor of one
+            $isGranted = isset($enabled[$id]);
+            // Mandatory = granted + forced on, no toggle. Subscribable = granted +
+            // opt-in allowed AND not mandatory. A granted-but-non-subscribable node
+            // is a pure category header.
+            $isMandatory = $isGranted && $node->isMandatory();
+            $isSubscribable = $isGranted && $node->isSubscribable() && !$isMandatory;
+            if (!$isSubscribable && !$isMandatory && $children === []) {
+                continue; // neither an opt-in target, a forced node, nor an ancestor of one
             }
             $frequency = $node->getEstimatedFrequency();
             $out[] = [
@@ -159,7 +170,8 @@ final class PortalNewslettersController
                     ? $this->translator->trans('label.newsletter_frequency.' . $frequency->value)
                     : null,
                 'subscribable' => $isSubscribable,
-                'subscribed' => $isSubscribable && isset($subscribed[$id]),
+                'mandatory' => $isMandatory,
+                'subscribed' => $isMandatory || ($isSubscribable && isset($subscribed[$id])),
                 'children' => $children,
             ];
         }
