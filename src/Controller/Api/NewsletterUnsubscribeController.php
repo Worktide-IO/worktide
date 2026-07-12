@@ -44,7 +44,7 @@ final class NewsletterUnsubscribeController
 
         return new JsonResponse([
             'newsletterTitle' => $newsletter->getTitle(),
-            'unsubscribed' => $sub === null,
+            'unsubscribed' => $sub === null || !$sub->isActive(),
         ]);
     }
 
@@ -57,9 +57,10 @@ final class NewsletterUnsubscribeController
     public function unsubscribe(string $token): JsonResponse
     {
         [$newsletter, $contact] = $this->resolve($token);
+        // Soft opt-out: keep the row as consent/withdrawal audit, stamp revokedAt.
         $sub = $this->subscriptions->findOneForContact($newsletter, $contact);
-        if ($sub !== null) {
-            $this->em->remove($sub);
+        if ($sub !== null && $sub->isActive()) {
+            $sub->revoke();
             $this->em->flush();
         }
 
