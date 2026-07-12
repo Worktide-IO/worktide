@@ -340,6 +340,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 
 - **Vor Phase B**: Will Worktide explizit gegen Jira konkurrieren oder reicht Tracker-Light? Im Light-Fall: Trackers + Versions reichen, Workflow-per-Tracker streichen.
 - **Vor Phase D**: AI als User-facing-Vorschlag oder Hidden-Boost (Schätzungen automatisch übernehmen, unsichtbar)?
+- **Vor Phase T**: **nicht** auf Enterprise-Bedarf warten (Gegenteil von Phase F) — die Data-Leak-Guardrails samt fail-closed-Tests müssen stehen, **bevor** der erste echte Kunde ins Portal gelassen wird, da das Portal die Mandantengrenze nach außen öffnet.
 - **Vor Phase F**: Erste Enterprise-Kunden-Anfrage abwarten, vorher keine SSO/2FA/Sandboxes.
 - **Vor Phase G**: Marketplace und OAuth-Server erst wenn 50+ aktive Workspaces produktiv.
 
