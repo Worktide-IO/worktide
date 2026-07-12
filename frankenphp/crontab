@@ -29,6 +29,11 @@
 # Probe monitored customer systems (uptime/latency)
 */5 * * * * cd /app && php bin/console app:monitoring:probe
 
+# Flush debounced (batched) notifications whose per-recipient delay window has
+# elapsed — file uploads + ticket assignment/updates. Sends one bundled
+# email/chat per recipient; in-app already fired instantly on creation.
+*/2 * * * * cd /app && php bin/console app:notifications:flush-batch
+
 # Lock time entries past the lock window (hourly)
 7 * * * * cd /app && php bin/console app:time:auto-lock
 
