@@ -238,9 +238,16 @@ final class PortalAgreementsController
             }
         }
 
+        // The DTO surfaces the agreement type under `type` (its base name);
+        // remap the AgreementType's per-locale `name` overrides onto that key so
+        // the portal's localize(agreement, 'type') resolves them directly.
+        $typeTranslations = $agreement->getType()->getTranslations();
+        $typeNameOverrides = $typeTranslations['name'] ?? null;
+
         return [
             'id' => $agreement->getId()?->toRfc4122(),
             'type' => $agreement->getType()->getName(),
+            'translations' => $typeNameOverrides !== null ? ['type' => $typeNameOverrides] : null,
             'typeSlug' => $agreement->getTypeSlug(),
             'status' => $status,
             'statusLabel' => $this->translator->trans('label.agreement_status.' . $status),

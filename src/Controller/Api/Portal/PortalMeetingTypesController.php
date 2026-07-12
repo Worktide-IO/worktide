@@ -41,6 +41,8 @@ final class PortalMeetingTypesController
                 'durationMinutes' => $t->getDurationMinutes(),
                 'locationType' => $t->getLocationType(),
                 'hostName' => $t->getHost()?->getFullName(),
+                // Per-locale title/description overrides (see localize() in the portal).
+                'translations' => $t->getTranslations(),
             ],
             $this->meetingTypes->findAllEnabledForWorkspace($this->portal->workspace()),
         );

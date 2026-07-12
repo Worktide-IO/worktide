@@ -17,6 +17,7 @@ use ApiPlatform\Metadata\Post;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
 use App\Entity\Trait\TimestampableTrait;
+use App\Entity\Trait\TranslatableTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\NewsletterRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -60,12 +61,13 @@ use Doctrine\ORM\Mapping as ORM;
 ])]
 #[ApiFilter(ExistsFilter::class, properties: ['parent', 'deletedAt'])]
 #[ApiFilter(OrderFilter::class, properties: ['position', 'title', 'updatedAt'])]
-class Newsletter
+class Newsletter implements TranslatableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
     use WorkspaceScopedTrait;
+    use TranslatableTrait;
 
     #[ORM\Column(length: 200)]
     private string $title = '';
@@ -133,5 +135,13 @@ class Newsletter
         $this->position = $position;
 
         return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['title', 'description'];
     }
 }

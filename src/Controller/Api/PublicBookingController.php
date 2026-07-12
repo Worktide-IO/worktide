@@ -287,6 +287,9 @@ final class PublicBookingController
             'locationType' => $type->getLocationType(),
             'timezone' => $type->getTimezone(),
             'hostName' => $type->getHost()?->getFullName(),
+            // Per-locale title/description overrides so a booker who isn't in
+            // the workspace language still reads the type in their own.
+            'translations' => $type->getTranslations(),
         ];
     }
 

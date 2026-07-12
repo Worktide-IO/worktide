@@ -16,6 +16,7 @@ use ApiPlatform\Metadata\Post;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
 use App\Entity\Trait\TimestampableTrait;
+use App\Entity\Trait\TranslatableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\MeetingTypeRepository;
@@ -53,13 +54,14 @@ use Doctrine\ORM\Mapping as ORM;
 )]
 #[ApiFilter(SearchFilter::class, properties: ['workspace' => 'exact', 'slug' => 'exact'])]
 #[ApiFilter(BooleanFilter::class, properties: ['isEnabled'])]
-class MeetingType
+class MeetingType implements TranslatableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
     use WorkspaceScopedTrait;
     use VersionedTrait;
+    use TranslatableTrait;
 
     /** Globally-unique public booking slug (the `/book/{slug}` credential). */
     #[ORM\Column(length: 60)]
@@ -288,5 +290,13 @@ class MeetingType
         $this->availability = array_values($availability);
 
         return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['title', 'description'];
     }
 }
