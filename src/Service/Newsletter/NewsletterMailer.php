@@ -8,6 +8,7 @@ use App\Egress\EgressGuard;
 use App\Egress\EgressModule;
 use App\Entity\Contact;
 use App\Entity\NewsletterIssue;
+use App\Entity\NewsletterSubscription;
 use App\Service\I18n\RecipientLocaleResolver;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
@@ -35,6 +36,7 @@ final class NewsletterMailer
         private readonly MailerInterface $mailer,
         private readonly EgressGuard $egress,
         private readonly NewsletterUnsubscribeSigner $signer,
+        private readonly NewsletterConfirmSigner $confirmSigner,
         private readonly RecipientLocaleResolver $localeResolver,
         private readonly string $mailFrom,
         private readonly string $mailFromName = '',
@@ -86,6 +88,47 @@ final class NewsletterMailer
                 'bodyText' => $bodyMarkdown,
                 'firstName' => $contact->getFirstName(),
                 'unsubscribeUrl' => $this->signer->unsubscribeUrl($contactId, $newsletterId),
+                'locale' => $locale,
+            ]);
+
+        $this->mailer->send($mail);
+
+        return true;
+    }
+
+    /**
+     * Send the double-opt-in confirmation mail for a pending subscription. This is
+     * a single transactional message triggered by the contact's own opt-in, so it
+     * sits behind {@see EgressModule::EmailOutbound}, not the bulk NewsletterSend
+     * gate. Returns false when egress is denied, the contact has no address, or the
+     * ids are missing.
+     */
+    public function sendConfirmation(NewsletterSubscription $subscription): bool
+    {
+        $contact = $subscription->getContact();
+        $to = $contact->getEmail();
+        if ($to === null || $to === '' || !$this->egress->isAllowed(EgressModule::EmailOutbound)) {
+            return false;
+        }
+        $newsletter = $subscription->getNewsletter();
+        $contactId = $contact->getId();
+        $newsletterId = $newsletter->getId();
+        if ($contactId === null || $newsletterId === null) {
+            return false;
+        }
+
+        $locale = $this->localeResolver->forContact($contact);
+        $fromName = $this->mailFromName !== '' ? $this->mailFromName : 'Worktide';
+        $mail = (new TemplatedEmail())
+            ->from(new Address($this->mailFrom, $fromName))
+            ->to(new Address($to, trim($contact->getFirstName() . ' ' . $contact->getLastName())))
+            ->subject($newsletter->getTitle())
+            ->htmlTemplate('email/newsletter_confirm.html.twig')
+            ->textTemplate('email/newsletter_confirm.txt.twig')
+            ->context([
+                'newsletterTitle' => $newsletter->getTitle(),
+                'firstName' => $contact->getFirstName(),
+                'confirmUrl' => $this->confirmSigner->confirmUrl($contactId, $newsletterId),
                 'locale' => $locale,
             ]);
 

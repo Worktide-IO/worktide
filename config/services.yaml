@@ -219,6 +219,10 @@ services:
         arguments:
             $appSecret: '%env(APP_SECRET)%'
             $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
+    App\Service\Newsletter\NewsletterConfirmSigner:
+        arguments:
+            $appSecret: '%env(APP_SECRET)%'
+            $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
 
     # White-label branding, resolved from BRAND_* env. Source of truth for the
     # public /v1/branding endpoint (SPAs) and the `brand` Twig global (emails).

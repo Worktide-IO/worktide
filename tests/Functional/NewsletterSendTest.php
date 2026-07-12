@@ -295,6 +295,7 @@ final class NewsletterSendTest extends WebTestCase
     {
         $sub = (new NewsletterSubscription())->setNewsletter($node)->setContact($contact);
         $sub->setWorkspace($node->getWorkspace());
+        $sub->confirm(); // single-opt-in world: presence = confirmed recipient
         $this->em->persist($sub);
 
         return $sub;
