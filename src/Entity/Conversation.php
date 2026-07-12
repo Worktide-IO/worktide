@@ -18,10 +18,12 @@ use App\Entity\Enum\ConversationStatus;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\ConversationRepository;
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -67,10 +69,11 @@ use Doctrine\ORM\Mapping as ORM;
     'status' => 'exact',
     'customer' => 'exact',
     'assignee' => 'exact',
+    'tags.id' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['lastEventAt', 'createdAt', 'subject'])]
 #[ApiFilter(DateFilter::class, properties: ['lastEventAt', 'createdAt'])]
-class Conversation
+class Conversation implements TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
@@ -78,6 +81,7 @@ class Conversation
     use WorkspaceScopedTrait;
     use VersionedTrait;
     use AuditableTrait;
+    use TaggableTrait;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
@@ -123,6 +127,7 @@ class Conversation
     public function __construct()
     {
         $this->lastEventAt = new \DateTimeImmutable();
+        $this->tags = new ArrayCollection();
     }
 
     public function getChannel(): Channel { return $this->channel; }

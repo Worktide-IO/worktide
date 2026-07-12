@@ -16,10 +16,12 @@ use ApiPlatform\Metadata\Post;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\SavedReplyRepository;
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 use App\Entity\Trait\TranslatableTrait;
 
@@ -51,11 +53,13 @@ use App\Entity\Trait\TranslatableTrait;
     'workspace' => 'exact',
     'name' => 'partial',
     'shortcut' => 'exact',
+    'tags.id' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt'])]
-class SavedReply implements TranslatableInterface
+class SavedReply implements TranslatableInterface, TaggableInterface
 {
     use TranslatableTrait;
+    use TaggableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
@@ -76,6 +80,11 @@ class SavedReply implements TranslatableInterface
     /** Reply text with optional `{{variable}}` placeholders. */
     #[ORM\Column(type: 'text')]
     private string $body = '';
+
+    public function __construct()
+    {
+        $this->tags = new ArrayCollection();
+    }
 
     public function getName(): string { return $this->name; }
     public function setName(string $name): self { $this->name = $name; return $this; }

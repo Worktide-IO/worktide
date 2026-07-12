@@ -16,10 +16,12 @@ use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\TranslatableTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\NewsletterRepository;
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -58,16 +60,18 @@ use Doctrine\ORM\Mapping as ORM;
     'workspace' => 'exact',
     'parent' => 'exact',
     'title' => 'partial',
+    'tags.id' => 'exact',
 ])]
 #[ApiFilter(ExistsFilter::class, properties: ['parent', 'deletedAt'])]
 #[ApiFilter(OrderFilter::class, properties: ['position', 'title', 'updatedAt'])]
-class Newsletter implements TranslatableInterface
+class Newsletter implements TranslatableInterface, TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
     use WorkspaceScopedTrait;
     use TranslatableTrait;
+    use TaggableTrait;
 
     #[ORM\Column(length: 200)]
     private string $title = '';
@@ -82,6 +86,11 @@ class Newsletter implements TranslatableInterface
     /** Float so a node can be dropped between two siblings without renumbering. */
     #[ORM\Column(type: 'float')]
     private float $position = 0.0;
+
+    public function __construct()
+    {
+        $this->tags = new ArrayCollection();
+    }
 
     public function getTitle(): string
     {

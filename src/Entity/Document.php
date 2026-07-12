@@ -20,6 +20,7 @@ use App\Entity\Enum\DocumentWorkflowState;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
@@ -70,12 +71,13 @@ use Doctrine\ORM\Mapping as ORM;
     'project' => 'exact',
     'task' => 'exact',
     'name' => 'partial',
+    'tags.id' => 'exact',
 ])]
 #[ApiFilter(SearchFilter::class, properties: ['workflowState' => 'exact'])]
 #[ApiFilter(BooleanFilter::class, properties: ['isPrivate', 'isHiddenForConnectUsers', 'isArchived'])]
 #[ApiFilter(ExistsFilter::class, properties: ['parent', 'space', 'project', 'task', 'deletedAt'])]
 #[ApiFilter(OrderFilter::class, properties: ['position', 'name', 'updatedAt'])]
-class Document
+class Document implements TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
@@ -83,6 +85,7 @@ class Document
     use WorkspaceScopedTrait;
     use VersionedTrait;
     use AuditableTrait;
+    use TaggableTrait;
 
     #[ORM\Column(length: 200)]
     private string $name = 'Untitled';
@@ -168,6 +171,7 @@ class Document
         $this->contributors = new ArrayCollection();
         $this->revisions = new ArrayCollection();
         $this->reviewers = new ArrayCollection();
+        $this->tags = new ArrayCollection();
     }
 
     /** @return Collection<int, DocumentRevision> */

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Doctrine\Orm\Filter\BackedEnumFilter;
 use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
+use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
+use App\ApiPlatform\Filter\UuidExactFilter;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
@@ -17,6 +20,7 @@ use App\Entity\Enum\FileTarget;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
@@ -54,17 +58,22 @@ use Symfony\Component\Uid\Uuid;
     ],
     mercure: true,
 )]
+// SearchFilter can't match the enum `target` / uuid `targetId` scalar columns,
+// so use BackedEnumFilter + UuidExactFilter (same as AIRecommendation).
 #[ApiFilter(SearchFilter::class, properties: [
     'workspace' => 'exact',
-    'target' => 'exact',
-    'targetId' => 'exact',
     'mimeType' => 'partial',
     'name' => 'partial',
     'uploadedBy' => 'exact',
+    'tags.id' => 'exact',
+    'folder' => 'exact',
 ])]
+#[ApiFilter(BackedEnumFilter::class, properties: ['target'])]
+#[ApiFilter(UuidExactFilter::class, properties: ['targetId'])]
 #[ApiFilter(BooleanFilter::class, properties: ['isExternal', 'isHiddenForConnectUsers'])]
+#[ApiFilter(ExistsFilter::class, properties: ['folder'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt'])]
-class File
+class File implements TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
@@ -72,6 +81,7 @@ class File
     use WorkspaceScopedTrait;
     use VersionedTrait;
     use AuditableTrait;
+    use TaggableTrait;
 
     #[ORM\Column(length: 16, enumType: FileTarget::class)]
     private FileTarget $target;
@@ -118,6 +128,15 @@ class File
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?FileVersion $currentVersion = null;
 
+    /**
+     * Folder this file lives in within its target's file tree; null = the
+     * target's root. On folder delete the FK is nulled (SET NULL), but the
+     * recursive FolderService soft-deletes contained files first.
+     */
+    #[ORM\ManyToOne(targetEntity: Folder::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Folder $folder = null;
+
     /** @var Collection<int, FileVersion> */
     #[ORM\OneToMany(targetEntity: FileVersion::class, mappedBy: 'file', cascade: ['persist', 'remove'], orphanRemoval: true)]
     #[ORM\OrderBy(['versionNumber' => 'DESC'])]
@@ -126,6 +145,7 @@ class File
     public function __construct()
     {
         $this->versions = new ArrayCollection();
+        $this->tags = new ArrayCollection();
     }
 
     public function getTarget(): FileTarget { return $this->target; }
@@ -160,6 +180,9 @@ class File
 
     public function getCurrentVersion(): ?FileVersion { return $this->currentVersion; }
     public function setCurrentVersion(?FileVersion $v): self { $this->currentVersion = $v; return $this; }
+
+    public function getFolder(): ?Folder { return $this->folder; }
+    public function setFolder(?Folder $folder): self { $this->folder = $folder; return $this; }
 
     /** @return Collection<int, FileVersion> */
     public function getVersions(): Collection { return $this->versions; }

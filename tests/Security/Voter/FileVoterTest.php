@@ -9,6 +9,7 @@ use App\Entity\File;
 use App\Entity\User;
 use App\Entity\Workspace;
 use App\Repository\CommentRepository;
+use App\Repository\CustomerRepository;
 use App\Repository\DocumentRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\TaskRepository;
@@ -99,6 +100,7 @@ final class FileVoterTest extends TestCase
             $this->createStub(CommentRepository::class),
             $this->createStub(DocumentRepository::class),
             $this->createStub(WorkspaceMemberRepository::class),
+            $this->createStub(CustomerRepository::class),
         );
 
         $token = $this->createStub(TokenInterface::class);

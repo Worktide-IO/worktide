@@ -17,10 +17,12 @@ use ApiPlatform\Metadata\Post;
 use App\Entity\Enum\NewsletterIssueStatus;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\NewsletterIssueRepository;
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -49,15 +51,16 @@ use Doctrine\ORM\Mapping as ORM;
     ],
     mercure: true,
 )]
-#[ApiFilter(SearchFilter::class, properties: ['workspace' => 'exact', 'newsletter' => 'exact', 'status' => 'exact'])]
+#[ApiFilter(SearchFilter::class, properties: ['workspace' => 'exact', 'newsletter' => 'exact', 'status' => 'exact', 'tags.id' => 'exact'])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt', 'sentAt', 'updatedAt'])]
-class NewsletterIssue
+class NewsletterIssue implements TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
     use WorkspaceScopedTrait;
     use VersionedTrait;
+    use TaggableTrait;
 
     #[ORM\ManyToOne(targetEntity: Newsletter::class)]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
@@ -83,6 +86,11 @@ class NewsletterIssue
     #[ApiProperty(writable: false)]
     #[ORM\Column(type: 'integer', options: ['default' => 0])]
     private int $recipientCount = 0;
+
+    public function __construct()
+    {
+        $this->tags = new ArrayCollection();
+    }
 
     public function getNewsletter(): ?Newsletter
     {

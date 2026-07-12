@@ -19,9 +19,11 @@ use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\ExternalReferenceTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\ContactRepository;
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
@@ -69,10 +71,11 @@ use Symfony\Component\Validator\Constraints as Assert;
     'firstName' => 'partial',
     'lastName' => 'partial',
     'email' => 'partial',
+    'tags.id' => 'exact',
 ])]
 #[ApiFilter(BooleanFilter::class, properties: ['isPrimary', 'isActive'])]
 #[ApiFilter(OrderFilter::class, properties: ['lastName', 'firstName', 'createdAt'])]
-class Contact
+class Contact implements TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
@@ -80,6 +83,7 @@ class Contact
     use WorkspaceScopedTrait;
     use AuditableTrait;
     use ExternalReferenceTrait;
+    use TaggableTrait;
 
     #[ORM\ManyToOne(inversedBy: 'contacts')]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
@@ -171,6 +175,11 @@ class Contact
      */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $portalHiddenFeatures = null;
+
+    public function __construct()
+    {
+        $this->tags = new ArrayCollection();
+    }
 
     public function getPortalNotificationsSeenAt(): ?\DateTimeImmutable { return $this->portalNotificationsSeenAt; }
     public function setPortalNotificationsSeenAt(?\DateTimeImmutable $t): self { $this->portalNotificationsSeenAt = $t; return $this; }

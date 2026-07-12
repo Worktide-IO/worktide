@@ -20,6 +20,7 @@ use App\Entity\Enum\ProductType;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
@@ -63,11 +64,13 @@ use App\Entity\Trait\TranslatableTrait;
     'type' => 'exact',
     'status' => 'exact',
     'name' => 'partial',
+    'tags.id' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt'])]
-class Product implements TranslatableInterface
+class Product implements TranslatableInterface, TaggableInterface
 {
     use TranslatableTrait;
+    use TaggableTrait;
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
@@ -111,6 +114,7 @@ class Product implements TranslatableInterface
     public function __construct()
     {
         $this->versions = new ArrayCollection();
+        $this->tags = new ArrayCollection();
     }
 
     public function getName(): string { return $this->name; }

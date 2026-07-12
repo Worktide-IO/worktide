@@ -6,9 +6,11 @@ namespace App\Entity;
 
 use App\Entity\Enum\IdeaOrigin;
 use App\Entity\Trait\EntityIdTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\BrainstormNoteRepository;
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -22,9 +24,10 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'brainstorm_notes')]
 #[ORM\Index(name: 'brainstorm_customer_idx', columns: ['customer_id'])]
 #[ORM\HasLifecycleCallbacks]
-class BrainstormNote
+class BrainstormNote implements TaggableInterface
 {
     use EntityIdTrait;
+    use TaggableTrait;
     use TimestampableTrait;
     use WorkspaceScopedTrait;
 
@@ -46,6 +49,11 @@ class BrainstormNote
     /** Denormalized display name so agency/AI authors render without leaking a User. */
     #[ORM\Column(length: 120)]
     private string $authorName;
+
+    public function __construct()
+    {
+        $this->tags = new ArrayCollection();
+    }
 
     public function getCustomer(): Customer { return $this->customer; }
     public function setCustomer(Customer $c): self

@@ -19,9 +19,11 @@ use App\Entity\Enum\ResearchObjective;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\ResearchMissionRepository;
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -48,15 +50,16 @@ use Doctrine\ORM\Mapping as ORM;
     mercure: true,
 )]
 #[ApiFilter(UuidExactFilter::class, properties: ['id'])]
-#[ApiFilter(SearchFilter::class, properties: ['workspace' => 'exact', 'status' => 'exact', 'objective' => 'exact'])]
+#[ApiFilter(SearchFilter::class, properties: ['workspace' => 'exact', 'status' => 'exact', 'objective' => 'exact', 'tags.id' => 'exact'])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt', 'updatedAt', 'status'])]
-class ResearchMission
+class ResearchMission implements TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
     use WorkspaceScopedTrait;
     use AuditableTrait;
+    use TaggableTrait;
 
     /** The raw employee instruction. */
     #[ORM\Column(type: 'text')]
@@ -88,6 +91,11 @@ class ResearchMission
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $summary = null;
+
+    public function __construct()
+    {
+        $this->tags = new ArrayCollection();
+    }
 
     public function getPrompt(): string { return $this->prompt; }
     public function setPrompt(string $prompt): self { $this->prompt = $prompt; return $this; }
