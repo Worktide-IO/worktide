@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Entity\AgreementLineItem;
 use App\Entity\Customer;
 use App\Entity\CustomerAgreement;
+use App\Entity\CustomerAgreementRevision;
 use App\Entity\Enum\AgreementStatus;
 use App\Entity\File;
 use App\Entity\User;
@@ -18,6 +20,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Requirement\Requirement;
@@ -143,6 +146,71 @@ final class CustomerAgreementController
         return new JsonResponse($this->serialize($head));
     }
 
+    /**
+     * Replace the line items of the agreement's in-force (current ?? pending)
+     * revision, in place — no new version, so the sign/negotiation flow is
+     * untouched. Each item carries optional per-locale `translations` of its
+     * description (content i18n).
+     */
+    #[Route(
+        path: '/v1/customers/{id}/agreements/{slug}/line-items',
+        name: 'api_customer_agreement_line_items_put',
+        requirements: ['id' => Requirement::UUID_V7, 'slug' => '[a-z0-9][a-z0-9_-]*'],
+        methods: ['PUT'],
+    )]
+    public function putLineItems(string $id, string $slug, Request $request): JsonResponse
+    {
+        $customer = $this->loadCustomer($id);
+        if (!$this->security->isGranted('EDIT', $customer->getWorkspace())) {
+            throw new AccessDeniedHttpException();
+        }
+
+        $type = $this->types->findOneBySlug($customer->getWorkspace(), $slug);
+        if ($type === null) {
+            throw new NotFoundHttpException(\sprintf('Unknown agreement type "%s".', $slug));
+        }
+        $head = $this->heads->findOneForType($customer, $type);
+        $revision = $head?->getCurrentRevision() ?? $head?->getPendingRevision();
+        if ($head === null || $revision === null) {
+            throw new ConflictHttpException('Record the agreement before adding line items.');
+        }
+
+        $data = json_decode($request->getContent(), true);
+        if (!\is_array($data) || !\is_array($data['lineItems'] ?? null)) {
+            throw new BadRequestHttpException('Expected { "lineItems": [...] }.');
+        }
+
+        // Replace the revision's line items with the posted set (orphanRemoval
+        // deletes the dropped ones on flush).
+        foreach ($revision->getLineItems()->toArray() as $existing) {
+            $revision->getLineItems()->removeElement($existing);
+            $this->em->remove($existing);
+        }
+        foreach (array_values($data['lineItems']) as $i => $raw) {
+            if (!\is_array($raw)) {
+                continue;
+            }
+            $li = (new AgreementLineItem())
+                ->setRevision($revision)
+                ->setDescription((string) ($raw['description'] ?? ''))
+                ->setQuantity((float) ($raw['quantity'] ?? 1))
+                ->setUnitAmountCents((int) ($raw['unitAmountCents'] ?? 0))
+                ->setCurrency((string) ($raw['currency'] ?? 'EUR'))
+                ->setIsRecurring((bool) ($raw['isRecurring'] ?? false))
+                ->setPosition($i);
+            if (\is_array($raw['translations'] ?? null)) {
+                /** @var array<string, array<string, string>> $tr */
+                $tr = $raw['translations'];
+                $li->setTranslations($tr);
+            }
+            $revision->getLineItems()->add($li);
+            $this->em->persist($li);
+        }
+        $this->em->flush();
+
+        return new JsonResponse($this->serialize($head));
+    }
+
     private function loadCustomer(string $id): Customer
     {
         // Authenticate before touching the lookup so anonymous callers can't
@@ -178,6 +246,8 @@ final class CustomerAgreementController
      */
     private function serialize(CustomerAgreement $head): array
     {
+        $rev = $head->getCurrentRevision() ?? $head->getPendingRevision();
+
         return [
             'customerId' => $head->getCustomer()->getId()?->toRfc4122(),
             'agreementId' => $head->getId()?->toRfc4122(),
@@ -188,6 +258,21 @@ final class CustomerAgreementController
             'validUntil' => $head->getValidUntil()?->format('Y-m-d'),
             'currentVersion' => $head->getCurrentRevision()?->getVersionNo(),
             'pendingVersion' => $head->getPendingRevision()?->getVersionNo(),
+            // The in-force revision's priced lines, with per-locale description
+            // overrides — the staff line-item editor loads these.
+            'revisionId' => $rev?->getId()?->toRfc4122(),
+            'lineItems' => $rev === null ? [] : array_map(
+                static fn (AgreementLineItem $li): array => [
+                    'id' => $li->getId()?->toRfc4122(),
+                    'description' => $li->getDescription(),
+                    'quantity' => $li->getQuantity(),
+                    'unitAmountCents' => $li->getUnitAmountCents(),
+                    'currency' => $li->getCurrency(),
+                    'isRecurring' => $li->isRecurring(),
+                    'translations' => $li->getTranslations(),
+                ],
+                $rev->getLineItems()->toArray(),
+            ),
         ];
     }
 }

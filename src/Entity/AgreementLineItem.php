@@ -6,6 +6,7 @@ namespace App\Entity;
 
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\TimestampableTrait;
+use App\Entity\Trait\TranslatableTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\AgreementLineItemRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -21,11 +22,12 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'agreement_line_items')]
 #[ORM\Index(name: 'agr_line_revision_idx', columns: ['revision_id'])]
 #[ORM\HasLifecycleCallbacks]
-class AgreementLineItem
+class AgreementLineItem implements TranslatableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
     use WorkspaceScopedTrait;
+    use TranslatableTrait;
 
     #[ORM\ManyToOne(inversedBy: 'lineItems')]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
@@ -81,5 +83,13 @@ class AgreementLineItem
     public function getAmountCents(): int
     {
         return (int) round($this->quantity * $this->unitAmountCents);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function translatableFields(): array
+    {
+        return ['description'];
     }
 }

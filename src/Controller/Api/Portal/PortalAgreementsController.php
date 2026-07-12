@@ -230,6 +230,8 @@ final class PortalAgreementsController
                 $item->isRecurring() ? $hasRecurring = true : $hasOneOff = true;
                 $lineItems[] = [
                     'description' => $item->getDescription(),
+                    // Per-locale description overrides (see localize() in the portal).
+                    'translations' => $item->getTranslations(),
                     'quantity' => $item->getQuantity(),
                     'unitAmountCents' => $item->getUnitAmountCents(),
                     'amountCents' => $amount,
