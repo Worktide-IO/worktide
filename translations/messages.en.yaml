@@ -240,3 +240,12 @@ email:
     reason: 'You are receiving this email because you subscribed to "%title%".'
     reason_txt: 'You are receiving this email because you subscribed to "%title%".'
     unsubscribe: 'Unsubscribe'
+notification:
+  task_assigned: 'A task was assigned to you'
+  launch_service: 'New service activated'
+  launch_product: 'New product activated'
+  comment_new: 'New comment'
+  comment_reply: 'New reply on %ticket%'
+  mention: 'Mention in %subject%'
+  incident: 'Outage: %system%'
+  ai_recommendation: 'New AI recommendation for %ticket%'

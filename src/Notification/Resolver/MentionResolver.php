@@ -51,7 +51,8 @@ final class MentionResolver implements NotificationResolverInterface
             yield new ResolvedNotification(
                 recipient: $recipient,
                 type: NotificationType::Mention,
-                title: 'Erwähnung in ' . $subject,
+                titleKey: 'notification.mention',
+                titleParams: ['%subject%' => $subject],
                 link: $convId !== '' ? '/inbox/' . $convId : '/inbox',
             );
 
@@ -62,7 +63,8 @@ final class MentionResolver implements NotificationResolverInterface
         yield new ResolvedNotification(
             recipient: $recipient,
             type: NotificationType::Mention,
-            title: 'Erwähnung in ' . $docName,
+            titleKey: 'notification.mention',
+            titleParams: ['%subject%' => $docName],
             link: '/documents',
         );
     }

@@ -49,7 +49,7 @@ final class LaunchResolver implements NotificationResolverInterface
             if (!$sub instanceof ServiceSubscription) {
                 return;
             }
-            yield from $this->fanOut($sub->getCustomer(), 'Neuer Service freigeschaltet', $sub->getName());
+            yield from $this->fanOut($sub->getCustomer(), 'notification.launch_service', $sub->getName());
 
             return;
         }
@@ -59,19 +59,19 @@ final class LaunchResolver implements NotificationResolverInterface
             return;
         }
         $label = trim($cp->getProduct()->getName() . ' ' . ($cp->getProductVersion()?->getVersion() ?? ''));
-        yield from $this->fanOut($cp->getCustomer(), 'Neues Produkt freigeschaltet', $label);
+        yield from $this->fanOut($cp->getCustomer(), 'notification.launch_product', $label);
     }
 
     /**
      * @return iterable<ResolvedNotification>
      */
-    private function fanOut(\App\Entity\Customer $customer, string $title, string $body): iterable
+    private function fanOut(\App\Entity\Customer $customer, string $titleKey, string $body): iterable
     {
         foreach ($this->recipients->portalUsersOfCustomer($customer) as $user) {
             yield new ResolvedNotification(
                 recipient: $user,
                 type: NotificationType::Launch,
-                title: $title,
+                titleKey: $titleKey,
                 link: '/dashboard',
                 body: $body !== '' ? $body : null,
             );

@@ -69,7 +69,7 @@ final class TaskAssignedResolver implements NotificationResolverInterface
             yield new ResolvedNotification(
                 recipient: $recipient,
                 type: NotificationType::TaskAssigned,
-                title: 'Dir wurde eine Aufgabe zugewiesen',
+                titleKey: 'notification.task_assigned',
                 link: '/tasks',
                 body: $label,
             );

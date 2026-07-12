@@ -59,7 +59,8 @@ final class AiRecommendationResolver implements NotificationResolverInterface
             yield new ResolvedNotification(
                 recipient: $recipient,
                 type: NotificationType::Ai,
-                title: 'Neue KI-Empfehlung für ' . $task->getIdentifier(),
+                titleKey: 'notification.ai_recommendation',
+                titleParams: ['%ticket%' => $task->getIdentifier()],
                 link: '/ki-agenten',
                 body: $body,
             );
