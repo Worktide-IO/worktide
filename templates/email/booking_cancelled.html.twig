@@ -1,16 +1,17 @@
 {% extends 'email/base.html.twig' %}
+{% set loc = locale|default('de') %}
 
-{% block title %}{{ 'email.booking_cancelled.preview'|trans({}, 'messages', locale) }}{% endblock %}
+{% block title %}{{ 'email.booking_cancelled.preview'|trans({}, 'messages', loc) }}{% endblock %}
 
 {% block content %}
     <tr>
-        <td style="font-size:18px; font-weight:600; padding-bottom:16px;">{{ 'email.booking_cancelled.heading'|trans({}, 'messages', locale) }}</td>
+        <td style="font-size:18px; font-weight:600; padding-bottom:16px;">{{ 'email.booking_cancelled.heading'|trans({}, 'messages', loc) }}</td>
     </tr>
     <tr>
         <td style="font-size:14px; line-height:1.6; padding-bottom:16px;">
-            {% if inviteeName %}{{ 'email.booking_cancelled.greeting_named'|trans({'%name%': inviteeName}, 'messages', locale) }}{% else %}{{ 'email.booking_cancelled.greeting'|trans({}, 'messages', locale) }}{% endif %}<br><br>
-            {{ 'email.booking_cancelled.body'|trans({'%title%': title, '%date%': start|date('d.m.Y'), '%time%': start|date('H:i'), '%timezone%': timezone}, 'messages', locale)|raw }}
-            {{ 'email.booking_cancelled.rebook'|trans({}, 'messages', locale) }}
+            {% if inviteeName %}{{ 'email.booking_cancelled.greeting_named'|trans({'%name%': inviteeName}, 'messages', loc) }}{% else %}{{ 'email.booking_cancelled.greeting'|trans({}, 'messages', loc) }}{% endif %}<br><br>
+            {{ 'email.booking_cancelled.body'|trans({'%title%': title, '%date%': start|date('d.m.Y'), '%time%': start|date('H:i'), '%timezone%': timezone}, 'messages', loc)|raw }}
+            {{ 'email.booking_cancelled.rebook'|trans({}, 'messages', loc) }}
         </td>
     </tr>
 {% endblock %}

@@ -1,10 +1,11 @@
+{% set loc = locale|default('de') %}
 {% set roleKeys = { 'manager': 'email.project_share.role_manager', 'contributor': 'email.project_share.role_contributor', 'viewer': 'email.project_share.role_viewer' } %}
-{% set roleLabel = roleKeys[role] is defined ? roleKeys[role]|trans({}, 'messages', locale) : role %}
-{{ 'email.project_share.heading'|trans({'%project%': projectName}, 'messages', locale) }}
+{% set roleLabel = roleKeys[role] is defined ? roleKeys[role]|trans({}, 'messages', loc) : role %}
+{{ 'email.project_share.heading'|trans({'%project%': projectName}, 'messages', loc) }}
 
-{{ 'email.project_share.body_text'|trans({'%workspace%': sharingWorkspaceName, '%project%': projectName, '%brand%': brand.name, '%role%': roleLabel}, 'messages', locale) }}
+{{ 'email.project_share.body_text'|trans({'%workspace%': sharingWorkspaceName, '%project%': projectName, '%brand%': brand.name, '%role%': roleLabel}, 'messages', loc) }}
 
-{{ 'email.project_share.open_link'|trans({}, 'messages', locale) }}
+{{ 'email.project_share.open_link'|trans({}, 'messages', loc) }}
 {{ acceptUrl }}
 
-{{ 'email.project_share.valid_until'|trans({'%date%': expiresAt|date('d.m.Y')}, 'messages', locale) }}
+{{ 'email.project_share.valid_until'|trans({'%date%': expiresAt|date('d.m.Y')}, 'messages', loc) }}

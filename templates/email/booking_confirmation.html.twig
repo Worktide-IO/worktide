@@ -1,17 +1,18 @@
 {% extends 'email/base.html.twig' %}
+{% set loc = locale|default('de') %}
 
 {% set primary = brand.primaryColor %}
 
-{% block title %}{{ 'email.booking_confirmation.preview'|trans({}, 'messages', locale) }}{% endblock %}
+{% block title %}{{ 'email.booking_confirmation.preview'|trans({}, 'messages', loc) }}{% endblock %}
 
 {% block content %}
     <tr>
-        <td style="font-size:18px; font-weight:600; padding-bottom:16px;">{{ 'email.booking_confirmation.heading'|trans({}, 'messages', locale) }}</td>
+        <td style="font-size:18px; font-weight:600; padding-bottom:16px;">{{ 'email.booking_confirmation.heading'|trans({}, 'messages', loc) }}</td>
     </tr>
     <tr>
         <td style="font-size:14px; line-height:1.6; padding-bottom:16px;">
-            {% if inviteeName %}{{ 'email.booking_confirmation.greeting_named'|trans({'%name%': inviteeName}, 'messages', locale) }}{% else %}{{ 'email.booking_confirmation.greeting'|trans({}, 'messages', locale) }}{% endif %}<br><br>
-            {{ 'email.booking_confirmation.intro'|trans({}, 'messages', locale) }}
+            {% if inviteeName %}{{ 'email.booking_confirmation.greeting_named'|trans({'%name%': inviteeName}, 'messages', loc) }}{% else %}{{ 'email.booking_confirmation.greeting'|trans({}, 'messages', loc) }}{% endif %}<br><br>
+            {{ 'email.booking_confirmation.intro'|trans({}, 'messages', loc) }}
         </td>
     </tr>
     <tr>
@@ -20,28 +21,28 @@
                 <tr><td style="padding:14px 16px; font-size:16px; font-weight:600;">{{ title }}</td></tr>
                 <tr><td style="padding:0 16px 12px; font-size:14px; line-height:1.7; color:#3f3f46;">
                     📅 {{ start|date('l, d.m.Y') }}<br>
-                    🕒 {{ start|date('H:i') }}–{{ end|date('H:i') }} ({{ 'email.booking_confirmation.duration'|trans({'%minutes%': durationMinutes, '%timezone%': timezone}, 'messages', locale) }})<br>
+                    🕒 {{ start|date('H:i') }}–{{ end|date('H:i') }} ({{ 'email.booking_confirmation.duration'|trans({'%minutes%': durationMinutes, '%timezone%': timezone}, 'messages', loc) }})<br>
                     📍 {{ location }}
                     {% if hostName %}<br>👤 {{ hostName }}{% endif %}
-                    {% if notes %}<br><br><span style="color:#71717a;">{{ 'email.booking_confirmation.your_note'|trans({}, 'messages', locale) }}</span> {{ notes }}{% endif %}
+                    {% if notes %}<br><br><span style="color:#71717a;">{{ 'email.booking_confirmation.your_note'|trans({}, 'messages', loc) }}</span> {{ notes }}{% endif %}
                 </td></tr>
             </table>
         </td>
     </tr>
     <tr>
         <td style="font-size:13px; line-height:1.6; color:#71717a; padding-bottom:8px;">
-            {{ 'email.booking_confirmation.ics'|trans({}, 'messages', locale) }}
+            {{ 'email.booking_confirmation.ics'|trans({}, 'messages', loc) }}
         </td>
     </tr>
     <tr>
         <td style="font-size:12px; line-height:1.6; color:#71717a; border-top:1px solid #e4e4e7; padding-top:16px;">
             {% if rescheduleUrl is defined %}
-                {% set rescheduleLink = '<a href="' ~ rescheduleUrl ~ '" style="color:' ~ primary ~ ';">' ~ ('email.booking_confirmation.action_reschedule'|trans({}, 'messages', locale)) ~ '</a>' %}
-                {% set cancelLink = '<a href="' ~ cancelUrl ~ '" style="color:' ~ primary ~ ';">' ~ ('email.booking_confirmation.action_cancel'|trans({}, 'messages', locale)) ~ '</a>' %}
-                {{ 'email.booking_confirmation.actions'|trans({'%reschedule%': rescheduleLink, '%cancel%': cancelLink}, 'messages', locale)|raw }}
+                {% set rescheduleLink = '<a href="' ~ rescheduleUrl ~ '" style="color:' ~ primary ~ ';">' ~ ('email.booking_confirmation.action_reschedule'|trans({}, 'messages', loc)) ~ '</a>' %}
+                {% set cancelLink = '<a href="' ~ cancelUrl ~ '" style="color:' ~ primary ~ ';">' ~ ('email.booking_confirmation.action_cancel'|trans({}, 'messages', loc)) ~ '</a>' %}
+                {{ 'email.booking_confirmation.actions'|trans({'%reschedule%': rescheduleLink, '%cancel%': cancelLink}, 'messages', loc)|raw }}
             {% else %}
-                {% set cancelLink = '<a href="' ~ cancelUrl ~ '" style="color:' ~ primary ~ ';">' ~ ('email.booking_confirmation.cancel_link'|trans({}, 'messages', locale)) ~ '</a>' %}
-                {{ 'email.booking_confirmation.cancel_prompt'|trans({'%cancel%': cancelLink}, 'messages', locale)|raw }}
+                {% set cancelLink = '<a href="' ~ cancelUrl ~ '" style="color:' ~ primary ~ ';">' ~ ('email.booking_confirmation.cancel_link'|trans({}, 'messages', loc)) ~ '</a>' %}
+                {{ 'email.booking_confirmation.cancel_prompt'|trans({'%cancel%': cancelLink}, 'messages', loc)|raw }}
             {% endif %}
         </td>
     </tr>

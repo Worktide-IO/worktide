@@ -1,4 +1,5 @@
 {% extends 'email/base.txt.twig' %}
+{% set loc = locale|default('de') %}
 
 {% block content %}{{ newsletterTitle }}
 {{ subject }}
@@ -6,5 +7,5 @@
 {{ bodyText }}
 
 --
-{{ 'email.newsletter.reason_txt'|trans({'%title%': newsletterTitle}, 'messages', locale) }}
-{{ 'email.newsletter.unsubscribe'|trans({}, 'messages', locale) }}: {{ unsubscribeUrl }}{% endblock %}
+{{ 'email.newsletter.reason_txt'|trans({'%title%': newsletterTitle}, 'messages', loc) }}
+{{ 'email.newsletter.unsubscribe'|trans({}, 'messages', loc) }}: {{ unsubscribeUrl }}{% endblock %}

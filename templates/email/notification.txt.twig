@@ -1,11 +1,12 @@
 {% extends 'email/base.txt.twig' %}
+{% set loc = locale|default('de') %}
 
-{% block content %}{% if firstName %}{{ 'email.notification.greeting'|trans({'%name%': firstName}, 'messages', locale) }}{% else %}{{ 'email.notification.greeting_plain'|trans({}, 'messages', locale) }}{% endif %}
+{% block content %}{% if firstName %}{{ 'email.notification.greeting'|trans({'%name%': firstName}, 'messages', loc) }}{% else %}{{ 'email.notification.greeting_plain'|trans({}, 'messages', loc) }}{% endif %}
 
 {{ title }}
 {% if body %}
 {{ body }}
 {% endif %}
-{{ 'email.notification.cta'|trans({}, 'messages', locale) }}: {{ actionUrl }}
+{{ 'email.notification.cta'|trans({}, 'messages', loc) }}: {{ actionUrl }}
 
-{{ 'email.notification.footer_txt'|trans({'%brand%': brand.name}, 'messages', locale) }}{% endblock %}
+{{ 'email.notification.footer_txt'|trans({'%brand%': brand.name}, 'messages', loc) }}{% endblock %}

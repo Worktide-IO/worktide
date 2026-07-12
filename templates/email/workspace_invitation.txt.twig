@@ -1,12 +1,13 @@
 {% extends 'email/base.txt.twig' %}
+{% set loc = locale|default('de') %}
 
-{% block content %}{{ 'email.invitation.greeting'|trans({}, 'messages', locale) }}
+{% block content %}{{ 'email.invitation.greeting'|trans({}, 'messages', loc) }}
 
-{{ 'email.invitation.body_txt'|trans({'%workspace%': workspaceName, '%brand%': brand.name}, 'messages', locale) }}
-{{ 'email.invitation.open_link_txt'|trans({}, 'messages', locale) }}
+{{ 'email.invitation.body_txt'|trans({'%workspace%': workspaceName, '%brand%': brand.name}, 'messages', loc) }}
+{{ 'email.invitation.open_link_txt'|trans({}, 'messages', loc) }}
 
 {{ acceptUrl }}
 
-{{ 'email.invitation.valid_until'|trans({'%date%': expiresAt|date('d.m.Y')}, 'messages', locale) }}
+{{ 'email.invitation.valid_until'|trans({'%date%': expiresAt|date('d.m.Y')}, 'messages', loc) }}
 
-{{ 'email.invitation.ignore'|trans({}, 'messages', locale) }}{% endblock %}
+{{ 'email.invitation.ignore'|trans({}, 'messages', loc) }}{% endblock %}
