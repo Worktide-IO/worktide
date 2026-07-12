@@ -1,6 +1,6 @@
 # Worktide Roadmap
 
-Stand 2026-07-05. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (via bluemine), Asana, Jira und FreeScout.
+Stand 2026-07-12. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (via bluemine), Asana, Jira und FreeScout.
 
 ## Bereits gebaut
 
@@ -44,7 +44,22 @@ Generische Übersetzbarkeit von Datentypen + bevorzugte Sprache pro User:
 - **Infrastruktur (additives Modell)**: `TranslatableInterface` + `TranslatableTrait` (eine `translations`-JSON-Spalte pro Entity, Shape `{feld:{locale:wert}}`; Basis-Spalten bleiben die Quellsprache → UniqueConstraints/SearchFilter/Bestandsdaten unberührt). Die API liefert **Rohwerte + `translations`-Map** (kein serverseitiges Overlay) → Editoren können die Quellsprache nicht korrumpieren; die Anzeige löst clientseitig via `localize(entity, feld)` gegen die aktive Sprache auf. Neue Entity übersetzbar = Interface + Spalte, null Serializer-Config. `LocaleResolver` bleibt für Profil-Validierung (`supported_locales`) + spätere Mail-Lokalisierung (aktive Sprache: `User.preferredLanguage → Workspace.locale → Default`, bewusst **kein** `Accept-Language`).
 - **Übersetzbar (15 Entities)**: TaskStatus, ProjectStatus, Tracker, TypeOfWork, ProjectType, Industry, AgreementType, Tag, CustomFieldDefinition, CustomFieldOption, SavedReply, ProjectTemplate, TaskTemplate, PublicForm, Product (skalare Textfelder name/label/title/description/body/successMessage/value).
 - **User-Sprache**: `User.preferredLanguage`, editierbar über `MeProfileController` (validiert gegen `app.supported_locales`, Snapshot liefert `supportedLanguages`) — gilt für worktide-web **und** worktide-portal.
-- **Offen (Folgeschritte)**: verschachtelte/Array-Felder (CustomField `options[]`, TaskTemplate `defaultChecklist[]`, PublicForm `fields[]`/`schema`); SPA-UI (Sprachwahl im Profil + Übersetzungs-Editor) in worktide-web/-portal; Suchfilter in Nicht-Default-Sprache (Escape-Hatch: MySQL-8-Virtual-Column-Index).
+- **Offen (Folgeschritte)**: verschachtelte/Array-Felder (CustomField `options[]`, TaskTemplate `defaultChecklist[]`) — Formular-Feld-/Options-/Zeilen-Labels sind seit B3 abgedeckt; Sprachwahl im Profil + `TranslationsFields`-Editor + Portal-DE/EN sind **gebaut**, offen bleiben der Web-SPA-String-Sweep und das **Content-i18n-Rendering** (`getTranslation()` in die Serialisierung, Phase 3) sowie Suchfilter in Nicht-Default-Sprache (Escape-Hatch: MySQL-8-Virtual-Column-Index). Fahrplan: [docs/i18n-plan.md](docs/i18n-plan.md).
+
+### Seit dem letzten Stand neu gebaut (2026-07-05 → 2026-07-12)
+
+Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke realisiert — die betroffenen Phasen-Punkte unten sind entsprechend nachgezogen. Kompakt:
+
+- **Kundenportal (`worktide-portal`) — live als eigene React-App** (React 19 + Vite + React-Router 7, JWT + httpOnly-Refresh-Cookie, i18n DE/EN, Per-Workspace-Branding via `brandingProvider`). Seiten: Dashboard, Tickets/Support, Dateien, Verträge/Angebote, Ideen (+ Voting/Brainstorm), Dokumente, Formulare, Proposals, Social-Freigaben, Benachrichtigungen, Einstellungen, Newsletter, Terminbuchung, Abwesenheit, Monitoring/Status, Login/Passwort-Setzen. Backend: 23 `Portal*`-Controller unter `/v1/portal/*` (`PortalAccessResolver`-Tenant-Isolation, `ROLE_PORTAL`). Offen: Invoices- + Goals-**UI** (Endpunkte da, Portal-Seite fehlt).
+- **Terminvereinbarung / Booking (Calendly-Klon) — erledigt** (war Phase E): `MeetingType` + `Booking` + `StaffCalendarConnection` (ICS-Import) + `CalendarBusyBlock`; public `GET/POST /v1/book/{slug}` (+ Slots, Honeypot, Rate-Limit), public Reschedule + Cancel per Token, ICS-Free/Busy, Abwesenheits-Abzug aus Slots, In-Portal-Buchung. `BookingSlotService` + `BookingMailer` + `worktide:booking:sync-calendars`-Cron.
+- **Newsletter — erledigt** (neu): `Newsletter` (hierarchischer Themenbaum: slug/icon/color/position, `isSubscribable`/`isMandatory`/`isArchived`, `estimatedFrequency`, übersetzbar) + `NewsletterSubscription` (Double-Opt-In: `consentedAt`/`consentSource`/`confirmedAt`/`revokedAt`) + `NewsletterIssue` (Draft→Sent, Fan-out an descendant-Abos) + `NewsletterTemplate` (wiederverwendbar). `NewsletterConfirmController` + `NewsletterConfirmSigner` (signierter Confirm-/Unsubscribe-Link), `NewsletterMailer`, Portal-Verwaltung `/v1/portal/newsletters`.
+- **Notifications + Zustellkanäle — erledigt** (deckt Phase G „Notification-Preferences"): `Notification`-Entity (dedupliziert per `sourceEventId`, read/delivered-State), In-App-Bell (Mercure-live), **Email** (`NotificationEmailNotifier`, empfänger-lokalisiert) + **Chat** (Slack/Mattermost/Teams via `UserChatWebhook`), gebündelte/entprellte Batch-Zustellung (`app:notifications:flush-batch`) + **Digest** (`app:notifications:send-digest` daily/weekly), Preferences pro User/Contact (Frequenz/Kanal/Typ/Quiet-Hours). Go-Live-Checkliste in [docs/notifications-go-live.md](docs/notifications-go-live.md).
+- **CRM-Ausbau**: `CustomerAgreement` + `CustomerAgreementRevision` (immutable Historie) + `AgreementLineItem` (editierbare, übersetzbare Vertragspositionen, „Piece E1"); `Invoice` + `InvoiceStatus` + **Lexoffice-Sync** (`lexoffice:sync-contacts`/`-invoices`/`-revenue`); `ProjectOffer` + `ProjectProposal` (Angebot/Quote-Kette); `Idea`/`IdeaVote` + `BrainstormNote` (Portal-Engagement); `CustomerGoal`; `ContactAbsence`; `SystemIncident` + `SystemUptimeDay` (Portal-Monitoring/Statusseite).
+- **Workspace-Mitglieder-Verwaltung**: Avatar-Endpoints, Member-Deaktivierung + Task-Handover beim Entfernen, Admin-Profil-Edit (`WorkspaceMember*`-Controller).
+- **Cross-Workspace-Projekt-Sharing** (#65): `ProjectShare` + `ProjectShareInvitation` (Accept-Flow, Rollen, Scoping via `WorkspaceScopeExtension`).
+- **Dashboard-Read-Models** (`/v1/dashboard/{my-tasks,open-customer-tasks,recent-status-updates,wall,project-blocked}`) — schlanke, gescopte Endpunkte für die SPA-Widgets + „The Wall".
+- **Kunden-Dateien/Ordner**: `Folder` (polymorpher Baum, `isHiddenForConnectUsers`) + Portal-Datei-Bereich (`/v1/portal/files`, Upload/Download), Tags + KI-Tag-Vorschläge.
+- **Sicherheits-Härtung** (#48–57): SSRF-Gates auf Channel-Adaptern + Outbound-Webhooks, Public-Form-Hardening (DoS/Info-Leak/TOCTOU), Capability-Gating für Import/Batch, Voter-Fixes, Cross-Workspace-Abweisung; Portal-Auth **M1** (Refresh-Token als httpOnly-Cookie statt JSON-Body, `RefreshToken`-Session-Metadaten).
 
 ---
 
@@ -62,7 +77,7 @@ Generische Übersetzbarkeit von Datentypen + bevorzugte Sprache pro User:
 - ~~**Quick-Add Cmd+K Popover** — globaler Shortcut, Task in Sekunden anlegen~~ — **erledigt** (QuickAddDialog: Cmd+K, Task + Projekt)
 - ~~**Calendar-View** — FullCalendar-React, Tasks mit dueOn als Events~~ — **erledigt** (`/calendar`)
 - ~~**Globale Suche** — cross-resource Suche (Tasks, Projects, Customers, Contacts, Documents)~~ — **erledigt** (GlobalSearchDialog, Cmd+/)
-- **Smart-Links** — externe URLs als Rich-Cards (oEmbed: YouTube, Figma, Confluence, …) — **offen** (einziger nicht gebauter Phase-A-Punkt; braucht serverseitigen oEmbed-Proxy hinter dem `EgressGuard` + Frontend-Rendering)
+- **Smart-Links** — externe URLs als Rich-Cards (oEmbed: YouTube, Figma, Confluence, …) — **teilweise**: die SPA rendert bereits Link-Cards / farbige Chips (`linkCard.tsx`, clientseitiger Resolver); der serverseitige oEmbed-Proxy hinter dem `EgressGuard` (echte Titel/Thumbnails) ist noch offen
 - ~~**Status-Updates** — strukturierte Projekt-Berichte (was läuft, Risiken, nächste Schritte)~~ — **erledigt** (Backend): `ProjectStatusUpdate`-Entity (CRUD unter `/v1/project_status_updates`), `ProjectHealth`-RAG (on_track/at_risk/off_track/on_hold/complete), drei Sektionen summary/risks/nextSteps, Autor via `createdByUser`, pro-Projekt-Feed (`?project=`), Domain-Events + Webhooks via `DomainEventEmitterSubscriber`. Report-Editor-UI **erledigt** (SPA): „Status-Updates"-Tab auf der Projekt-Detailseite + Dashboard-Widget „Status-Updates"
 - ~~**Top-Level-Routes** ausbauen: Kalender, Planer, Personen, Auswertungen~~ — **erledigt** (alle vier als Routen vorhanden)
 
@@ -89,7 +104,7 @@ Generische Übersetzbarkeit von Datentypen + bevorzugte Sprache pro User:
 ### Schicht 4 — Erweiterte Views
 - ~~**Workload-View** (Visualisierung pro User: gebuchte Stunden vs UserCapacity vs Absences)~~ — **erledigt**: als WorkloadOverlay im Team-Planner (`/v1/reports/workload`)
 - ~~**Sprints / Backlog**: startDate / endDate / Sprint-State, Velocity, Burndown~~ — **erledigt** (Phase B.4.2): `Sprint`-Entity (projekt-scoped) + `Task.sprint`, `/sprints`-Board mit Backlog + Sprint-Spalten (DnD), Sprint-Burndown (`?sprint=`) + Velocity-Chart
-- ~~**Public Forms**: öffentliche `/forms/<slug>` Endpunkte, generieren Tasks aus Submissions mit Custom-Fields-Mapping~~ — **erledigt** (Backend): `PublicForm` + `PublicFormSubmission`-Entities (Admin-CRUD unter `/v1/public_forms`), öffentliche `GET/POST /v1/forms/{slug}` (PUBLIC_ACCESS), Submission → Task im Ziel-Projekt mit nativem (title/description/priority) + `cf:<key>`-Custom-Field-Mapping, Honeypot + Per-IP-Rate-Limit, Audit-Record. Form-Builder-UI + Public-Renderer offen (SPA-Repo)
+- ~~**Public Forms**: öffentliche `/forms/<slug>` Endpunkte, generieren Tasks aus Submissions mit Custom-Fields-Mapping~~ — **erledigt** (Backend): `PublicForm` + `PublicFormSubmission`-Entities (Admin-CRUD unter `/v1/public_forms`), öffentliche `GET/POST /v1/forms/{slug}` (PUBLIC_ACCESS), Submission → Task im Ziel-Projekt mit nativem (title/description/priority) + `cf:<key>`-Custom-Field-Mapping, Honeypot + Per-IP-Rate-Limit, Audit-Record. **Form-Builder-UI + Public-Renderer erledigt** (SPA `/formulare` + Portal `/forms`, inkl. Feld-Logik/Berechnungen/Multi-Page); **globales Formular-Modell (B0)** nachgezogen (nullable Projekt + Customer-Empfänger, `PortalFormDraft` für resümierbare Einreichungen), Feld-/Options-/Zeilen-Label-Übersetzung (B3) durch den Normalizer
 
 ---
 
@@ -98,7 +113,7 @@ Generische Übersetzbarkeit von Datentypen + bevorzugte Sprache pro User:
 **Ziel:** Inbound-Mail wird zu Tasks/Conversations. Outbound-Mail aus Worktide. Brücke zur KI-Schicht.
 
 ### Schicht 1 — Mailbox-Layer (FreeScout-inspiriert)
-- **Mailbox-Entity** workspace-scoped: Name, IMAP/SMTP/OAuth-Config, Signature, Auto-Reply, isShared
+- **Mailbox-Entity** workspace-scoped: Name, IMAP/SMTP/OAuth-Config, Signature, Auto-Reply, isShared — **realisiert als generische `Channel`-Entity** (source-agnostisch: email/chat/webhook-Adapter aus der `AdapterRegistry`, `authConfig` encrypted-at-rest, SSRF-gehärtet). Microsoft-Graph-OAuth angebunden (s. u.); Google-Workspace-OAuth noch offen.
 - **Auth-Verfahren pro Mailbox** wählbar:
   - **SMTP + IMAP mit Passwort** (Generic, App-Passwords für 2FA-Provider)
   - **OAuth Microsoft 365 / Exchange Online** via Microsoft Graph — sowohl delegierte (User-Account) als auch Application-Permissions (Service-Mailbox). Scopes: Mail.Read, Mail.Send, Mail.ReadWrite. Refresh-Worker erneuert Tokens vor Ablauf.
@@ -244,14 +259,14 @@ Generische Übersetzbarkeit von Datentypen + bevorzugte Sprache pro User:
 
 **Ziel:** CRM-3 + CRM-4 abschließen, Kunden bekommen ihre eigene Sicht.
 
-- **CRM-4 Invoice + Billing-Run**: Invoice + InvoiceItem-Entity, Cron der aus ServiceSubscription (`nextBillingOn ≤ heute`) Rechnungen materialisiert. Status-FSM draft/sent/paid/cancelled
-- **Lexoffice OAuth-Integration**: OAuthConnection + Mapping `lexoffice_contact_id ↔ worktide_customer_id`. Auto-Push bei `invoice.created`
+- ~~**CRM-4 Invoice**~~ — **erledigt (Fundament)**: `Invoice`-Entity + `InvoiceStatus`-FSM (draft/sent/paid/cancelled), Portal-Sicht `/v1/portal/invoices`. Rechnungen kommen heute über die **Lexoffice-Sync** herein (s. u.); der lokale Billing-Run-Cron, der aus ServiceSubscription (`nextBillingOn ≤ heute`) materialisiert, bleibt optionaler Folgeschritt.
+- ~~**Lexoffice-Integration**~~ — **erledigt**: `lexoffice:sync-contacts` / `sync-invoices` / `sync-revenue` (Umsatz fließt als Signal ins WSJF-Priority-Scoring). Auto-Push bei `invoice.created` als Folgeschritt.
 - **Document-Vault**: Rechtssicherer File-Store — SSE-Verschlüsselung, Versionierung, Retention-Policies (GoBD), PDF-Volltextsuche, Audit-Log. Baut auf dem S3-Adapter aus **Phase S** auf (der reine Bucket-Anschluss ist dorthin herausgezogen)
-- **Kundenportal pro Workspace (beliebige Domain)** — CRM-Kontakte werden freigeschaltet und erhalten eine **strikt reduzierte Sicht** (kein abgespeckter Workspace-Zugang). Vollständige Ideensammlung (Dashboard, Tickets/Support, Monitoring/Statusseiten, Angebote/Verträge/Signatur, Abrechnung + Retainer-Burndown, Self-Service-Upsells, Pitch-Modus für Projekt-Ideen + Feature-Voting, SEO-Audit-Fragebogen, KI-Funktionen) in **[docs/customer-portal-ideas.md](docs/customer-portal-ideas.md)**.
+- **Kundenportal pro Workspace (beliebige Domain)** — **größtenteils gebaut** (`worktide-portal`, eigene React-App; siehe „Seit dem letzten Stand neu gebaut"). CRM-Kontakte werden freigeschaltet und erhalten eine **strikt reduzierte Sicht** (kein abgespeckter Workspace-Zugang). Offen aus der Ideensammlung: Retainer-Burndown, Self-Service-Upsells, SEO-Audit-Fragebogen, Signatur, sowie Invoices-/Goals-UI. Vollständige Ideensammlung (Dashboard, Tickets/Support, Monitoring/Statusseiten, Angebote/Verträge/Signatur, Abrechnung + Retainer-Burndown, Self-Service-Upsells, Pitch-Modus für Projekt-Ideen + Feature-Voting, SEO-Audit-Fragebogen, KI-Funktionen) in **[docs/customer-portal-ideas.md](docs/customer-portal-ideas.md)**.
   - **Früh festlegen (Querschnitt)**: Rechte pro Contact über die bestehende `Capability × Role`-Matrix · Login extern via **Magic-Link oder SSO** (kein weiteres Passwort) · **Modularität** — jeder Baustein pro Workspace an-/abschaltbar (workspaceweites Override-Prinzip) · Portal bleibt reduzierte Sicht, kein Workspace-Zugang.
-  - **Auslieferung**: eigene Portal-App pro Workspace unter eigener Domain (Custom-Domain-Mapping). Der ursprünglich geplante TYPO3-Extbase-Plugin (`wapplersystems/worktide-customer-portal`) bleibt eine mögliche Portal-Variante gegen dieselbe Worktide-API.
-- **Terminvereinbarung** (Calendly-Klon): BookingPage, MeetingType, Availability, Booking, ExternalCalendarSync mit Google/Outlook. Public `/book/<slug>`
-- **Themability**: Light/Dark, Per-Workspace-Branding (Primary-Color + Logo), Custom-Theme-Builder
+  - ~~**Auslieferung**: eigene Portal-App pro Workspace unter eigener Domain~~ — **erledigt** (`worktide-portal` als eigene React-App gegen `/v1/portal/*`, Custom-Domain-Mapping möglich). Login via httpOnly-Refresh-Cookie steht; **Magic-Link / externes SSO** noch offen. Der ursprünglich geplante TYPO3-Extbase-Plugin (`wapplersystems/worktide-customer-portal`) bleibt eine mögliche zusätzliche Portal-Variante gegen dieselbe API.
+- ~~**Terminvereinbarung** (Calendly-Klon)~~ — **erledigt**: `MeetingType` + `Booking` + `StaffCalendarConnection` (ICS-Import) + `CalendarBusyBlock`, public `/v1/book/{slug}` (+ Slots/Reschedule/Cancel), ICS-Free/Busy, Abwesenheits-Abzug, In-Portal-Buchung. **Zwei-Wege**-Sync mit Google/Outlook (heute nur ICS-Read-Import) bleibt Folgeschritt.
+- **Themability**: Light/Dark, Per-Workspace-Branding (Primary-Color + Logo), Custom-Theme-Builder — **teilweise**: das Portal hat einen `brandingProvider` (Per-Workspace-Farbe/Logo); Custom-Theme-Builder + Staff-SPA-Branding offen.
 
 ---
 
@@ -292,7 +307,7 @@ Generische Übersetzbarkeit von Datentypen + bevorzugte Sprache pro User:
 - **Portfolios**: Sammlung von Projekten mit Status-Rollup
 - **Approvals + Proofing**: Approval-Task-Typ, Inline-Annotationen auf Bildern/PDFs
 - **Gantt-DnD-Editor** (frappe-gantt oder bryntum-gantt)
-- **Notification-Preferences**: sofort / verzögert / digest / DnD-Fenster, pro Channel separat (Email / Mercure / Mobile / Browser-Push)
+- ~~**Notification-Preferences**: sofort / verzögert / digest / DnD-Fenster, pro Channel~~ — **erledigt für Email / Mercure / Chat** (In-App-Bell + Email + Slack/Mattermost/Teams; Frequenz/Typ/Quiet-Hours pro User **und** Contact). Offen: Mobile- / Browser-Push.
 - **AI Studio + AI Teammates**: persistente AI-Agenten als Task-Assignees
 - **Multiple Sandboxes** (Test-Environment parallel zum Produktiv-Workspace)
 - **Repository-Integration**: Git/GitLab/GitHub Branch + PR-Sicht im Task, Smart-Commit-Syntax
