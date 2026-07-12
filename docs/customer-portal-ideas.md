@@ -182,6 +182,20 @@ Eine schlanke Produkt-/Feature-Roadmap, die im Portal sichtbar gemacht werden ka
   - DSGVO: Ablauf-/Löschregeln, Freigabelinks mit Ablaufdatum, Virenscan beim Upload (z. B. ClamAV)
 - Marken-Assets (Logos, Fonts, Guidelines)
 - Sicherer, verschlüsselter Credentials-Ablageort
+- **Sprachvarianten von Dokumenten (per-locale documents)** – ein Dokument je
+  Sprache ablegen (z. B. Vertrags-PDF DE + EN); Portal liefert die Variante zur
+  Sprache des Betrachters (Fallback = Basis). Gehört hierher (Datei-Management),
+  nicht zur Text-i18n. Ausgelöst durch `docs/content-i18n-authoring-plan.md`
+  Piece E (Vertragsinhalte pro Vertrag übersetzbar) – der Textteil (E1) läuft
+  dort, die Dokument-Varianten hier in §8. Baut auf dem seit 2026-07-12
+  vorhandenen Datei-/Ordner-System auf (`Folder`/`FolderService`,
+  `PortalFilesController`, `File`) – kein Greenfield.
+  - **STATUS 2026-07-12:** an den Datei-System-Owner (Sven) übergeben, da es das
+    von ihm aktiv entwickelte `File`/`Folder`-Modell erweitert (Kollisionsrisiko).
+    Feature-Brief: **`docs/per-locale-documents-plan.md`**. Modell-Empfehlung:
+    `File.locale` + `File.variantOf` (Basis + Sprachvarianten, Fallback = Basis;
+    analog zum `labelI18n`-Muster). Der Vertragsdokument-Teil (E2,
+    `CustomerAgreementRevision.file`) wird danach mit dem i18n-Workstream verdrahtet.
 
 ## 9. Selbstverwaltung
 
