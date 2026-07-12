@@ -18,9 +18,10 @@ use Doctrine\ORM\Mapping as ORM;
  *
  * Written by {@see \App\Service\PublicFormSubmissionService} on every accepted
  * submission, capturing the raw posted {@see $payload}, the {@see $createdTask}
- * it produced, and the originating {@see $remoteIp} / {@see $userAgent} for abuse
- * forensics. Honeypot-tripped and rejected submissions are NOT recorded — only
- * the ones that became tasks.
+ * it produced (null when the form has no target project — the submission is
+ * still recorded, read via the staff submissions inbox), and the originating
+ * {@see $remoteIp} / {@see $userAgent} for abuse forensics. Honeypot-tripped and
+ * rejected submissions are NOT recorded.
  *
  * Read-only over the API (GetCollection + Get); workspace-scoped, never public.
  * `createdTask` is `SET NULL` on delete so purging a task keeps the audit trail.
