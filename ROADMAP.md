@@ -325,18 +325,19 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 
 ## Empfohlene Reihenfolge
 
-1. **Phase A** — Frontend-Polish: erst sichtbar machen was schon da ist
-2. **Phase C** — Mail-Integration: größter Workflow-Hebel + Brücke für KI
-3. **Phase B** — Issue-Tracking-Architektur (kann parallel zu C laufen, weil getrennte Schichten)
-4. **Phase D** — KI: hängt an Phase-C-Daten
-5. **Phase D⁺** — Such-Service (Meilisearch / Typesense): optional, erst zünden wenn MySQL-`LIKE` nicht mehr reicht (Mail-Bodies oder >100k Datensätze)
-6. **Phase E** — CRM-Vervollständigung + Customer-Portal (kann parallel zu D laufen)
-7. **Phase F** — Enterprise: bedarfsgetrieben nach erstem Enterprise-Kunden
-8. **Phase G** — alles andere bei Bedarf
+Die ursprüngliche Sequenz A → C → B → D → D⁺ → E ist **weitgehend abgearbeitet**: A, B und D⁺ stehen, ebenso die Foundation von C, D und E; Kundenportal, Booking, Newsletter und Notifications sind live. Die Reihenfolge orientiert sich daher jetzt an den **Restarbeiten** — höchster Hebel zuerst:
+
+1. **Gebautes produktiv schalten** — Go-Live-Config für Notifications/Mail (`EGRESS_ALLOW`, `MAILER_DSN`, `worker`/`scheduler`-Container; [docs/notifications-go-live.md](docs/notifications-go-live.md)) + die offenen SPA-Lücken zu bereits fertigem Backend schließen: **visueller Workflow-Editor** (B), **Discovered-Postfach-UI** (C.7), **Portal Invoices-/Goals-UI** (E), Smart-Links-oEmbed-Proxy (A).
+2. **Phase C — Helpdesk komplettieren**: Google-Workspace-OAuth, Auto-Reply pro Mailbox, Collision-Detection (Mercure-Presence), Inbound-Webhook (SendGrid/Mailgun/Resend). Schließt den Support-Loop, den Portal-Tickets bereits anstoßen.
+3. **Phase D — KI-Ausbau** (Phase-C-Daten + Portal liefern jetzt den Kontext): Aufwands-Schätzung + Lern-Schleife, Mail-Klassifikation + Reply-Suggestions, danach Auto-Scheduling. Modell-Routing (Ollama/vLLM) für datenschutzsensible Workspaces parallel.
+4. **Phase E — Rest**: Document-Vault (SSE + Retention/GoBD, baut auf dem S3-Adapter auf) + Portal-Vertiefung (Signatur, Retainer-Burndown, Magic-Link/SSO, Themability-Builder).
+5. **Phase D⁺ — Rest**: per-Workspace-Toggle + Hybrid-/Vektor-Suche — erst wenn Volumen/Qualität es rechtfertigen.
+6. **Phase F — Enterprise**: bedarfsgetrieben nach erster Enterprise-Anfrage (SSO/SCIM, 2FA/WebAuthn, Account-Lockout, Permission-/Notification-Schemes, Audit-SIEM-Export, OAuth-Server).
+7. **Phase G — Plattform**: bei Bedarf.
 
 **Phase S** (Skalierung) läuft **quer** zu dieser Sequenz, nicht als Schritt:
-- **S3-Adapter früh** — vor `var/uploads`-Überlauf, spätestens mit Document-Vault (E) oder Mail-Anhängen (C).
-- **HTTP-Cache + Redis/Valkey** — zünden sobald Read-Traffic oder Datenmenge es rechtfertigen; parallel zu jeder Phase möglich, da rein infrastrukturell.
+- **S3-Adapter — erledigt** (`FILE_STORAGE_ADAPTER`, Dev gegen MinIO verifiziert).
+- **HTTP-Cache + Redis/Valkey** rücken nach oben: Portal + Notifications erhöhen Read-Traffic **und** Queue-/Rate-Limiter-Last (`ai_agents`- + `async`-Transport laufen heute noch auf Doctrine). Zünden, sobald Prod-Last es rechtfertigt — parallel zu jeder Phase möglich, da rein infrastrukturell.
 
 ---
 
