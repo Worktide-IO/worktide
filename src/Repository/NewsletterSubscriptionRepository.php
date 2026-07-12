@@ -21,9 +21,9 @@ class NewsletterSubscriptionRepository extends ServiceEntityRepository
     }
 
     /**
-     * UUID strings of the newsletters this contact is ACTIVELY subscribed to —
-     * the set the portal marks as "on". Revoked rows (soft opt-out, kept for the
-     * consent audit) are excluded.
+     * UUID strings of the newsletters this contact is CONFIRMED-subscribed to —
+     * the set the portal marks as "on". Excludes revoked rows and rows still
+     * awaiting double-opt-in confirmation (see {@see pendingNewsletterIds()}).
      *
      * @return list<string>
      */
@@ -31,6 +31,26 @@ class NewsletterSubscriptionRepository extends ServiceEntityRepository
     {
         $ids = [];
         foreach ($this->findBy(['contact' => $contact, 'revokedAt' => null]) as $sub) {
+            $id = $sub->getNewsletter()->getId()?->toRfc4122();
+            if ($id !== null && $sub->isConfirmed()) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * UUID strings of the newsletters this contact has opted into but not yet
+     * confirmed (double opt-in pending) — the portal marks these "awaiting
+     * confirmation".
+     *
+     * @return list<string>
+     */
+    public function pendingNewsletterIds(Contact $contact): array
+    {
+        $ids = [];
+        foreach ($this->findBy(['contact' => $contact, 'revokedAt' => null, 'confirmedAt' => null]) as $sub) {
             $id = $sub->getNewsletter()->getId()?->toRfc4122();
             if ($id !== null) {
                 $ids[] = $id;
@@ -77,6 +97,7 @@ class NewsletterSubscriptionRepository extends ServiceEntityRepository
             ->join('c.customer', 'cu')->addSelect('cu')
             ->andWhere('s.newsletter = :nl')
             ->andWhere('s.revokedAt IS NULL')
+            ->andWhere('s.confirmedAt IS NOT NULL')
             ->andWhere('c.isActive = true')
             ->andWhere("c.email IS NOT NULL AND c.email != ''")
             ->setParameter('nl', $newsletter)

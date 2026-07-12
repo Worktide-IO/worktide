@@ -61,6 +61,14 @@ class NewsletterSubscription
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $revokedAt = null;
 
+    /**
+     * When the opt-in was confirmed. Single opt-in stamps it together with consent;
+     * double opt-in leaves it null (pending) until the emailed link is clicked. A
+     * subscription only receives mail when confirmed AND not revoked.
+     */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $confirmedAt = null;
+
     public function __construct()
     {
         $this->consentedAt = new \DateTimeImmutable();
@@ -81,20 +89,56 @@ class NewsletterSubscription
         return $this->revokedAt;
     }
 
+    public function getConfirmedAt(): ?\DateTimeImmutable
+    {
+        return $this->confirmedAt;
+    }
+
+    /** Not withdrawn. Combine with isConfirmed() for "will receive mail". */
     public function isActive(): bool
     {
         return $this->revokedAt === null;
     }
 
+    public function isConfirmed(): bool
+    {
+        return $this->confirmedAt !== null;
+    }
+
+    /** Awaiting a double-opt-in confirmation click. */
+    public function isPending(): bool
+    {
+        return $this->revokedAt === null && $this->confirmedAt === null;
+    }
+
+    /** Effective recipient: confirmed and not withdrawn. */
+    public function isEffective(): bool
+    {
+        return $this->revokedAt === null && $this->confirmedAt !== null;
+    }
+
     /**
      * Record (or renew) consent: stamps a fresh consentedAt, sets the origin and
-     * clears any prior revocation. Used both on first subscribe and re-subscribe.
+     * clears any prior revocation. Resets confirmation — the caller confirms
+     * immediately (single opt-in) or after the emailed link (double opt-in).
+     * Used both on first subscribe and re-subscribe.
      */
     public function grantConsent(NewsletterConsentSource $source): self
     {
         $this->consentedAt = new \DateTimeImmutable();
         $this->consentSource = $source;
         $this->revokedAt = null;
+        $this->confirmedAt = null;
+
+        return $this;
+    }
+
+    /** Mark the opt-in confirmed (single opt-in: immediately; double: on link click). */
+    public function confirm(): self
+    {
+        if ($this->confirmedAt === null) {
+            $this->confirmedAt = new \DateTimeImmutable();
+        }
 
         return $this;
     }

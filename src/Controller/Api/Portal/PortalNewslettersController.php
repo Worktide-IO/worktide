@@ -9,6 +9,7 @@ use App\Entity\Newsletter;
 use App\Entity\NewsletterSubscription;
 use App\Repository\NewsletterRepository;
 use App\Repository\NewsletterSubscriptionRepository;
+use App\Service\Newsletter\NewsletterMailer;
 use App\Service\Portal\PortalAccessResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -39,6 +40,7 @@ final class PortalNewslettersController
         private readonly NewsletterSubscriptionRepository $subscriptions,
         private readonly EntityManagerInterface $em,
         private readonly TranslatorInterface $translator,
+        private readonly NewsletterMailer $mailer,
     ) {}
 
     #[Route(
@@ -55,6 +57,7 @@ final class PortalNewslettersController
 
         $enabled = array_flip($customer->getEnabledNewsletterIds());
         $subscribed = array_flip($this->subscriptions->subscribedNewsletterIds($contact));
+        $pending = array_flip($this->subscriptions->pendingNewsletterIds($contact));
 
         // Flat → children-by-parent map (root bucket keyed '').
         $childrenByParent = [];
@@ -64,7 +67,7 @@ final class PortalNewslettersController
         }
 
         return new JsonResponse([
-            'newsletters' => $this->buildForest($childrenByParent[''] ?? [], $childrenByParent, $enabled, $subscribed),
+            'newsletters' => $this->buildForest($childrenByParent[''] ?? [], $childrenByParent, $enabled, $subscribed, $pending),
         ]);
     }
 
@@ -84,22 +87,46 @@ final class PortalNewslettersController
             throw new ConflictHttpException('This newsletter is mandatory and cannot be changed.');
         }
         $contact = $this->portal->contact();
+        $doubleOptIn = $this->isDoubleOptInEnabled();
 
         // One row per (newsletter, contact): create it, or reactivate a
         // previously-revoked one. Setting the toggle IS the consent act, so we
         // stamp consentedAt/consentSource here (Portal origin).
         $existing = $this->subscriptions->findOneForContact($newsletter, $contact);
+        $sub = $existing ?? (new NewsletterSubscription())->setNewsletter($newsletter)->setContact($contact);
         if ($existing === null) {
-            $sub = (new NewsletterSubscription())->setNewsletter($newsletter)->setContact($contact);
-            $sub->grantConsent(NewsletterConsentSource::Portal);
             $this->em->persist($sub);
-            $this->em->flush();
-        } elseif (!$existing->isActive()) {
-            $existing->grantConsent(NewsletterConsentSource::Portal);
-            $this->em->flush();
         }
 
-        return new JsonResponse(['id' => $id, 'subscribed' => true]);
+        if (!$sub->isEffective()) {
+            // New, revoked, or still-pending. Re-stamp consent only when it's a
+            // fresh opt-in (new row or a revoked one being reactivated) — a
+            // pending row keeps its original consent timestamp.
+            if ($existing === null || $existing->getRevokedAt() !== null) {
+                $sub->grantConsent(NewsletterConsentSource::Portal);
+            }
+            if ($doubleOptIn) {
+                $this->em->flush();
+                $this->mailer->sendConfirmation($sub); // pending until the link is clicked
+            } else {
+                $sub->confirm();
+                $this->em->flush();
+            }
+        }
+
+        return new JsonResponse([
+            'id' => $id,
+            'subscribed' => $sub->isEffective(),
+            'pending' => $sub->isPending(),
+        ]);
+    }
+
+    /** Per-workspace double-opt-in switch (settings.newsletter.doubleOptIn; default off). */
+    private function isDoubleOptInEnabled(): bool
+    {
+        $settings = $this->portal->workspace()->getSettings();
+
+        return ($settings['newsletter']['doubleOptIn'] ?? false) === true;
     }
 
     #[Route(
@@ -134,10 +161,11 @@ final class PortalNewslettersController
      * @param list<Newsletter>                 $nodes
      * @param array<string, list<Newsletter>>  $childrenByParent
      * @param array<string, int>               $enabled     set of enabled ids
-     * @param array<string, int>               $subscribed  set of subscribed ids
+     * @param array<string, int>               $subscribed  set of confirmed-subscribed ids
+     * @param array<string, int>               $pending     set of opted-in-but-unconfirmed ids
      * @return list<array<string, mixed>>
      */
-    private function buildForest(array $nodes, array $childrenByParent, array $enabled, array $subscribed): array
+    private function buildForest(array $nodes, array $childrenByParent, array $enabled, array $subscribed, array $pending): array
     {
         $out = [];
         foreach ($nodes as $node) {
@@ -145,7 +173,7 @@ final class PortalNewslettersController
             if ($id === null || $node->isArchived()) {
                 continue; // archived nodes (and their subtree) are hidden from the portal
             }
-            $children = $this->buildForest($childrenByParent[$id] ?? [], $childrenByParent, $enabled, $subscribed);
+            $children = $this->buildForest($childrenByParent[$id] ?? [], $childrenByParent, $enabled, $subscribed, $pending);
             $isGranted = isset($enabled[$id]);
             // Mandatory = granted + forced on, no toggle. Subscribable = granted +
             // opt-in allowed AND not mandatory. A granted-but-non-subscribable node
@@ -172,6 +200,8 @@ final class PortalNewslettersController
                 'subscribable' => $isSubscribable,
                 'mandatory' => $isMandatory,
                 'subscribed' => $isMandatory || ($isSubscribable && isset($subscribed[$id])),
+                // Opted in but awaiting a double-opt-in confirmation click.
+                'pending' => $isSubscribable && isset($pending[$id]),
                 'children' => $children,
             ];
         }

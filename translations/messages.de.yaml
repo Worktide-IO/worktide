@@ -247,6 +247,10 @@ email:
     reason: 'Sie erhalten diese E-Mail, weil Sie „%title%" abonniert haben.'
     reason_txt: 'Sie erhalten diese E-Mail, weil Sie "%title%" abonniert haben.'
     unsubscribe: 'Abbestellen'
+    confirm_heading: 'Bitte bestätigen Sie Ihre Anmeldung'
+    confirm_intro: 'Bitte bestätigen Sie, dass Sie „%title%" abonnieren möchten. Erst nach Ihrer Bestätigung senden wir Ihnen etwas zu.'
+    confirm_cta: 'Anmeldung bestätigen'
+    confirm_ignore: 'Wenn Sie sich nicht angemeldet haben, ignorieren Sie diese E-Mail einfach – es wird nichts gesendet.'
 notification:
   task_assigned: 'Dir wurde eine Aufgabe zugewiesen'
   launch_service: 'Neuer Service freigeschaltet'

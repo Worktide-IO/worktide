@@ -1,0 +1,12 @@
+{% extends 'email/base.txt.twig' %}
+{% set loc = locale|default('de') %}
+
+{% block content %}{{ newsletterTitle }}
+{{ 'email.newsletter.confirm_heading'|trans({}, 'messages', loc) }}
+
+{{ 'email.newsletter.confirm_intro'|trans({'%title%': newsletterTitle}, 'messages', loc) }}
+
+{{ 'email.newsletter.confirm_cta'|trans({}, 'messages', loc) }}: {{ confirmUrl }}
+
+--
+{{ 'email.newsletter.confirm_ignore'|trans({}, 'messages', loc) }}{% endblock %}

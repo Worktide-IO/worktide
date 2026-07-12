@@ -247,6 +247,10 @@ email:
     reason: 'You are receiving this email because you subscribed to "%title%".'
     reason_txt: 'You are receiving this email because you subscribed to "%title%".'
     unsubscribe: 'Unsubscribe'
+    confirm_heading: 'Please confirm your subscription'
+    confirm_intro: 'Please confirm that you want to subscribe to "%title%". We will only send you anything once you have confirmed.'
+    confirm_cta: 'Confirm subscription'
+    confirm_ignore: 'If you did not sign up, just ignore this email — nothing will be sent.'
 notification:
   task_assigned: 'A task was assigned to you'
   launch_service: 'New service activated'

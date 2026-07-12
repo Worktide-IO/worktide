@@ -14,6 +14,7 @@ use App\Entity\NewsletterSubscription;
 use App\Entity\User;
 use App\Entity\Workspace;
 use App\Repository\NewsletterSubscriptionRepository;
+use App\Service\Newsletter\NewsletterConfirmSigner;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -216,6 +217,75 @@ final class PortalNewsletterConsentTest extends WebTestCase
         $recipients = self::getContainer()->get(NewsletterSubscriptionRepository::class)
             ->findActiveRecipientsForNewsletter($node);
         self::assertCount(2, $recipients);
+    }
+
+    public function testDoubleOptInSubscribeIsPendingUntilConfirmed(): void
+    {
+        $ws = (new Workspace())->setName('DOI WS')->setSlug('doi-ws-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
+            ->setLocale('de')->setTimezone('Europe/Berlin')
+            ->setSettings([
+                'portal' => ['enabled' => true, 'features' => ['newsletters' => true]],
+                'newsletter' => ['doubleOptIn' => true],
+            ]);
+        $this->em->persist($ws);
+
+        $node = (new Newsletter())->setTitle('Produkt-News');
+        $node->setWorkspace($ws);
+        $this->em->persist($node);
+        $this->em->flush();
+
+        $customer = (new Customer())->setWorkspace($ws)->setName('Kunde')->setIsCompany(true)
+            ->setStatus(CustomerStatus::Active)->setPortalEnabled(true)
+            ->setEnabledNewsletterIds([$node->getId()->toRfc4122()]);
+        $this->em->persist($customer);
+
+        $portalUser = (new User())->setEmail('doi.contact@example.test')->setFirstName('T')->setLastName('U')
+            ->setRoles(['ROLE_PORTAL']);
+        $portalUser->setPassword('noop');
+        $this->em->persist($portalUser);
+        $contact = (new Contact())->setCustomer($customer)->setFirstName('Erika')->setLastName('M')
+            ->setEmail('doi.contact@example.test')->setLinkedUser($portalUser);
+        $this->em->persist($contact);
+        $this->em->flush();
+        $nodeId = $node->getId()->toRfc4122();
+        $contactId = $contact->getId()->toRfc4122();
+        $this->em->clear();
+
+        $token = $this->token($portalUser);
+        $subUri = '/v1/portal/newsletters/' . $nodeId . '/subscription';
+
+        // Subscribe → pending, NOT yet a recipient.
+        $this->request('POST', $subUri, $token);
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        $r = $this->json();
+        self::assertFalse($r['subscribed']);
+        self::assertTrue($r['pending']);
+
+        $repo = self::getContainer()->get(NewsletterSubscriptionRepository::class);
+        $node = $this->em->find(Newsletter::class, Uuid::fromString($nodeId));
+        self::assertCount(0, $repo->findActiveRecipientsForNewsletter($node), 'pending opt-in is not a recipient');
+
+        // List reflects pending (checkbox awaiting confirmation).
+        $this->request('GET', '/v1/portal/newsletters', $token);
+        $dto = $this->json()['newsletters'][0];
+        self::assertFalse($dto['subscribed']);
+        self::assertTrue($dto['pending']);
+
+        // Confirm via the signed token (public endpoint).
+        $confirmToken = self::getContainer()->get(NewsletterConfirmSigner::class)
+            ->sign(Uuid::fromString($contactId), Uuid::fromString($nodeId));
+        $this->request('POST', '/v1/newsletter/confirm/' . $confirmToken, $token);
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        self::assertTrue($this->json()['confirmed']);
+
+        // Now confirmed → a recipient, and the portal shows it subscribed.
+        $this->em->clear();
+        $node = $this->em->find(Newsletter::class, Uuid::fromString($nodeId));
+        self::assertCount(1, $repo->findActiveRecipientsForNewsletter($node));
+        $this->request('GET', '/v1/portal/newsletters', $token);
+        $dto = $this->json()['newsletters'][0];
+        self::assertTrue($dto['subscribed']);
+        self::assertFalse($dto['pending']);
     }
 
     private function reloadSubscription(array $ctx): ?NewsletterSubscription
