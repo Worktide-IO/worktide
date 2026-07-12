@@ -29,6 +29,13 @@ label:
     half_yearly: half-yearly
     yearly: yearly
     once: one-time
+  newsletter_frequency:
+    weekly: weekly
+    biweekly: every two weeks
+    monthly: monthly
+    quarterly: quarterly
+    yearly: yearly
+    irregular: irregularly
   offer_status:
     open: Open
     accepted: Accepted

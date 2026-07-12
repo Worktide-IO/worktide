@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api\Portal;
 
+use App\Entity\Enum\NewsletterConsentSource;
 use App\Entity\Newsletter;
 use App\Entity\NewsletterSubscription;
 use App\Repository\NewsletterRepository;
@@ -14,6 +15,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Customer-portal newsletter subscriptions (roadmap §7 "Newsletter-Verwaltung").
@@ -35,6 +37,7 @@ final class PortalNewslettersController
         private readonly NewsletterRepository $newsletters,
         private readonly NewsletterSubscriptionRepository $subscriptions,
         private readonly EntityManagerInterface $em,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route(
@@ -77,10 +80,17 @@ final class PortalNewslettersController
         $newsletter = $this->findEnabledNewsletterOr404($id);
         $contact = $this->portal->contact();
 
-        if ($this->subscriptions->findOneForContact($newsletter, $contact) === null) {
-            $this->em->persist(
-                (new NewsletterSubscription())->setNewsletter($newsletter)->setContact($contact),
-            );
+        // One row per (newsletter, contact): create it, or reactivate a
+        // previously-revoked one. Setting the toggle IS the consent act, so we
+        // stamp consentedAt/consentSource here (Portal origin).
+        $existing = $this->subscriptions->findOneForContact($newsletter, $contact);
+        if ($existing === null) {
+            $sub = (new NewsletterSubscription())->setNewsletter($newsletter)->setContact($contact);
+            $sub->grantConsent(NewsletterConsentSource::Portal);
+            $this->em->persist($sub);
+            $this->em->flush();
+        } elseif (!$existing->isActive()) {
+            $existing->grantConsent(NewsletterConsentSource::Portal);
             $this->em->flush();
         }
 
@@ -98,9 +108,10 @@ final class PortalNewslettersController
         $this->portal->assertFeatureEnabled('newsletters');
 
         $newsletter = $this->findEnabledNewsletterOr404($id);
+        // Soft opt-out: keep the row (consent audit trail), stamp revokedAt.
         $existing = $this->subscriptions->findOneForContact($newsletter, $this->portal->contact());
-        if ($existing !== null) {
-            $this->em->remove($existing);
+        if ($existing !== null && $existing->isActive()) {
+            $existing->revoke();
             $this->em->flush();
         }
 
@@ -131,12 +142,17 @@ final class PortalNewslettersController
             if (!$isEnabled && $children === []) {
                 continue; // neither granted nor an ancestor of a granted node
             }
+            $frequency = $node->getEstimatedFrequency();
             $out[] = [
                 'id' => $id,
                 'title' => $node->getTitle(),
                 'description' => $node->getDescription(),
                 // Per-locale title/description overrides (see localize() in the portal).
                 'translations' => $node->getTranslations(),
+                'estimatedFrequency' => $frequency?->value,
+                'estimatedFrequencyLabel' => $frequency !== null
+                    ? $this->translator->trans('label.newsletter_frequency.' . $frequency->value)
+                    : null,
                 'subscribable' => $isEnabled,
                 'subscribed' => $isEnabled && isset($subscribed[$id]),
                 'children' => $children,

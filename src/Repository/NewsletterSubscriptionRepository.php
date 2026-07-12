@@ -21,15 +21,16 @@ class NewsletterSubscriptionRepository extends ServiceEntityRepository
     }
 
     /**
-     * UUID strings of the newsletters this contact is subscribed to — the set
-     * the portal marks as "on".
+     * UUID strings of the newsletters this contact is ACTIVELY subscribed to —
+     * the set the portal marks as "on". Revoked rows (soft opt-out, kept for the
+     * consent audit) are excluded.
      *
      * @return list<string>
      */
     public function subscribedNewsletterIds(Contact $contact): array
     {
         $ids = [];
-        foreach ($this->findBy(['contact' => $contact]) as $sub) {
+        foreach ($this->findBy(['contact' => $contact, 'revokedAt' => null]) as $sub) {
             $id = $sub->getNewsletter()->getId()?->toRfc4122();
             if ($id !== null) {
                 $ids[] = $id;
@@ -39,6 +40,11 @@ class NewsletterSubscriptionRepository extends ServiceEntityRepository
         return $ids;
     }
 
+    /**
+     * The single subscription row for this (newsletter, contact) pair, active or
+     * revoked. Callers use {@see NewsletterSubscription::isActive()} to tell the
+     * two apart — the row is reused across (un)subscribe cycles.
+     */
     public function findOneForContact(Newsletter $newsletter, Contact $contact): ?NewsletterSubscription
     {
         return $this->findOneBy(['newsletter' => $newsletter, 'contact' => $contact]);
@@ -64,6 +70,7 @@ class NewsletterSubscriptionRepository extends ServiceEntityRepository
             ->join('s.contact', 'c')->addSelect('c')
             ->join('c.customer', 'cu')->addSelect('cu')
             ->andWhere('s.newsletter = :nl')
+            ->andWhere('s.revokedAt IS NULL')
             ->andWhere('c.isActive = true')
             ->andWhere("c.email IS NOT NULL AND c.email != ''")
             ->setParameter('nl', $newsletter)

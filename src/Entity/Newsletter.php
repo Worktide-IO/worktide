@@ -14,6 +14,7 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
+use App\Entity\Enum\NewsletterFrequency;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
 use App\Entity\Trait\TaggableTrait;
@@ -87,6 +88,14 @@ class Newsletter implements TranslatableInterface, TaggableInterface
     #[ORM\Column(type: 'float')]
     private float $position = 0.0;
 
+    /**
+     * Estimated send cadence — a subscriber-facing expectation hint, not an
+     * enforced schedule. Null = not stated. Its human label is localised at the
+     * boundary (portal DTO / staff UI), not stored translated.
+     */
+    #[ORM\Column(length: 20, nullable: true, enumType: NewsletterFrequency::class)]
+    private ?NewsletterFrequency $estimatedFrequency = null;
+
     public function __construct()
     {
         $this->tags = new ArrayCollection();
@@ -142,6 +151,18 @@ class Newsletter implements TranslatableInterface, TaggableInterface
     public function setPosition(float $position): self
     {
         $this->position = $position;
+
+        return $this;
+    }
+
+    public function getEstimatedFrequency(): ?NewsletterFrequency
+    {
+        return $this->estimatedFrequency;
+    }
+
+    public function setEstimatedFrequency(?NewsletterFrequency $estimatedFrequency): self
+    {
+        $this->estimatedFrequency = $estimatedFrequency;
 
         return $this;
     }

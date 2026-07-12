@@ -132,7 +132,7 @@ final class NewsletterSendTest extends WebTestCase
         self::assertNotNull($reloaded?->getSentAt());
     }
 
-    public function testUnsubscribeTokenRemovesSubscription(): void
+    public function testUnsubscribeTokenRevokesSubscription(): void
     {
         $this->boot();
         $ctx = $this->seed();
@@ -149,13 +149,20 @@ final class NewsletterSendTest extends WebTestCase
         self::assertSame(200, $this->client->getResponse()->getStatusCode());
         self::assertTrue(json_decode((string) $this->client->getResponse()->getContent(), true)['unsubscribed']);
 
+        // Soft opt-out: the row is kept (consent audit) but marked revoked.
         $this->em->clear();
         $remaining = self::getContainer()->get(NewsletterSubscriptionRepository::class)
             ->findOneForContact(
                 $this->em->find(Newsletter::class, $ctx['node']->getId()),
                 $this->em->find(Contact::class, $ctx['contact']->getId()),
             );
-        self::assertNull($remaining, 'subscription removed');
+        self::assertNotNull($remaining, 'subscription row retained for audit');
+        self::assertFalse($remaining->isActive(), 'subscription no longer active');
+        self::assertNotNull($remaining->getRevokedAt(), 'revokedAt stamped');
+
+        // Info now reports unsubscribed.
+        $this->client->request('GET', '/v1/newsletter/unsubscribe/' . $token);
+        self::assertTrue(json_decode((string) $this->client->getResponse()->getContent(), true)['unsubscribed']);
     }
 
     public function testForgedUnsubscribeTokenIs404(): void
