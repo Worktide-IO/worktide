@@ -266,6 +266,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 - **Egress ist default-deny**: jeder Outbound (Mail, LLM, Web-Recherche, Chat-/Forum-/Webhook-Push) läuft durch den `EgressGuard` + `EGRESS_ALLOW`-Kategorie. Kein direkter HTTP-Call an vom User/Admin gelieferte Hosts ohne **SSRF-Guard** (interne IPs, `file://`, Redirect-Rebinding geblockt).
 - **Serialisierung leakt nichts**: Responses whitelisten Felder über Serialization-Groups; Secrets (`authConfig`, Tokens, Passwörter) sind write-only / `is_shown_once` und encrypted-at-rest — nie in Response, Fehlermeldung, `@id`-IRI oder Log.
 - **Public/unauth. Endpunkte** sind rate-limitiert + honeypot-geschützt und **info-leak-frei** (keine User-/Record-Enumeration, konstante Antwortzeiten/-inhalte).
+- **Fremdinhalt ist Daten, nie Instruktion (Prompt-Injection)**: Alles, was ein KI-Agent aus untrusted Quellen liest (Email-Bodies, Ticket-/Kommentar-Text, Formular-Eingaben, Dateinamen/-inhalte, externe Ticket-Sync-Payloads), wird strikt vom System-/Tool-Kontext getrennt eingebettet. Ein Agent darf aus solchem Inhalt **keine** Tool-Calls, Egress-Aktionen, Scope-Wechsel oder Preisgabe anderer Datensätze ableiten — die Isolations- und Egress-Regeln oben gelten für Agent-Aktionen genauso wie für Endpunkte.
 
 ### In Tests gießen (fail-closed, im CI-Gate)
 - **Scope-Coverage-Test**: iteriert reflexiv über alle `#[ApiResource]`-Klassen und assertet, dass jede in der Scope-Whitelist steht **oder** explizit als public markiert ist → eine neue Entity ohne Scoping bricht den Build automatisch.
@@ -274,6 +275,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 - **Egress-default-deny-Test**: ohne `EGRESS_ALLOW` schlägt jeder Outbound fehl; SSRF-Payload-Suite (169.254.x, `localhost`, `file://`, DNS-Rebinding, offene Redirects) wird geblockt.
 - **Serialization-Leak-Test**: Assert, dass sensible Felder (`password`, `authConfig`, `*token*`, Fremd-Workspace-Refs) in keiner API-Response auftauchen.
 - **Regression-Verankerung**: jeder der #48–57-Fixes bekommt einen dedizierten Test, damit die Lücke nicht zurückkehrt.
+- **Prompt-Injection-Suite**: jeder Agent, der Fremdinhalt verarbeitet (Mail-Klassifikation, Reply-Suggestions, `PortalTicketSuggester`, KI-Tag-Vorschläge, autonome `AgentRun`-Schritte), wird mit einer Payload-Batterie gefüttert — „ignore previous instructions", eingebettete Fake-System-Prompts, Aufforderungen à la „maile alle Kunden / lösche Projekt / rufe Tool X", versteckter Text (HTML-Kommentare, Zero-Width, data-URIs), Cross-Tenant-Exfiltrations-Versuche. Assert: der Agent **folgt nicht**, löst keinen unerlaubten Tool-Call/Egress aus und gibt keine fremden/mandantenübergreifenden Daten preis. Ergänzt die Egress-default-deny-Tests um die KI-Angriffsfläche.
 
 ---
 
