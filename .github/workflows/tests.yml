@@ -69,6 +69,16 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist --no-scripts
 
+      - name: Prepare env file and bundled logo
+        run: |
+          # Mirror the prod image bootstrap (Dockerfile does `cp .env.example .env`):
+          # .env is gitignored, so materialize it from the committed template.
+          cp .env.example .env
+          # logo.svg is gitignored but ships into the prod image via `COPY . ./`;
+          # a git checkout has none, so provide a stand-in so the public
+          # /branding/logo route serves an image (the test only asserts that).
+          printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"></svg>' > logo.svg
+
       - name: Generate JWT keypair
         run: php bin/console lexik:jwt:generate-keypair --overwrite --no-interaction --env=test
 
