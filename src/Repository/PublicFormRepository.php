@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\Project;
+use App\Entity\Customer;
 use App\Entity\PublicForm;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -40,24 +40,20 @@ class PublicFormRepository extends ServiceEntityRepository
     }
 
     /**
-     * Enabled, non-deleted forms whose target project is one the portal
-     * contact may see (their customer's external projects). The caller passes
-     * the already-authorized projects.
+     * Enabled, non-deleted forms distributed to the given customer (i.e. the
+     * customer is among the form's {@see PublicForm::$recipients}). Forms with no
+     * recipients are staff-only and never returned here.
      *
-     * @param list<Project> $projects
      * @return list<PublicForm>
      */
-    public function findEnabledForPortalProjects(array $projects): array
+    public function findEnabledForPortalCustomer(Customer $customer): array
     {
-        if ($projects === []) {
-            return [];
-        }
-
         return $this->createQueryBuilder('f')
-            ->andWhere('f.project IN (:projects)')
+            ->innerJoin('f.recipients', 'r')
+            ->andWhere('r = :customer')
             ->andWhere('f.isEnabled = true')
             ->andWhere('f.deletedAt IS NULL')
-            ->setParameter('projects', $projects)
+            ->setParameter('customer', $customer)
             ->orderBy('f.title', 'ASC')
             ->getQuery()
             ->getResult();

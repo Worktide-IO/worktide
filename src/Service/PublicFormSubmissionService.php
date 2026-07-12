@@ -8,6 +8,7 @@ use App\Entity\CustomFieldValue;
 use App\Entity\Enum\CustomFieldTarget;
 use App\Entity\Enum\TaskCreatedVia;
 use App\Entity\Enum\TaskPriority;
+use App\Entity\Project;
 use App\Entity\PublicForm;
 use App\Entity\PublicFormSubmission;
 use App\Entity\Task;
@@ -146,10 +147,16 @@ final class PublicFormSubmissionService
 
         $mapsToPairs = $this->collectMapsTo($blocks, $doc['calc'] ?? []);
 
-        $task = $this->buildTask($form, $coerced, $mapsToPairs);
-        $this->em->persist($task);
-
-        $this->applyCustomFields($form, $task, $coerced, $mapsToPairs);
+        // A Task is only materialized when the form has a target project; a
+        // project-less (e.g. staff-only / pure-intake) form records the
+        // submission alone, read later via the submissions inbox.
+        $project = $form->getProject();
+        $task = null;
+        if ($project !== null) {
+            $task = $this->buildTask($form, $project, $coerced, $mapsToPairs);
+            $this->em->persist($task);
+            $this->applyCustomFields($form, $task, $coerced, $mapsToPairs);
+        }
 
         $submission = (new PublicFormSubmission())
             ->setForm($form)
@@ -207,7 +214,7 @@ final class PublicFormSubmissionService
      * @param array<string, mixed> $coerced
      * @param list<array{key: string, mapsTo: string}> $mapsToPairs
      */
-    private function buildTask(PublicForm $form, array $coerced, array $mapsToPairs): Task
+    private function buildTask(PublicForm $form, Project $project, array $coerced, array $mapsToPairs): Task
     {
         $title = null;
         $description = null;
@@ -232,7 +239,6 @@ final class PublicFormSubmissionService
             }
         }
 
-        $project = $form->getProject();
         $task = (new Task())
             ->setWorkspace($form->getWorkspace())
             ->setProject($project)

@@ -22,18 +22,23 @@ use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\PublicFormRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use App\Entity\Trait\TranslatableTrait;
 
 /**
- * A publicly reachable form. Anyone with the {@see $slug} can GET its schema and
+ * A workspace-global form. Anyone with the {@see $slug} can GET its schema and
  * POST a submission at `/v1/forms/<slug>` — no authentication; the slug is the
  * only credential, so those routes live behind PUBLIC_ACCESS in security.yaml.
+ * In the portal it's shown to the customers it's distributed to
+ * ({@see $recipients}); an empty recipient set means staff-only (reachable via
+ * the slug / internally, shown in no portal).
  *
- * Each valid submission directly materializes a {@see Task} in {@see $project}
- * (status / tracker / priority from the form defaults) and an audit
- * {@see PublicFormSubmission} row. There is no moderation queue — a submission
- * becomes a task immediately.
+ * Every valid submission records an audit {@see PublicFormSubmission} row. If a
+ * target {@see $project} is set it ALSO materializes a {@see Task} there (status
+ * / tracker / priority from the form defaults); with no project the submission
+ * is recorded only (read via the submissions inbox). No moderation queue.
  *
  * Admin CRUD is exposed under `/v1/public_forms` (shortName-derived), kept
  * distinct from the public `/v1/forms/{slug}` controller routes.
@@ -99,10 +104,23 @@ class PublicForm implements TranslatableInterface
     #[ORM\Column(options: ['default' => true])]
     private bool $isEnabled = true;
 
-    /** Target project — submissions create tasks here. */
+    /**
+     * Optional target project — a submission creates a Task here. Null = no task
+     * (the submission is still recorded and read via the submissions inbox).
+     */
     #[ORM\ManyToOne]
-    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
-    private Project $project;
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Project $project = null;
+
+    /**
+     * Customers this form is distributed to — drives portal visibility. Empty =
+     * staff-only (shown in no portal; still reachable via the public slug).
+     *
+     * @var Collection<int, Customer>
+     */
+    #[ORM\ManyToMany(targetEntity: Customer::class)]
+    #[ORM\JoinTable(name: 'public_form_recipients')]
+    private Collection $recipients;
 
     /** Status applied to created tasks; null falls back to the workspace default. */
     #[ORM\ManyToOne]
@@ -155,6 +173,11 @@ class PublicForm implements TranslatableInterface
     #[ORM\Column(options: ['default' => 0])]
     private int $submissionCount = 0;
 
+    public function __construct()
+    {
+        $this->recipients = new ArrayCollection();
+    }
+
     public function getSlug(): string { return $this->slug; }
     public function setSlug(string $slug): self { $this->slug = $slug; return $this; }
 
@@ -170,8 +193,27 @@ class PublicForm implements TranslatableInterface
     public function isEnabled(): bool { return $this->isEnabled; }
     public function setIsEnabled(bool $e): self { $this->isEnabled = $e; return $this; }
 
-    public function getProject(): Project { return $this->project; }
-    public function setProject(Project $project): self { $this->project = $project; return $this; }
+    public function getProject(): ?Project { return $this->project; }
+    public function setProject(?Project $project): self { $this->project = $project; return $this; }
+
+    /** @return Collection<int, Customer> */
+    public function getRecipients(): Collection { return $this->recipients; }
+
+    public function addRecipient(Customer $customer): self
+    {
+        if (!$this->recipients->contains($customer)) {
+            $this->recipients->add($customer);
+        }
+
+        return $this;
+    }
+
+    public function removeRecipient(Customer $customer): self
+    {
+        $this->recipients->removeElement($customer);
+
+        return $this;
+    }
 
     public function getDefaultStatus(): ?TaskStatus { return $this->defaultStatus; }
     public function setDefaultStatus(?TaskStatus $s): self { $this->defaultStatus = $s; return $this; }

@@ -623,6 +623,7 @@ final class PortalEndpointsTest extends WebTestCase
         $form = (new PublicForm())
             ->setWorkspace($ws)
             ->setProject($project)
+            ->addRecipient($customer)
             ->setSlug('audit-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
             ->setTitle('SEO-Audit')
             ->setFields([])
