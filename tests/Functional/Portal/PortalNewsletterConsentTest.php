@@ -108,6 +108,60 @@ final class PortalNewsletterConsentTest extends WebTestCase
         self::assertSame(1, $count);
     }
 
+    public function testArchivedHiddenAndNonSubscribableRendersAsHeader(): void
+    {
+        $ws = (new Workspace())->setName('Meta WS')->setSlug('meta-ws-' . substr(Uuid::v7()->toRfc4122(), 0, 8))
+            ->setLocale('de')->setTimezone('Europe/Berlin')
+            ->setSettings(['portal' => ['enabled' => true, 'features' => ['newsletters' => true]]]);
+        $this->em->persist($ws);
+
+        $category = (new Newsletter())->setTitle('Kategorie')->setIsSubscribable(false); // structure-only
+        $category->setWorkspace($ws);
+        $this->em->persist($category);
+        $this->em->flush();
+
+        $child = (new Newsletter())->setTitle('Produkt')->setParent($category); // subscribable leaf
+        $this->em->persist($child);
+
+        $archived = (new Newsletter())->setTitle('Alt')->setIsArchived(true);
+        $archived->setWorkspace($ws);
+        $this->em->persist($archived);
+        $this->em->flush();
+
+        $customer = (new Customer())->setWorkspace($ws)->setName('Kunde')->setIsCompany(true)
+            ->setStatus(CustomerStatus::Active)->setPortalEnabled(true)
+            ->setEnabledNewsletterIds([
+                $category->getId()->toRfc4122(),
+                $child->getId()->toRfc4122(),
+                $archived->getId()->toRfc4122(),
+            ]);
+        $this->em->persist($customer);
+
+        $portalUser = (new User())->setEmail('meta.contact@example.test')->setFirstName('T')->setLastName('U')
+            ->setRoles(['ROLE_PORTAL']);
+        $portalUser->setPassword('noop');
+        $this->em->persist($portalUser);
+        $this->em->persist(
+            (new Contact())->setCustomer($customer)->setFirstName('M')->setLastName('C')
+                ->setEmail('meta.contact@example.test')->setLinkedUser($portalUser),
+        );
+        $this->em->flush();
+        $this->em->clear();
+
+        $this->request('GET', '/v1/portal/newsletters', $this->token($portalUser));
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        $roots = $this->json()['newsletters'];
+
+        // Archived node is gone; only the category remains at the root.
+        self::assertCount(1, $roots);
+        self::assertSame('Kategorie', $roots[0]['title']);
+        // Non-subscribable category renders as a header with its subscribable child.
+        self::assertFalse($roots[0]['subscribable']);
+        self::assertCount(1, $roots[0]['children']);
+        self::assertSame('Produkt', $roots[0]['children'][0]['title']);
+        self::assertTrue($roots[0]['children'][0]['subscribable']);
+    }
+
     private function reloadSubscription(array $ctx): ?NewsletterSubscription
     {
         $this->em->clear();

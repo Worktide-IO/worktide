@@ -134,13 +134,15 @@ final class PortalNewslettersController
         $out = [];
         foreach ($nodes as $node) {
             $id = $node->getId()?->toRfc4122();
-            if ($id === null) {
-                continue;
+            if ($id === null || $node->isArchived()) {
+                continue; // archived nodes (and their subtree) are hidden from the portal
             }
             $children = $this->buildForest($childrenByParent[$id] ?? [], $childrenByParent, $enabled, $subscribed);
-            $isEnabled = isset($enabled[$id]);
-            if (!$isEnabled && $children === []) {
-                continue; // neither granted nor an ancestor of a granted node
+            // Subscribable only if granted AND the node itself allows opt-in;
+            // a granted-but-non-subscribable node is a pure category header.
+            $isSubscribable = isset($enabled[$id]) && $node->isSubscribable();
+            if (!$isSubscribable && $children === []) {
+                continue; // neither an opt-in target nor an ancestor of one
             }
             $frequency = $node->getEstimatedFrequency();
             $out[] = [
@@ -149,12 +151,15 @@ final class PortalNewslettersController
                 'description' => $node->getDescription(),
                 // Per-locale title/description overrides (see localize() in the portal).
                 'translations' => $node->getTranslations(),
+                'icon' => $node->getIcon(),
+                'color' => $node->getColor(),
+                'slug' => $node->getSlug(),
                 'estimatedFrequency' => $frequency?->value,
                 'estimatedFrequencyLabel' => $frequency !== null
                     ? $this->translator->trans('label.newsletter_frequency.' . $frequency->value)
                     : null,
-                'subscribable' => $isEnabled,
-                'subscribed' => $isEnabled && isset($subscribed[$id]),
+                'subscribable' => $isSubscribable,
+                'subscribed' => $isSubscribable && isset($subscribed[$id]),
                 'children' => $children,
             ];
         }
