@@ -26,6 +26,7 @@ final class EmailTemplateRenderTest extends KernelTestCase
     public function testPasswordResetHtmlIsBranded(): void
     {
         $html = $this->twig->render('email/password_reset.html.twig', [
+            'locale' => 'de',
             'resetUrl' => 'https://example.test/reset?token=abc',
             'firstName' => 'Sven',
             'expiresAt' => new \DateTimeImmutable('2030-01-01 10:00'),
@@ -43,6 +44,7 @@ final class EmailTemplateRenderTest extends KernelTestCase
     public function testPortalInvitationRendersWelcomeText(): void
     {
         $html = $this->twig->render('email/portal_set_password.html.twig', [
+            'locale' => 'de',
             'setPasswordUrl' => 'https://portal.test/set?token=xyz',
             'firstName' => 'Sven',
             'expiresAt' => new \DateTimeImmutable('2030-01-01 10:00'),
@@ -54,6 +56,7 @@ final class EmailTemplateRenderTest extends KernelTestCase
 
         // No welcome text → the greeting block is simply omitted.
         $plain = $this->twig->render('email/portal_set_password.html.twig', [
+            'locale' => 'de',
             'setPasswordUrl' => 'https://portal.test/set?token=xyz',
             'firstName' => 'Sven',
             'expiresAt' => new \DateTimeImmutable('2030-01-01 10:00'),
@@ -65,6 +68,7 @@ final class EmailTemplateRenderTest extends KernelTestCase
     public function testPortalSetPasswordTextHasLegalFooter(): void
     {
         $txt = $this->twig->render('email/portal_set_password.txt.twig', [
+            'locale' => 'de',
             'setPasswordUrl' => 'https://portal.test/set?token=xyz',
             'firstName' => 'Sven',
             'expiresAt' => new \DateTimeImmutable('2030-01-01 10:00'),

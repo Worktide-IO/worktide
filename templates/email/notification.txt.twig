@@ -1,11 +1,11 @@
 {% extends 'email/base.txt.twig' %}
 
-{% block content %}{% if firstName %}Hallo {{ firstName }},{% else %}Hallo,{% endif %}
+{% block content %}{% if firstName %}{{ 'email.notification.greeting'|trans({'%name%': firstName}, 'messages', locale) }}{% else %}{{ 'email.notification.greeting_plain'|trans({}, 'messages', locale) }}{% endif %}
 
 {{ title }}
 {% if body %}
 {{ body }}
 {% endif %}
-Im Portal öffnen: {{ actionUrl }}
+{{ 'email.notification.cta'|trans({}, 'messages', locale) }}: {{ actionUrl }}
 
-Sie erhalten diese E-Mail, weil E-Mail-Benachrichtigungen für Ihr {{ brand.name }}-Konto aktiv sind. Sie können dies jederzeit in den Einstellungen anpassen.{% endblock %}
+{{ 'email.notification.footer_txt'|trans({'%brand%': brand.name}, 'messages', locale) }}{% endblock %}

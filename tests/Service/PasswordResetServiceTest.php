@@ -218,6 +218,8 @@ final class PasswordResetServiceTest extends TestCase
             $mailer,
             new RequestStack(),
             new \App\Egress\EgressGuard('email_outbound'),
+            new \Symfony\Component\Translation\Translator('de'),
+            new \App\Service\I18n\RecipientLocaleResolver(['de', 'en'], 'en'),
             self::SPA_BASE,
             self::PORTAL_BASE,
             self::MAIL_FROM,
