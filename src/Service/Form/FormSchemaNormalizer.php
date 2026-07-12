@@ -161,6 +161,7 @@ final class FormSchemaNormalizer
                 $fields[] = [
                     'key' => $block['key'],
                     'label' => $block['label'],
+                    'labelI18n' => $block['labelI18n'] ?? [],
                     'type' => $block['type'],
                     'required' => $block['required'],
                     'options' => $block['options'],
@@ -226,11 +227,22 @@ final class FormSchemaNormalizer
     {
         $key = (string) ($raw['key'] ?? '');
 
+        // Per-locale label overrides ({locale: string}); the renderer overlays the
+        // active locale client-side (content i18n stays client-side, never a
+        // server overlay). Kept in the client schema so the portal can localize.
+        $labelI18n = [];
+        foreach ((array) ($raw['labelI18n'] ?? []) as $loc => $val) {
+            if (\is_string($val) && $val !== '') {
+                $labelI18n[(string) $loc] = $val;
+            }
+        }
+
         return [
             'id' => (string) ($raw['id'] ?? $pageId . '-b' . $index),
             'key' => $key,
             'type' => (string) ($raw['type'] ?? 'text'),
             'label' => (string) ($raw['label'] ?? ($key !== '' ? $key : '')),
+            'labelI18n' => $labelI18n,
             'required' => (bool) ($raw['required'] ?? false),
             'options' => array_values(array_map('strval', (array) ($raw['options'] ?? []))),
             'placeholder' => isset($raw['placeholder']) ? (string) $raw['placeholder'] : null,
