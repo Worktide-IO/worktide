@@ -1,9 +1,10 @@
-Projekt-Freigabe: {{ projectName }}
+{% set roleKeys = { 'manager': 'email.project_share.role_manager', 'contributor': 'email.project_share.role_contributor', 'viewer': 'email.project_share.role_viewer' } %}
+{% set roleLabel = roleKeys[role] is defined ? roleKeys[role]|trans({}, 'messages', locale) : role %}
+{{ 'email.project_share.heading'|trans({'%project%': projectName}, 'messages', locale) }}
 
-{{ sharingWorkspaceName }} möchte das Projekt "{{ projectName }}" in {{ brand.name }}
-mit Ihrem Workspace teilen (Rolle: {{ role }}).
+{{ 'email.project_share.body_text'|trans({'%workspace%': sharingWorkspaceName, '%project%': projectName, '%brand%': brand.name, '%role%': roleLabel}, 'messages', locale) }}
 
-Melden Sie sich an und öffnen Sie diesen Link, um die Freigabe anzunehmen:
+{{ 'email.project_share.open_link'|trans({}, 'messages', locale) }}
 {{ acceptUrl }}
 
-Der Link ist bis {{ expiresAt|date('d.m.Y') }} gültig.
+{{ 'email.project_share.valid_until'|trans({'%date%': expiresAt|date('d.m.Y')}, 'messages', locale) }}

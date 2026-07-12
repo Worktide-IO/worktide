@@ -1,16 +1,16 @@
 {% extends 'email/base.html.twig' %}
 
-{% block title %}Termin storniert{% endblock %}
+{% block title %}{{ 'email.booking_cancelled.preview'|trans({}, 'messages', locale) }}{% endblock %}
 
 {% block content %}
     <tr>
-        <td style="font-size:18px; font-weight:600; padding-bottom:16px;">Ihr Termin wurde storniert</td>
+        <td style="font-size:18px; font-weight:600; padding-bottom:16px;">{{ 'email.booking_cancelled.heading'|trans({}, 'messages', locale) }}</td>
     </tr>
     <tr>
         <td style="font-size:14px; line-height:1.6; padding-bottom:16px;">
-            {% if inviteeName %}Hallo {{ inviteeName }},{% else %}Hallo,{% endif %}<br><br>
-            Ihr Termin <strong>{{ title }}</strong> am {{ start|date('d.m.Y') }} um {{ start|date('H:i') }} Uhr ({{ timezone }})
-            wurde storniert. Sie können bei Bedarf jederzeit einen neuen Termin buchen.
+            {% if inviteeName %}{{ 'email.booking_cancelled.greeting_named'|trans({'%name%': inviteeName}, 'messages', locale) }}{% else %}{{ 'email.booking_cancelled.greeting'|trans({}, 'messages', locale) }}{% endif %}<br><br>
+            {{ 'email.booking_cancelled.body'|trans({'%title%': title, '%date%': start|date('d.m.Y'), '%time%': start|date('H:i'), '%timezone%': timezone}, 'messages', locale)|raw }}
+            {{ 'email.booking_cancelled.rebook'|trans({}, 'messages', locale) }}
         </td>
     </tr>
 {% endblock %}

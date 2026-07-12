@@ -8,6 +8,7 @@ use App\Egress\EgressGuard;
 use App\Egress\EgressModule;
 use App\Entity\Contact;
 use App\Entity\NewsletterIssue;
+use App\Service\I18n\RecipientLocaleResolver;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\Mailer\MailerInterface;
@@ -34,6 +35,7 @@ final class NewsletterMailer
         private readonly MailerInterface $mailer,
         private readonly EgressGuard $egress,
         private readonly NewsletterUnsubscribeSigner $signer,
+        private readonly RecipientLocaleResolver $localeResolver,
         private readonly string $mailFrom,
         private readonly string $mailFromName = '',
     ) {
@@ -65,6 +67,11 @@ final class NewsletterMailer
         $bodyMarkdown = $this->fillPlaceholders($issue->getBody() ?? '', $contact);
         $bodyHtml = $this->markdown->convert($bodyMarkdown)->getContent();
 
+        // Rendered async (Messenger), so the recipient's locale travels in the
+        // context and the templates/base footer apply it via the trans filter.
+        // The subject/body stay author-written content and are not translated.
+        $locale = $this->localeResolver->forContact($contact);
+
         $fromName = $this->mailFromName !== '' ? $this->mailFromName : 'Worktide';
         $mail = (new TemplatedEmail())
             ->from(new Address($this->mailFrom, $fromName))
@@ -79,6 +86,7 @@ final class NewsletterMailer
                 'bodyText' => $bodyMarkdown,
                 'firstName' => $contact->getFirstName(),
                 'unsubscribeUrl' => $this->signer->unsubscribeUrl($contactId, $newsletterId),
+                'locale' => $locale,
             ]);
 
         $this->mailer->send($mail);

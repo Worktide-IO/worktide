@@ -8,9 +8,11 @@ use App\Egress\EgressGuard;
 use App\Egress\EgressModule;
 use App\Entity\ProjectShareInvitation;
 use App\Service\Branding\BrandingConfig;
+use App\Service\I18n\RecipientLocaleResolver;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Address;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Sends the branded project-share invitation carrying the magic accept link
@@ -24,6 +26,8 @@ final readonly class ProjectShareInvitationMailer
         private MailerInterface $mailer,
         private EgressGuard $egress,
         private BrandingConfig $branding,
+        private TranslatorInterface $translator,
+        private RecipientLocaleResolver $localeResolver,
         private string $spaBaseUrl,
         private string $mailFrom,
         private string $mailFromName,
@@ -37,10 +41,21 @@ final readonly class ProjectShareInvitationMailer
 
         $acceptUrl = rtrim($this->spaBaseUrl, '/') . '/accept-project-share?token=' . $invitation->getToken();
 
+        // The invitee is identified only by email and has no stored preference —
+        // use the sharing project's workspace language. Rendered async
+        // (Messenger), so the locale travels in the context and templates apply
+        // it via the trans filter.
+        $locale = $this->localeResolver->forWorkspace($invitation->getProject()->getWorkspace());
+
         $mail = (new TemplatedEmail())
             ->from($this->fromAddress())
             ->to($invitation->getEmail())
-            ->subject(sprintf('Projekt-Freigabe: %s', $invitation->getProject()->getName()))
+            ->subject($this->translator->trans(
+                'email.project_share.subject',
+                ['%project%' => $invitation->getProject()->getName()],
+                null,
+                $locale,
+            ))
             ->htmlTemplate('email/project_share_invitation.html.twig')
             ->textTemplate('email/project_share_invitation.txt.twig')
             ->context([
@@ -49,6 +64,7 @@ final readonly class ProjectShareInvitationMailer
                 'sharingWorkspaceName' => $invitation->getWorkspace()->getName(),
                 'role' => $invitation->getRole()->value,
                 'expiresAt' => $invitation->getExpiresAt(),
+                'locale' => $locale,
             ]);
 
         $this->mailer->send($mail);

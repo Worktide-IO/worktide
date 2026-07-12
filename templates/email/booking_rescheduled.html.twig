@@ -2,16 +2,16 @@
 
 {% set primary = brand.primaryColor %}
 
-{% block title %}Termin verschoben{% endblock %}
+{% block title %}{{ 'email.booking_rescheduled.preview'|trans({}, 'messages', locale) }}{% endblock %}
 
 {% block content %}
     <tr>
-        <td style="font-size:18px; font-weight:600; padding-bottom:16px;">Ihr Termin wurde verschoben</td>
+        <td style="font-size:18px; font-weight:600; padding-bottom:16px;">{{ 'email.booking_rescheduled.heading'|trans({}, 'messages', locale) }}</td>
     </tr>
     <tr>
         <td style="font-size:14px; line-height:1.6; padding-bottom:16px;">
-            {% if inviteeName %}Hallo {{ inviteeName }},{% else %}Hallo,{% endif %}<br><br>
-            Ihr Termin wurde auf einen neuen Zeitpunkt verschoben. Hier sind die aktualisierten Details:
+            {% if inviteeName %}{{ 'email.booking_rescheduled.greeting_named'|trans({'%name%': inviteeName}, 'messages', locale) }}{% else %}{{ 'email.booking_rescheduled.greeting'|trans({}, 'messages', locale) }}{% endif %}<br><br>
+            {{ 'email.booking_rescheduled.intro'|trans({}, 'messages', locale) }}
         </td>
     </tr>
     <tr>
@@ -21,23 +21,24 @@
                 <tr><td style="padding:0 16px 12px; font-size:14px; line-height:1.7; color:#3f3f46;">
                     {% if oldStart %}<span style="color:#a1a1aa; text-decoration:line-through;">{{ oldStart|date('l, d.m.Y') }}, {{ oldStart|date('H:i') }}</span><br>{% endif %}
                     📅 {{ start|date('l, d.m.Y') }}<br>
-                    🕒 {{ start|date('H:i') }}–{{ end|date('H:i') }} ({{ durationMinutes }} Min., {{ timezone }})<br>
+                    🕒 {{ start|date('H:i') }}–{{ end|date('H:i') }} ({{ 'email.booking_rescheduled.duration'|trans({'%minutes%': durationMinutes, '%timezone%': timezone}, 'messages', locale) }})<br>
                     📍 {{ location }}
                     {% if hostName %}<br>👤 {{ hostName }}{% endif %}
-                    {% if notes %}<br><br><span style="color:#71717a;">Ihre Notiz:</span> {{ notes }}{% endif %}
+                    {% if notes %}<br><br><span style="color:#71717a;">{{ 'email.booking_rescheduled.your_note'|trans({}, 'messages', locale) }}</span> {{ notes }}{% endif %}
                 </td></tr>
             </table>
         </td>
     </tr>
     <tr>
         <td style="font-size:13px; line-height:1.6; color:#71717a; padding-bottom:8px;">
-            Der aktualisierte Termin liegt als Kalender-Datei (.ics) bei — anklicken, um Ihren Kalender zu aktualisieren.
+            {{ 'email.booking_rescheduled.ics'|trans({}, 'messages', locale) }}
         </td>
     </tr>
     <tr>
         <td style="font-size:12px; line-height:1.6; color:#71717a; border-top:1px solid #e4e4e7; padding-top:16px;">
-            Passt der neue Termin nicht? <a href="{{ rescheduleUrl }}" style="color:{{ primary }};">Erneut verschieben</a>
-            oder <a href="{{ cancelUrl }}" style="color:{{ primary }};">stornieren</a>.
+            {% set rescheduleLink = '<a href="' ~ rescheduleUrl ~ '" style="color:' ~ primary ~ ';">' ~ ('email.booking_rescheduled.action_reschedule'|trans({}, 'messages', locale)) ~ '</a>' %}
+            {% set cancelLink = '<a href="' ~ cancelUrl ~ '" style="color:' ~ primary ~ ';">' ~ ('email.booking_rescheduled.action_cancel'|trans({}, 'messages', locale)) ~ '</a>' %}
+            {{ 'email.booking_rescheduled.actions'|trans({'%reschedule%': rescheduleLink, '%cancel%': cancelLink}, 'messages', locale)|raw }}
         </td>
     </tr>
 {% endblock %}

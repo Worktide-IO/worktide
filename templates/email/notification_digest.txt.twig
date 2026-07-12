@@ -1,11 +1,11 @@
 {% extends 'email/base.txt.twig' %}
 
-{% block content %}{% if firstName %}Hallo {{ firstName }},{% else %}Hallo,{% endif %}
+{% block content %}{% if firstName %}{{ 'email.notification_digest.greeting'|trans({'%name%': firstName}, 'messages', locale) }}{% else %}{{ 'email.notification_digest.greeting_plain'|trans({}, 'messages', locale) }}{% endif %}
 
-{% if count == 1 %}Eine neue Benachrichtigung{% else %}{{ count }} neue Benachrichtigungen{% endif %}:
+{% if count == 1 %}{{ 'email.notification_digest.heading_one'|trans({}, 'messages', locale) }}{% else %}{{ 'email.notification_digest.heading_many'|trans({'%count%': count}, 'messages', locale) }}{% endif %}:
 {% for item in items %}
 - {{ item.title }}{% if item.body %} — {{ item.body }}{% endif %}
   {{ item.url }}
 {% endfor %}
 
-Sie erhalten diese Zusammenfassung, weil Sie E-Mail-Benachrichtigungen als Digest eingestellt haben. Die Häufigkeit können Sie in den Einstellungen ändern.{% endblock %}
+{{ 'email.notification_digest.footer_txt'|trans({}, 'messages', locale) }}{% endblock %}

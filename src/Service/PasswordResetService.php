@@ -12,12 +12,14 @@ use App\Entity\RefreshToken;
 use App\Entity\User;
 use App\Repository\PasswordResetTokenRepository;
 use App\Repository\UserRepository;
+use App\Service\I18n\RecipientLocaleResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Forgot/reset-password orchestration.
@@ -41,6 +43,8 @@ final class PasswordResetService
         private readonly MailerInterface $mailer,
         private readonly RequestStack $requestStack,
         private readonly EgressGuard $egress,
+        private readonly TranslatorInterface $translator,
+        private readonly RecipientLocaleResolver $localeResolver,
         private readonly string $spaBaseUrl,
         private readonly string $portalBaseUrl,
         private readonly string $mailFrom,
@@ -82,16 +86,21 @@ final class PasswordResetService
 
         $resetUrl = rtrim($this->spaBaseUrl, '/') . '/reset-password?token=' . $plaintext;
 
+        // Rendered async (Messenger), so the locale travels in the context and
+        // templates apply it via the trans filter.
+        $locale = $this->localeResolver->forUser($user);
+
         $mail = (new TemplatedEmail())
             ->from($this->fromAddress())
             ->to($user->getEmail())
-            ->subject('Passwort zurücksetzen')
+            ->subject($this->translator->trans('email.password_reset.subject', [], null, $locale))
             ->htmlTemplate('email/password_reset.html.twig')
             ->textTemplate('email/password_reset.txt.twig')
             ->context([
                 'resetUrl' => $resetUrl,
                 'firstName' => $user->getFirstName(),
                 'expiresAt' => $token->getExpiresAt(),
+                'locale' => $locale,
             ]);
         // Routed async via Messenger (SendEmailMessage: async).
         // Default-deny egress gate: the reset token is always issued, but the
@@ -127,10 +136,14 @@ final class PasswordResetService
 
         $setPasswordUrl = rtrim($this->portalBaseUrl, '/') . '/set-password?token=' . $plaintext;
 
+        // Rendered async (Messenger), so the locale travels in the context and
+        // templates apply it via the trans filter.
+        $locale = $this->localeResolver->forUser($user);
+
         $mail = (new TemplatedEmail())
             ->from($this->fromAddress())
             ->to($user->getEmail())
-            ->subject('Ihr Zugang zum Kundenportal')
+            ->subject($this->translator->trans('email.portal_set_password.subject', [], null, $locale))
             ->htmlTemplate('email/portal_set_password.html.twig')
             ->textTemplate('email/portal_set_password.txt.twig')
             ->context([
@@ -138,6 +151,7 @@ final class PasswordResetService
                 'firstName' => $user->getFirstName(),
                 'expiresAt' => $token->getExpiresAt(),
                 'welcomeText' => $welcomeText !== null && $welcomeText !== '' ? $welcomeText : null,
+                'locale' => $locale,
             ]);
 
         if (!$this->egress->isAllowed(EgressModule::EmailOutbound)) {

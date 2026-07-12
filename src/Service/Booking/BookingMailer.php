@@ -7,10 +7,12 @@ namespace App\Service\Booking;
 use App\Egress\EgressGuard;
 use App\Egress\EgressModule;
 use App\Entity\Booking;
+use App\Service\I18n\RecipientLocaleResolver;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Part\DataPart;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Booking confirmation / cancellation emails to the (anonymous) invitee.
@@ -28,6 +30,8 @@ final class BookingMailer
         private readonly MailerInterface $mailer,
         private readonly EgressGuard $egress,
         private readonly IcsGenerator $ics,
+        private readonly TranslatorInterface $translator,
+        private readonly RecipientLocaleResolver $localeResolver,
         private readonly string $portalBaseUrl,
         private readonly string $mailFrom,
         private readonly string $mailFromName = '',
@@ -35,12 +39,12 @@ final class BookingMailer
 
     public function sendConfirmation(Booking $booking): void
     {
-        $this->send($booking, 'confirmation', 'Terminbestätigung');
+        $this->send($booking, 'confirmation');
     }
 
     public function sendCancellation(Booking $booking): void
     {
-        $this->send($booking, 'cancelled', 'Termin storniert');
+        $this->send($booking, 'cancelled');
     }
 
     /**
@@ -49,10 +53,10 @@ final class BookingMailer
      */
     public function sendReschedule(Booking $booking, \DateTimeImmutable $oldStart): void
     {
-        $this->send($booking, 'rescheduled', 'Termin verschoben', $oldStart);
+        $this->send($booking, 'rescheduled', $oldStart);
     }
 
-    private function send(Booking $booking, string $template, string $subjectPrefix, ?\DateTimeImmutable $oldStart = null): void
+    private function send(Booking $booking, string $template, ?\DateTimeImmutable $oldStart = null): void
     {
         if ($booking->getInviteeEmail() === '' || !$this->egress->isAllowed(EgressModule::EmailOutbound)) {
             return;
@@ -60,11 +64,22 @@ final class BookingMailer
 
         $type = $booking->getMeetingType();
         $tz = new \DateTimeZone($booking->getInviteeTimezone() ?: $type->getTimezone());
+        $flow = 'booking_' . $template;
+
+        // The invitee is anonymous (no stored preference) — use the booking's
+        // workspace language. Rendered async (Messenger), so the locale travels
+        // in the context and templates apply it via the trans filter.
+        $locale = $this->localeResolver->forWorkspace($booking->getWorkspace());
+
+        // Only confirmation / reschedule surface the location line.
+        $location = $template === 'cancelled'
+            ? ''
+            : $this->locationLabel($type->getLocationType(), $type->getLocationDetail(), $flow, $locale);
 
         $mail = (new TemplatedEmail())
             ->from(new Address($this->mailFrom, $this->mailFromName !== '' ? $this->mailFromName : 'Worktide'))
             ->to(new Address($booking->getInviteeEmail(), $booking->getInviteeName()))
-            ->subject($subjectPrefix . ': ' . $type->getTitle())
+            ->subject($this->translator->trans("email.{$flow}.subject", ['%title%' => $type->getTitle()], null, $locale))
             ->htmlTemplate("email/booking_{$template}.html.twig")
             ->textTemplate("email/booking_{$template}.txt.twig")
             ->context([
@@ -75,11 +90,12 @@ final class BookingMailer
                 'timezone' => $tz->getName(),
                 'durationMinutes' => $type->getDurationMinutes(),
                 'hostName' => $type->getHost()?->getFullName(),
-                'location' => $this->locationLabel($type->getLocationType(), $type->getLocationDetail()),
+                'location' => $location,
                 'notes' => $booking->getNotes(),
                 'cancelUrl' => rtrim($this->portalBaseUrl, '/') . '/book/cancel/' . $booking->getCancelToken(),
                 'rescheduleUrl' => rtrim($this->portalBaseUrl, '/') . '/book/reschedule/' . $booking->getCancelToken(),
                 'oldStart' => $oldStart?->setTimezone($tz),
+                'locale' => $locale,
             ]);
 
         // Attach the calendar invite (only meaningful for a live booking).
@@ -90,13 +106,15 @@ final class BookingMailer
         $this->mailer->send($mail);
     }
 
-    private function locationLabel(string $type, ?string $detail): string
+    private function locationLabel(string $type, ?string $detail, string $flow, string $locale): string
     {
-        $base = match ($type) {
-            'phone' => 'Telefon',
-            'in_person' => 'Vor Ort',
-            default => 'Videocall',
+        $key = match ($type) {
+            'phone' => 'location_phone',
+            'in_person' => 'location_in_person',
+            default => 'location_video',
         };
+
+        $base = $this->translator->trans("email.{$flow}.{$key}", [], null, $locale);
 
         return $detail !== null && $detail !== '' ? "$base — $detail" : $base;
     }

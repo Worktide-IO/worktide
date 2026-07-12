@@ -1,6 +1,6 @@
 {% extends 'email/base.txt.twig' %}
 
-{% block content %}{% if inviteeName %}Hallo {{ inviteeName }},{% else %}Hallo,{% endif %}
+{% block content %}{% if inviteeName %}{{ 'email.booking_cancelled.greeting_named'|trans({'%name%': inviteeName}, 'messages', locale) }}{% else %}{{ 'email.booking_cancelled.greeting'|trans({}, 'messages', locale) }}{% endif %}
 
-Ihr Termin "{{ title }}" am {{ start|date('d.m.Y') }} um {{ start|date('H:i') }} Uhr ({{ timezone }}) wurde storniert.
-Sie können bei Bedarf jederzeit einen neuen Termin buchen.{% endblock %}
+{{ 'email.booking_cancelled.body_txt'|trans({'%title%': title, '%date%': start|date('d.m.Y'), '%time%': start|date('H:i'), '%timezone%': timezone}, 'messages', locale) }}
+{{ 'email.booking_cancelled.rebook'|trans({}, 'messages', locale) }}{% endblock %}
