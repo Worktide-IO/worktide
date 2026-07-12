@@ -45,6 +45,22 @@ use Symfony\Component\Uid\Uuid;
  */
 final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface, QueryItemExtensionInterface
 {
+    /**
+     * Child resources that carry no workspace column of their own, but whose
+     * (non-nullable) parent does. Their item operations are voter-guarded via
+     * that parent; this map lets the collection be scoped the same way — via
+     * `root.<assoc>.workspace` — so it can't enumerate other tenants. Shape:
+     * childClass => [parentClass, associationField].
+     *
+     * @var array<class-string, array{0: class-string, 1: string}>
+     */
+    private const PARENT_SCOPED = [
+        \App\Entity\WebhookDelivery::class => [\App\Entity\Webhook::class, 'webhook'],
+        \App\Entity\AutomationAction::class => [\App\Entity\Automation::class, 'automation'],
+        \App\Entity\DocumentContributor::class => [\App\Entity\Document::class, 'document'],
+        \App\Entity\TaskListEntry::class => [\App\Entity\TaskList::class, 'list'],
+    ];
+
     public function __construct(
         private readonly Security $security,
         private readonly RequestStack $requestStack,
@@ -87,12 +103,14 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         $isSelfOwned = $resourceClass === UserContactInfo::class || $resourceClass === UserCapacity::class;
         // ProjectMember scopes through its parent project's workspace.
         $isProjectMember = $resourceClass === ProjectMember::class;
+        // Child resources scoped via a parent that owns the workspace.
+        $isParentScoped = isset(self::PARENT_SCOPED[$resourceClass]);
         // DomainEventLog has a plain (nullable) .workspace → generic branch below.
         // Workspace / User / WorkspaceMember / the above have no
         // WorkspaceScopedTrait, so they get bespoke handling; everything else is
         // scoped only if it carries the trait.
         if (!$isWorkspaceItself && !$isUser && !$isMembership && !$isSelfOwned
-            && !$isProjectMember && $resourceClass !== DomainEventLog::class
+            && !$isProjectMember && !$isParentScoped && $resourceClass !== DomainEventLog::class
             && !$this->isWorkspaceScoped($resourceClass)) {
             return;
         }
@@ -150,6 +168,49 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
                     ->andWhere(sprintf(
                         'EXISTS (SELECT 1 FROM %s %s WHERE %s = %s.project AND %s.workspace = :%s)',
                         Project::class, $projNarrow, $projNarrow, $rootAlias, $projNarrow, $wsParam,
+                    ))
+                    ->setParameter($wsParam, $requestedUuid, UuidType::NAME);
+            }
+            return;
+        }
+
+        // Parent-scoped children (WebhookDelivery, AutomationAction,
+        // DocumentContributor, TaskListEntry): visible iff the caller is a member
+        // of the workspace owning the parent. Same shape as ProjectMember, but
+        // the parent class + association come from PARENT_SCOPED. Closes the
+        // cross-tenant collection leak these had (item ops were already
+        // voter-guarded via the parent, collections were not).
+        if ($isParentScoped) {
+            [$parentClass, $assoc] = self::PARENT_SCOPED[$resourceClass];
+            $wmAlias = $queryNameGenerator->generateJoinAlias('wmpar');
+            $parentAlias = $queryNameGenerator->generateJoinAlias('parent');
+            $subDql = sprintf(
+                'SELECT 1 FROM %s %s, %s %s WHERE %s = %s.%s AND %s.workspace = %s.workspace AND %s.user = :%s AND %s.isActive = true',
+                WorkspaceMember::class, $wmAlias,
+                $parentClass, $parentAlias,
+                $parentAlias, $rootAlias, $assoc,
+                $wmAlias, $parentAlias,
+                $wmAlias, $userParam,
+                $wmAlias,
+            );
+            $queryBuilder
+                ->andWhere(sprintf('EXISTS (%s)', $subDql))
+                ->setParameter($userParam, $user->getId(), UuidType::NAME);
+
+            $requested = $this->requestStack->getCurrentRequest()?->headers->get('X-Workspace-Id');
+            if ($requested !== null && $requested !== '') {
+                try {
+                    $requestedUuid = Uuid::fromString($requested);
+                } catch (\InvalidArgumentException) {
+                    $queryBuilder->andWhere('1 = 0');
+                    return;
+                }
+                $wsParam = $queryNameGenerator->generateParameterName('scopeWsId');
+                $parentNarrow = $queryNameGenerator->generateJoinAlias('parentnarrow');
+                $queryBuilder
+                    ->andWhere(sprintf(
+                        'EXISTS (SELECT 1 FROM %s %s WHERE %s = %s.%s AND %s.workspace = :%s)',
+                        $parentClass, $parentNarrow, $parentNarrow, $rootAlias, $assoc, $parentNarrow, $wsParam,
                     ))
                     ->setParameter($wsParam, $requestedUuid, UuidType::NAME);
             }
