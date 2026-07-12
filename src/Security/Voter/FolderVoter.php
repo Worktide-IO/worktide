@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace App\Security\Voter;
 
 use App\Entity\Enum\FileTarget;
-use App\Entity\File;
-use App\Entity\Project;
-use App\Entity\Task;
+use App\Entity\Folder;
 use App\Entity\User;
 use App\Entity\Workspace;
 use App\Repository\CommentRepository;
@@ -24,12 +22,12 @@ use Symfony\Component\Security\Core\Authorization\Voter\Vote;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 
 /**
- * Files inherit access from the entity they're attached to. Hidden-for-
- * connect-users follows the same external-collaborator rule as Comment.
- *
- * Files attached to a Document delegate to DocumentVoter via the AccessDecisionManager.
+ * Folders inherit access from the entity they're attached to (same polymorphic
+ * model as {@see FileVoter}). Hidden-for-connect-users follows the same
+ * external-collaborator rule; the folder's creator may always edit/delete their
+ * own folder, otherwise EDIT on the parent target is required.
  */
-final class FileVoter extends Voter
+final class FolderVoter extends Voter
 {
     public function __construct(
         private readonly AccessDecisionManagerInterface $decisions,
@@ -39,19 +37,19 @@ final class FileVoter extends Voter
         private readonly UserRepository $users,
         private readonly CommentRepository $comments,
         private readonly DocumentRepository $documents,
-        private readonly WorkspaceMemberRepository $wsMembers,
         private readonly CustomerRepository $customers,
+        private readonly WorkspaceMemberRepository $wsMembers,
     ) {}
 
     protected function supports(string $attribute, mixed $subject): bool
     {
-        return $subject instanceof File
+        return $subject instanceof Folder
             && \in_array($attribute, WorktidePermission::ALL, true);
     }
 
     protected function voteOnAttribute(string $attribute, mixed $subject, TokenInterface $token, ?Vote $vote = null): bool
     {
-        \assert($subject instanceof File);
+        \assert($subject instanceof Folder);
         $user = $token->getUser();
         if (!$user instanceof User) {
             return false;
@@ -62,18 +60,7 @@ final class FileVoter extends Voter
             return false;
         }
 
-        // User-target files: only the user themselves, or a workspace admin
-        // (owner/admin, via WorkspaceVoter EDIT). Previously ANY workspace
-        // member could read AND delete another user's file.
-        if ($targetEntity instanceof User) {
-            if ($targetEntity->getId()?->equals($user->getId())) {
-                return true;
-            }
-            return $this->decisions->decide($token, [WorktidePermission::EDIT], $subject->getWorkspace());
-        }
-
-        $canView = $this->decisions->decide($token, [WorktidePermission::VIEW], $targetEntity);
-        if (!$canView) {
+        if (!$this->decisions->decide($token, [WorktidePermission::VIEW], $targetEntity)) {
             return false;
         }
 
@@ -85,25 +72,25 @@ final class FileVoter extends Voter
             return true;
         }
 
-        // Mutation: uploader can always edit/delete their own file; otherwise
+        // Mutation: creator can always edit/delete their own folder; otherwise
         // need EDIT on the parent target.
-        $isUploader = $subject->getUploadedBy()?->getId()?->equals($user->getId()) === true;
-        if ($isUploader) {
+        if ($subject->getCreatedByUser()?->getId()?->equals($user->getId()) === true) {
             return true;
         }
+
         return $this->decisions->decide($token, [WorktidePermission::EDIT], $targetEntity);
     }
 
-    private function resolveTarget(File $file): ?object
+    private function resolveTarget(Folder $folder): ?object
     {
-        return match ($file->getTarget()) {
-            FileTarget::Project => $this->projects->find($file->getTargetId()),
-            FileTarget::Task => $this->tasks->find($file->getTargetId()),
-            FileTarget::Workspace => $this->workspaces->find($file->getTargetId()),
-            FileTarget::User => $this->users->find($file->getTargetId()),
-            FileTarget::Comment => $this->comments->find($file->getTargetId()),
-            FileTarget::Document => $this->documents->find($file->getTargetId()),
-            FileTarget::Customer => $this->customers->find($file->getTargetId()),
+        return match ($folder->getTarget()) {
+            FileTarget::Project => $this->projects->find($folder->getTargetId()),
+            FileTarget::Task => $this->tasks->find($folder->getTargetId()),
+            FileTarget::Workspace => $this->workspaces->find($folder->getTargetId()),
+            FileTarget::User => $this->users->find($folder->getTargetId()),
+            FileTarget::Comment => $this->comments->find($folder->getTargetId()),
+            FileTarget::Document => $this->documents->find($folder->getTargetId()),
+            FileTarget::Customer => $this->customers->find($folder->getTargetId()),
         };
     }
 

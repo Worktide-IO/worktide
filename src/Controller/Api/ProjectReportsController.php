@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Entity\Customer;
 use App\Entity\Project;
 use App\Entity\ProjectVersion;
 use App\Entity\Sprint;
@@ -648,6 +649,79 @@ final class ProjectReportsController
         }
 
         return new JsonResponse(['scores' => $out]);
+    }
+
+    /**
+     * Task-completion progress per project for one customer, keyed by project IRI
+     * so the customer detail page can render a progress bar per project.
+     * percent = round(closed / total * 100); 0 when a project has no tasks
+     * (task-less projects are still included).
+     */
+    #[Route(
+        path: '/v1/reports/project-progress',
+        name: 'api_report_project_progress',
+        methods: ['GET'],
+    )]
+    public function projectProgress(Request $request): JsonResponse
+    {
+        $user = $this->requireUser();
+        $workspace = $this->resolveWorkspace($request, $user)
+            ?? throw new BadRequestHttpException('Workspace could not be determined.');
+
+        $customerId = $request->query->get('customer');
+        if (!\is_string($customerId) || $customerId === '') {
+            throw new BadRequestHttpException('Query parameter "customer" is required.');
+        }
+        $customer = $this->loadEntity(Customer::class, $customerId);
+        if ($customer->getWorkspace()->getId()?->toRfc4122() !== $workspace->getId()?->toRfc4122()
+            || !$this->security->isGranted(WorktidePermission::VIEW, $customer)) {
+            throw new AccessDeniedHttpException();
+        }
+
+        $custBin = $customer->getId()?->toBinary();
+        $wsBin = $workspace->getId()?->toBinary();
+
+        // Seed every project of the customer with 0/0 so task-less projects show 0%.
+        $progress = [];
+        foreach (
+            $this->db->fetchAllAssociative(
+                'SELECT id FROM projects WHERE customer_id = :cust AND workspace_id = :ws',
+                ['cust' => $custBin, 'ws' => $wsBin],
+                ['cust' => ParameterType::BINARY, 'ws' => ParameterType::BINARY],
+            ) as $r
+        ) {
+            $progress['/v1/projects/' . Uuid::fromBinary($r['id'])->toRfc4122()] = ['total' => 0, 'closed' => 0, 'percent' => 0];
+        }
+        if ($progress === []) {
+            return new JsonResponse(['progress' => new \stdClass()]);
+        }
+
+        $sql = 'SELECT project_id,
+                       COUNT(*) AS total,
+                       SUM(CASE WHEN closed_on IS NOT NULL THEN 1 ELSE 0 END) AS closed
+                FROM tasks
+                WHERE workspace_id = :ws
+                  AND deleted_at IS NULL
+                  AND project_id IS NOT NULL
+                  AND project_id IN (SELECT id FROM projects WHERE customer_id = :cust AND workspace_id = :ws)
+                GROUP BY project_id';
+        foreach (
+            $this->db->fetchAllAssociative(
+                $sql,
+                ['cust' => $custBin, 'ws' => $wsBin],
+                ['cust' => ParameterType::BINARY, 'ws' => ParameterType::BINARY],
+            ) as $r
+        ) {
+            $total = (int) $r['total'];
+            $closed = (int) $r['closed'];
+            $progress['/v1/projects/' . Uuid::fromBinary($r['project_id'])->toRfc4122()] = [
+                'total' => $total,
+                'closed' => $closed,
+                'percent' => $total > 0 ? (int) round($closed / $total * 100) : 0,
+            ];
+        }
+
+        return new JsonResponse(['progress' => $progress]);
     }
 
     // --- helpers --------------------------------------------------------

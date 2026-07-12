@@ -18,6 +18,7 @@ use App\Entity\Enum\AgreementStatus;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
@@ -69,9 +70,10 @@ use Doctrine\ORM\Mapping as ORM;
     'type' => 'exact',
     'typeSlug' => 'exact',
     'status' => 'exact',
+    'tags.id' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['typeSlug', 'status', 'signedOn', 'validUntil'])]
-class CustomerAgreement
+class CustomerAgreement implements TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
@@ -79,6 +81,7 @@ class CustomerAgreement
     use WorkspaceScopedTrait;
     use VersionedTrait;
     use AuditableTrait;
+    use TaggableTrait;
 
     #[ORM\ManyToOne(inversedBy: 'agreements')]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
@@ -149,6 +152,7 @@ class CustomerAgreement
     public function __construct()
     {
         $this->revisions = new ArrayCollection();
+        $this->tags = new ArrayCollection();
     }
 
     public function getCustomer(): Customer { return $this->customer; }

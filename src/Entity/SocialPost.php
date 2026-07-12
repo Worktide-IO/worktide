@@ -18,6 +18,7 @@ use App\Entity\Enum\SocialPostStatus;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
@@ -63,9 +64,10 @@ use Doctrine\ORM\Mapping as ORM;
 #[ApiFilter(SearchFilter::class, properties: [
     'workspace' => 'exact',
     'status' => 'exact',
+    'tags.id' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt', 'scheduledAt', 'publishedAt'])]
-class SocialPost
+class SocialPost implements TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
@@ -73,6 +75,7 @@ class SocialPost
     use WorkspaceScopedTrait;
     use VersionedTrait;
     use AuditableTrait;
+    use TaggableTrait;
 
     /** Shared base text; a target may override it with a per-network variant. */
     #[ORM\Column(type: 'text')]
@@ -129,6 +132,7 @@ class SocialPost
     public function __construct()
     {
         $this->targets = new ArrayCollection();
+        $this->tags = new ArrayCollection();
     }
 
     public function getBody(): string { return $this->body; }

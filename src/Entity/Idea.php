@@ -18,6 +18,7 @@ use App\Entity\Enum\IdeaStatus;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
@@ -60,9 +61,10 @@ use Symfony\Component\Validator\Constraints as Assert;
     'status' => 'exact',
     'origin' => 'exact',
     'title' => 'partial',
+    'tags.id' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['voteCount', 'status', 'title', 'createdAt'])]
-class Idea
+class Idea implements TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
@@ -70,6 +72,7 @@ class Idea
     use WorkspaceScopedTrait;
     use VersionedTrait;
     use AuditableTrait;
+    use TaggableTrait;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
@@ -112,6 +115,7 @@ class Idea
     public function __construct()
     {
         $this->votes = new ArrayCollection();
+        $this->tags = new ArrayCollection();
     }
 
     public function getCustomer(): Customer { return $this->customer; }

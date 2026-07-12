@@ -108,6 +108,7 @@ final class PortalAccessResolver
         'social',
         'forms',
         'documents',
+        'files',
         'proposals',
         'invoices',
         'newsletters',

@@ -21,9 +21,11 @@ use App\Entity\Enum\LeadStage;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\LeadRepository;
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -59,17 +61,19 @@ use Doctrine\ORM\Mapping as ORM;
     'name' => 'partial',
     'industry' => 'exact',
     'assignedTo' => 'exact',
+    'tags.id' => 'exact',
 ])]
 #[ApiFilter(BooleanFilter::class, properties: ['isCompany'])]
 #[ApiFilter(ExistsFilter::class, properties: ['deletedAt', 'convertedCustomer'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'fitScore', 'stage', 'createdAt', 'updatedAt'])]
-class Lead
+class Lead implements TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
     use SoftDeletableTrait;
     use WorkspaceScopedTrait;
     use AuditableTrait;
+    use TaggableTrait;
 
     /** The mission that discovered this lead (null for manually added leads). */
     #[ORM\ManyToOne]
@@ -136,6 +140,11 @@ class Lead
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
+
+    public function __construct()
+    {
+        $this->tags = new ArrayCollection();
+    }
 
     public function getMission(): ?ResearchMission { return $this->mission; }
     public function setMission(?ResearchMission $mission): self { $this->mission = $mission; return $this; }

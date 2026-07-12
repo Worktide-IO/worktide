@@ -20,6 +20,7 @@ use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\ExternalReferenceTrait;
 use App\Entity\Trait\SoftDeletableTrait;
+use App\Entity\Trait\TaggableTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
@@ -73,10 +74,11 @@ use Symfony\Component\Validator\Constraints as Assert;
     'environment' => 'exact',
     'name' => 'partial',
     'hostingProvider' => 'partial',
+    'tags.id' => 'exact',
 ])]
 #[ApiFilter(BooleanFilter::class, properties: ['isActive'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'type', 'createdAt'])]
-class CustomerSystem
+class CustomerSystem implements TaggableInterface
 {
     use EntityIdTrait;
     use TimestampableTrait;
@@ -85,6 +87,7 @@ class CustomerSystem
     use VersionedTrait;
     use AuditableTrait;
     use ExternalReferenceTrait;
+    use TaggableTrait;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
@@ -139,6 +142,7 @@ class CustomerSystem
     public function __construct()
     {
         $this->subscriptions = new ArrayCollection();
+        $this->tags = new ArrayCollection();
     }
 
     public function getCustomer(): Customer { return $this->customer; }

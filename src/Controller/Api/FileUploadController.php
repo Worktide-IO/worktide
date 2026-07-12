@@ -7,11 +7,13 @@ namespace App\Controller\Api;
 use App\Entity\Enum\FileTarget;
 use App\Entity\File;
 use App\Entity\FileVersion;
+use App\Entity\Folder;
 use App\Entity\User;
 use App\Entity\Workspace;
 use App\Repository\CommentRepository;
 use App\Repository\CustomerRepository;
 use App\Repository\FileRepository;
+use App\Repository\FolderRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
@@ -63,6 +65,7 @@ final class FileUploadController
         private readonly UserRepository $users,
         private readonly CommentRepository $comments,
         private readonly CustomerRepository $customers,
+        private readonly FolderRepository $folders,
     ) {}
 
     #[Route(
@@ -97,6 +100,8 @@ final class FileUploadController
             throw new BadRequestHttpException('Could not resolve workspace from target.');
         }
 
+        $folder = $this->resolveFolder($request, $targetEnum, $targetId, $workspace);
+
         $originalName = $uploaded->getClientOriginalName() ?: 'file';
         $displayName = (string) ($request->request->get('name') ?? $originalName);
         $description = $request->request->get('description');
@@ -107,6 +112,7 @@ final class FileUploadController
             ->setWorkspace($workspace)
             ->setTarget($targetEnum)
             ->setTargetId($targetId)
+            ->setFolder($folder)
             ->setName($displayName)
             ->setDescription(\is_string($description) ? $description : null)
             ->setMimeType($uploaded->getClientMimeType())
@@ -204,6 +210,35 @@ final class FileUploadController
         } catch (\InvalidArgumentException) {
             throw new BadRequestHttpException(sprintf('Field "%s" must be a UUID.', $field));
         }
+    }
+
+    /**
+     * Resolve the optional `folder` upload param (UUID or folder IRI) into a
+     * Folder that belongs to the same target + workspace. Null when omitted.
+     */
+    private function resolveFolder(Request $request, FileTarget $target, Uuid $targetId, Workspace $workspace): ?Folder
+    {
+        $ref = $request->request->get('folder');
+        if (!\is_string($ref) || $ref === '') {
+            return null;
+        }
+        $raw = str_contains($ref, '/') ? (string) substr((string) strrchr($ref, '/'), 1) : $ref;
+        try {
+            $uuid = Uuid::fromString($raw);
+        } catch (\InvalidArgumentException) {
+            throw new BadRequestHttpException('Field "folder" must be a UUID or folder IRI.');
+        }
+        $folder = $this->folders->find($uuid);
+        if ($folder === null || $folder->getDeletedAt() !== null) {
+            throw new BadRequestHttpException('Folder not found.');
+        }
+        if ($folder->getTarget() !== $target
+            || !$folder->getTargetId()->equals($targetId)
+            || $folder->getWorkspace()->getId()?->toRfc4122() !== $workspace->getId()?->toRfc4122()) {
+            throw new BadRequestHttpException('Folder does not belong to this target.');
+        }
+
+        return $folder;
     }
 
     private function resolveTargetEntity(FileTarget $target, Uuid $id): ?object
