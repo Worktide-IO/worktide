@@ -1,4 +1,5 @@
 {% extends 'email/base.html.twig' %}
+{% set loc = locale|default('de') %}
 
 {% set primary = brand.primaryColor %}
 
@@ -18,8 +19,8 @@
     </tr>
     <tr>
         <td style="font-size:12px; line-height:1.6; color:#a1a1aa; border-top:1px solid #e4e4e7; padding-top:16px; margin-top:24px;">
-            {{ 'email.newsletter.reason'|trans({'%title%': newsletterTitle}, 'messages', locale) }}
-            <a href="{{ unsubscribeUrl }}" style="color:{{ primary }};">{{ 'email.newsletter.unsubscribe'|trans({}, 'messages', locale) }}</a>.
+            {{ 'email.newsletter.reason'|trans({'%title%': newsletterTitle}, 'messages', loc) }}
+            <a href="{{ unsubscribeUrl }}" style="color:{{ primary }};">{{ 'email.newsletter.unsubscribe'|trans({}, 'messages', loc) }}</a>.
         </td>
     </tr>
 {% endblock %}

@@ -1,17 +1,18 @@
 {% extends 'email/base.txt.twig' %}
+{% set loc = locale|default('de') %}
 
-{% block content %}{% if inviteeName %}{{ 'email.booking_confirmation.greeting_named'|trans({'%name%': inviteeName}, 'messages', locale) }}{% else %}{{ 'email.booking_confirmation.greeting'|trans({}, 'messages', locale) }}{% endif %}
+{% block content %}{% if inviteeName %}{{ 'email.booking_confirmation.greeting_named'|trans({'%name%': inviteeName}, 'messages', loc) }}{% else %}{{ 'email.booking_confirmation.greeting'|trans({}, 'messages', loc) }}{% endif %}
 
-{{ 'email.booking_confirmation.intro_txt'|trans({}, 'messages', locale) }}
+{{ 'email.booking_confirmation.intro_txt'|trans({}, 'messages', loc) }}
 
 {{ title }}
-{{ 'email.booking_confirmation.label_date'|trans({}, 'messages', locale) }} {{ start|date('l, d.m.Y') }}
-{{ 'email.booking_confirmation.label_time'|trans({}, 'messages', locale) }} {{ start|date('H:i') }}-{{ end|date('H:i') }} ({{ 'email.booking_confirmation.duration'|trans({'%minutes%': durationMinutes, '%timezone%': timezone}, 'messages', locale) }})
-{{ 'email.booking_confirmation.label_location'|trans({}, 'messages', locale) }} {{ location }}
-{% if hostName %}{{ 'email.booking_confirmation.label_with'|trans({}, 'messages', locale) }} {{ hostName }}
-{% endif %}{% if notes %}{{ 'email.booking_confirmation.label_note'|trans({}, 'messages', locale) }} {{ notes }}
+{{ 'email.booking_confirmation.label_date'|trans({}, 'messages', loc) }} {{ start|date('l, d.m.Y') }}
+{{ 'email.booking_confirmation.label_time'|trans({}, 'messages', loc) }} {{ start|date('H:i') }}-{{ end|date('H:i') }} ({{ 'email.booking_confirmation.duration'|trans({'%minutes%': durationMinutes, '%timezone%': timezone}, 'messages', loc) }})
+{{ 'email.booking_confirmation.label_location'|trans({}, 'messages', loc) }} {{ location }}
+{% if hostName %}{{ 'email.booking_confirmation.label_with'|trans({}, 'messages', loc) }} {{ hostName }}
+{% endif %}{% if notes %}{{ 'email.booking_confirmation.label_note'|trans({}, 'messages', loc) }} {{ notes }}
 {% endif %}
-{{ 'email.booking_confirmation.ics_txt'|trans({}, 'messages', locale) }}
+{{ 'email.booking_confirmation.ics_txt'|trans({}, 'messages', loc) }}
 
-{% if rescheduleUrl is defined %}{{ 'email.booking_confirmation.label_reschedule_url'|trans({}, 'messages', locale) }} {{ rescheduleUrl }}
-{{ 'email.booking_confirmation.label_cancel_url'|trans({}, 'messages', locale) }} {{ cancelUrl }}{% else %}{{ 'email.booking_confirmation.label_cancel_url'|trans({}, 'messages', locale) }} {{ cancelUrl }}{% endif %}{% endblock %}
+{% if rescheduleUrl is defined %}{{ 'email.booking_confirmation.label_reschedule_url'|trans({}, 'messages', loc) }} {{ rescheduleUrl }}
+{{ 'email.booking_confirmation.label_cancel_url'|trans({}, 'messages', loc) }} {{ cancelUrl }}{% else %}{{ 'email.booking_confirmation.label_cancel_url'|trans({}, 'messages', loc) }} {{ cancelUrl }}{% endif %}{% endblock %}

@@ -41,6 +41,24 @@ final class EmailTemplateRenderTest extends KernelTestCase
         self::assertStringContainsString('https://example.test/reset?token=abc', $html);
     }
 
+    /**
+     * Every flow template reads `locale|default('de')`, so a caller that forgets
+     * to pass `locale` renders in German instead of throwing "Variable locale
+     * does not exist" (which previously left mails stuck in the failed queue).
+     */
+    public function testTemplateRendersWithoutLocaleFallsBackToGerman(): void
+    {
+        $html = $this->twig->render('email/password_reset.html.twig', [
+            // deliberately NO 'locale' key
+            'resetUrl' => 'https://example.test/reset?token=abc',
+            'firstName' => 'Sven',
+            'expiresAt' => new \DateTimeImmutable('2030-01-01 10:00'),
+        ]);
+
+        self::assertStringContainsString('Neues Passwort setzen', $html);
+        self::assertStringNotContainsString('Set a new password', $html);
+    }
+
     public function testPortalInvitationRendersWelcomeText(): void
     {
         $html = $this->twig->render('email/portal_set_password.html.twig', [

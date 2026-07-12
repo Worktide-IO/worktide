@@ -1,11 +1,12 @@
 {% extends 'email/base.txt.twig' %}
+{% set loc = locale|default('de') %}
 
-{% block content %}{% if firstName %}{{ 'email.notification_digest.greeting'|trans({'%name%': firstName}, 'messages', locale) }}{% else %}{{ 'email.notification_digest.greeting_plain'|trans({}, 'messages', locale) }}{% endif %}
+{% block content %}{% if firstName %}{{ 'email.notification_digest.greeting'|trans({'%name%': firstName}, 'messages', loc) }}{% else %}{{ 'email.notification_digest.greeting_plain'|trans({}, 'messages', loc) }}{% endif %}
 
-{% if count == 1 %}{{ 'email.notification_digest.heading_one'|trans({}, 'messages', locale) }}{% else %}{{ 'email.notification_digest.heading_many'|trans({'%count%': count}, 'messages', locale) }}{% endif %}:
+{% if count == 1 %}{{ 'email.notification_digest.heading_one'|trans({}, 'messages', loc) }}{% else %}{{ 'email.notification_digest.heading_many'|trans({'%count%': count}, 'messages', loc) }}{% endif %}:
 {% for item in items %}
 - {{ item.title }}{% if item.body %} — {{ item.body }}{% endif %}
   {{ item.url }}
 {% endfor %}
 
-{{ 'email.notification_digest.footer_txt'|trans({}, 'messages', locale) }}{% endblock %}
+{{ 'email.notification_digest.footer_txt'|trans({}, 'messages', loc) }}{% endblock %}

@@ -1,6 +1,7 @@
 {% extends 'email/base.txt.twig' %}
+{% set loc = locale|default('de') %}
 
-{% block content %}{% if inviteeName %}{{ 'email.booking_cancelled.greeting_named'|trans({'%name%': inviteeName}, 'messages', locale) }}{% else %}{{ 'email.booking_cancelled.greeting'|trans({}, 'messages', locale) }}{% endif %}
+{% block content %}{% if inviteeName %}{{ 'email.booking_cancelled.greeting_named'|trans({'%name%': inviteeName}, 'messages', loc) }}{% else %}{{ 'email.booking_cancelled.greeting'|trans({}, 'messages', loc) }}{% endif %}
 
-{{ 'email.booking_cancelled.body_txt'|trans({'%title%': title, '%date%': start|date('d.m.Y'), '%time%': start|date('H:i'), '%timezone%': timezone}, 'messages', locale) }}
-{{ 'email.booking_cancelled.rebook'|trans({}, 'messages', locale) }}{% endblock %}
+{{ 'email.booking_cancelled.body_txt'|trans({'%title%': title, '%date%': start|date('d.m.Y'), '%time%': start|date('H:i'), '%timezone%': timezone}, 'messages', loc) }}
+{{ 'email.booking_cancelled.rebook'|trans({}, 'messages', loc) }}{% endblock %}

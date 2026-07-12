@@ -1,18 +1,19 @@
 {% extends 'email/base.txt.twig' %}
+{% set loc = locale|default('de') %}
 
-{% block content %}{% if inviteeName %}{{ 'email.booking_rescheduled.greeting_named'|trans({'%name%': inviteeName}, 'messages', locale) }}{% else %}{{ 'email.booking_rescheduled.greeting'|trans({}, 'messages', locale) }}{% endif %}
+{% block content %}{% if inviteeName %}{{ 'email.booking_rescheduled.greeting_named'|trans({'%name%': inviteeName}, 'messages', loc) }}{% else %}{{ 'email.booking_rescheduled.greeting'|trans({}, 'messages', loc) }}{% endif %}
 
-{{ 'email.booking_rescheduled.intro_txt'|trans({}, 'messages', locale) }}
+{{ 'email.booking_rescheduled.intro_txt'|trans({}, 'messages', loc) }}
 
 {{ title }}
-{% if oldStart %}{{ 'email.booking_rescheduled.label_previous'|trans({}, 'messages', locale) }} {{ oldStart|date('l, d.m.Y') }}, {{ oldStart|date('H:i') }}
-{% endif %}{{ 'email.booking_rescheduled.label_date'|trans({}, 'messages', locale) }} {{ start|date('l, d.m.Y') }}
-{{ 'email.booking_rescheduled.label_time'|trans({}, 'messages', locale) }} {{ start|date('H:i') }}-{{ end|date('H:i') }} ({{ 'email.booking_rescheduled.duration'|trans({'%minutes%': durationMinutes, '%timezone%': timezone}, 'messages', locale) }})
-{{ 'email.booking_rescheduled.label_location'|trans({}, 'messages', locale) }} {{ location }}
-{% if hostName %}{{ 'email.booking_rescheduled.label_with'|trans({}, 'messages', locale) }} {{ hostName }}
-{% endif %}{% if notes %}{{ 'email.booking_rescheduled.label_note'|trans({}, 'messages', locale) }} {{ notes }}
+{% if oldStart %}{{ 'email.booking_rescheduled.label_previous'|trans({}, 'messages', loc) }} {{ oldStart|date('l, d.m.Y') }}, {{ oldStart|date('H:i') }}
+{% endif %}{{ 'email.booking_rescheduled.label_date'|trans({}, 'messages', loc) }} {{ start|date('l, d.m.Y') }}
+{{ 'email.booking_rescheduled.label_time'|trans({}, 'messages', loc) }} {{ start|date('H:i') }}-{{ end|date('H:i') }} ({{ 'email.booking_rescheduled.duration'|trans({'%minutes%': durationMinutes, '%timezone%': timezone}, 'messages', loc) }})
+{{ 'email.booking_rescheduled.label_location'|trans({}, 'messages', loc) }} {{ location }}
+{% if hostName %}{{ 'email.booking_rescheduled.label_with'|trans({}, 'messages', loc) }} {{ hostName }}
+{% endif %}{% if notes %}{{ 'email.booking_rescheduled.label_note'|trans({}, 'messages', loc) }} {{ notes }}
 {% endif %}
-{{ 'email.booking_rescheduled.ics_txt'|trans({}, 'messages', locale) }}
+{{ 'email.booking_rescheduled.ics_txt'|trans({}, 'messages', loc) }}
 
-{{ 'email.booking_rescheduled.label_reschedule_url'|trans({}, 'messages', locale) }} {{ rescheduleUrl }}
-{{ 'email.booking_rescheduled.label_cancel_url'|trans({}, 'messages', locale) }} {{ cancelUrl }}{% endblock %}
+{{ 'email.booking_rescheduled.label_reschedule_url'|trans({}, 'messages', loc) }} {{ rescheduleUrl }}
+{{ 'email.booking_rescheduled.label_cancel_url'|trans({}, 'messages', loc) }} {{ cancelUrl }}{% endblock %}
