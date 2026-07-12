@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Controller\Api\Portal;
 
 use App\Entity\PortalFormDraft;
-use App\Entity\Project;
 use App\Entity\PublicForm;
 use App\Repository\PortalFormDraftRepository;
 use App\Repository\PublicFormRepository;
@@ -60,7 +59,7 @@ final class PortalFormsController
     {
         $this->portal->assertFeatureEnabled('forms');
 
-        $forms = $this->forms->findEnabledForPortalProjects($this->portal->allowedProjects());
+        $forms = $this->forms->findEnabledForPortalCustomer($this->portal->customer());
 
         return new JsonResponse([
             'forms' => array_map(fn (PublicForm $f): array => [
@@ -179,17 +178,19 @@ final class PortalFormsController
             !$form instanceof PublicForm
             || $form->getDeletedAt() !== null
             || !$form->isEnabled()
-            || !$this->isAllowedProject($form->getProject())
+            || !$this->isRecipient($form)
         ) {
             throw new NotFoundHttpException('Form not found.');
         }
         return $form;
     }
 
-    private function isAllowedProject(Project $project): bool
+    /** The form must be distributed to the caller's customer (a recipient). */
+    private function isRecipient(PublicForm $form): bool
     {
-        foreach ($this->portal->allowedProjects() as $allowed) {
-            if ($allowed->getId()?->equals($project->getId()) === true) {
+        $customerId = $this->portal->customer()->getId();
+        foreach ($form->getRecipients() as $recipient) {
+            if ($recipient->getId()?->equals($customerId) === true) {
                 return true;
             }
         }
