@@ -165,6 +165,7 @@ final class FormSchemaNormalizer
                     'type' => $block['type'],
                     'required' => $block['required'],
                     'options' => $block['options'],
+                    'optionsI18n' => $block['optionsI18n'] ?? [],
                     'placeholder' => $block['placeholder'],
                     'section' => $section,
                 ];
@@ -243,6 +244,11 @@ final class FormSchemaNormalizer
             'type' => (string) ($raw['type'] ?? 'text'),
             'label' => (string) ($raw['label'] ?? ($key !== '' ? $key : '')),
             'labelI18n' => $labelI18n,
+            // Per-locale option/row overrides ({locale: string[]}, index-aligned
+            // with `options`/`rows`). Labels only — submitted values stay the base
+            // option string, so validation/logic are unaffected.
+            'optionsI18n' => $this->localeStringLists($raw['optionsI18n'] ?? null),
+            'rowsI18n' => $this->localeStringLists($raw['rowsI18n'] ?? null),
             'required' => (bool) ($raw['required'] ?? false),
             'options' => array_values(array_map('strval', (array) ($raw['options'] ?? []))),
             'placeholder' => isset($raw['placeholder']) ? (string) $raw['placeholder'] : null,
@@ -253,6 +259,23 @@ final class FormSchemaNormalizer
             'rows' => array_values(array_map('strval', (array) ($raw['rows'] ?? []))),
             'mapsTo' => isset($raw['mapsTo']) && $raw['mapsTo'] !== '' ? (string) $raw['mapsTo'] : null,
         ];
+    }
+
+    /**
+     * Coerce a raw per-locale list map into {locale: list<string>}.
+     *
+     * @return array<string, list<string>>
+     */
+    private function localeStringLists(mixed $raw): array
+    {
+        $out = [];
+        foreach ((array) $raw as $loc => $list) {
+            if (\is_array($list)) {
+                $out[(string) $loc] = array_values(array_map('strval', $list));
+            }
+        }
+
+        return $out;
     }
 
     /**
