@@ -32,9 +32,15 @@ use Symfony\Component\Validator\Constraints as Assert;
  *                       (closed accounting periods). null disables the
  *                       auto-lock.
  *   - allowFutureEntries: defaults to false — refuses startsAt > now.
+ *   - autoStopMinutes:  a running ActiveTimer older than N minutes is stopped
+ *                       automatically by a scheduled command, its TimeEntry
+ *                       capped to exactly N minutes and the owner notified.
+ *                       null disables auto-stop. Stops runaway "forgot to stop
+ *                       the timer overnight" entries.
  *
  * The rounding policy is applied by {@see TimeTrackingPolicy::apply()} at
- * persist time; the lock policy by a scheduled command that walks aged rows.
+ * persist time; the lock policy by a scheduled command that walks aged rows;
+ * the auto-stop policy by {@see AutoStopTimersCommand}.
  */
 #[ORM\Entity(repositoryClass: TimeTrackingSettingsRepository::class)]
 #[ORM\Table(name: 'time_tracking_settings')]
@@ -72,6 +78,10 @@ class TimeTrackingSettings
     #[ORM\Column]
     private bool $allowFutureEntries = false;
 
+    #[ORM\Column(nullable: true)]
+    #[Assert\Range(min: 1, max: 1440)]
+    private ?int $autoStopMinutes = null;
+
     public function getRoundingMinutes(): int { return $this->roundingMinutes; }
     public function setRoundingMinutes(int $n): self { $this->roundingMinutes = max(0, $n); return $this; }
 
@@ -83,4 +93,7 @@ class TimeTrackingSettings
 
     public function isAllowFutureEntries(): bool { return $this->allowFutureEntries; }
     public function setAllowFutureEntries(bool $v): self { $this->allowFutureEntries = $v; return $this; }
+
+    public function getAutoStopMinutes(): ?int { return $this->autoStopMinutes; }
+    public function setAutoStopMinutes(?int $minutes): self { $this->autoStopMinutes = $minutes; return $this; }
 }

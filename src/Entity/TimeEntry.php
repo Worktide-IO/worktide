@@ -39,7 +39,10 @@ use Doctrine\ORM\Mapping as ORM;
     operations: [
         new GetCollection(security: "is_granted('ROLE_USER')"),
         new Get(security: "is_granted('VIEW', object)"),
-        new Post(security: "is_granted('ROLE_USER')"),
+        new Post(
+            security: "is_granted('ROLE_USER')",
+            securityPostDenormalize: "object.getUser() == user or is_granted('EDIT', object)",
+        ),
         new Patch(security: "is_granted('EDIT', object)"),
         new Delete(security: "is_granted('DELETE', object)"),
     ],

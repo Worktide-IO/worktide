@@ -13,6 +13,7 @@ use App\Entity\User;
 use App\Entity\Workspace;
 use App\Entity\WorkspaceMember;
 use App\Repository\ActiveTimerRepository;
+use App\Service\Timer\TimerCloser;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -46,6 +47,7 @@ final class ActiveTimerController
         private readonly Security $security,
         private readonly EntityManagerInterface $em,
         private readonly ActiveTimerRepository $timers,
+        private readonly TimerCloser $timerCloser,
     ) {}
 
     #[Route(path: '/v1/timers/current', name: 'api_timer_current', methods: ['GET'])]
@@ -104,7 +106,7 @@ final class ActiveTimerController
         if ($timer === null) {
             throw new BadRequestHttpException('No timer running.');
         }
-        $entry = $this->closeTimer($timer, new \DateTimeImmutable());
+        $entry = $this->timerCloser->close($timer, new \DateTimeImmutable());
         $this->em->flush();
         return new JsonResponse([
             'timeEntryId' => $entry->getId()?->toRfc4122(),
@@ -240,30 +242,7 @@ final class ActiveTimerController
         if ($timer === null) {
             return null;
         }
-        return $this->closeTimer($timer, new \DateTimeImmutable());
-    }
-
-    /**
-     * Finalises an ActiveTimer into a TimeEntry and removes the timer row.
-     * Caller is responsible for the surrounding flush.
-     */
-    private function closeTimer(ActiveTimer $timer, \DateTimeImmutable $endsAt): TimeEntry
-    {
-        $duration = (int) round($timer->elapsedSeconds($endsAt) / 60);
-        $entry = (new TimeEntry())
-            ->setUser($timer->getUser())
-            ->setWorkspace($timer->getWorkspace())
-            ->setProject($timer->getProject())
-            ->setTask($timer->getTask())
-            ->setTypeOfWork($timer->getTypeOfWork())
-            ->setStartsAt($timer->getStartedAt())
-            ->setEndsAt($endsAt)
-            ->setDurationMinutes($duration)
-            ->setIsBillable($timer->isBillable())
-            ->setNote($timer->getDescription());
-        $this->em->persist($entry);
-        $this->em->remove($timer);
-        return $entry;
+        return $this->timerCloser->close($timer, new \DateTimeImmutable());
     }
 
     /** @return array<string, mixed> */

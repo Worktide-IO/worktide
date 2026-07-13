@@ -37,6 +37,10 @@
 # Lock time entries past the lock window (hourly)
 7 * * * * cd /app && php bin/console app:time:auto-lock
 
+# Auto-stop timers running past the per-workspace limit (every minute so the
+# capped entry lands close to the limit; the cap makes the result timing-safe)
+* * * * * cd /app && php bin/console app:time:auto-stop-timers
+
 # Expire CRM agreements past their end date (daily 03:11)
 11 3 * * * cd /app && php bin/console app:crm:agreements:expire
 
