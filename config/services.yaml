@@ -315,6 +315,9 @@ services:
     App\Service\ExternalSearch\Provider\BuiltWithSearchProvider:
         arguments:
             $apiKey: '%env(default::BUILTWITH_API_KEY)%'
+    App\Service\ExternalSearch\Provider\SurfeSearchProvider:
+        arguments:
+            $apiKey: '%env(default::SURFE_API_KEY)%'
     App\Service\ExternalSearch\ExternalSearchRegistry:
         arguments:
             $providers: !tagged_iterator 'worktide.external_search'
