@@ -48,3 +48,6 @@ Bildschirmfoto_*.png
 
 # Local DDEV throwaway SQLite DB (never commit)
 .ddev/db.sqlite3
+
+# Private one-off scripts (customer-specific backfills etc.) — never commit
+/src/Command/OneOff/
