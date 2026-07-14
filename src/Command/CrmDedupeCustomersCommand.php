@@ -48,7 +48,7 @@ final class CrmDedupeCustomersCommand extends Command
     private const CUSTOMER_RELATIONS = [
         \App\Entity\Project::class,
         \App\Entity\CustomerSystem::class,
-        \App\Entity\ServiceSubscription::class,
+        \App\Entity\ServiceAssignment::class,
         \App\Entity\CustomerAgreement::class,
         \App\Entity\CustomerProduct::class,
         \App\Entity\Conversation::class,

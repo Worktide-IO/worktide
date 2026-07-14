@@ -8,10 +8,10 @@ use App\Entity\CustomerAgreement;
 use App\Entity\CustomerAgreementRevision;
 use App\Entity\Enum\AgreementStatus;
 use App\Entity\ProjectOffer;
-use App\Entity\ServiceSubscription;
+use App\Entity\ServiceAssignment;
 use App\Repository\CustomerAgreementRepository;
 use App\Repository\ProjectOfferRepository;
-use App\Repository\ServiceSubscriptionRepository;
+use App\Repository\ServiceAssignmentRepository;
 use App\Service\Crm\AgreementService;
 use App\Service\Portal\PortalAccessResolver;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -41,7 +41,7 @@ final class PortalAgreementsController
     public function __construct(
         private readonly PortalAccessResolver $portal,
         private readonly CustomerAgreementRepository $agreements,
-        private readonly ServiceSubscriptionRepository $subscriptions,
+        private readonly ServiceAssignmentRepository $subscriptions,
         private readonly ProjectOfferRepository $offers,
         private readonly AgreementService $agreementService,
         private readonly EntityManagerInterface $em,
@@ -271,25 +271,31 @@ final class PortalAgreementsController
     }
 
     /**
+     * Maps a {@see ServiceAssignment} onto the portal's PortalSubscription shape
+     * (unchanged from the former flat ServiceSubscription): name/description come
+     * from the service, price/currency/cycle from the pinned version.
+     *
      * @return array<string, mixed>
      */
-    private function subscriptionDto(ServiceSubscription $subscription): array
+    private function subscriptionDto(ServiceAssignment $assignment): array
     {
-        $status = $subscription->getStatus()->value;
-        $cycle = $subscription->getBillingCycle()->value;
+        $version = $assignment->getServiceVersion();
+        $service = $version->getService();
+        $status = $assignment->getStatus()->value;
+        $cycle = $version->getBillingCycle()->value;
 
         return [
-            'id' => $subscription->getId()?->toRfc4122(),
-            'name' => $subscription->getName(),
-            'description' => $subscription->getDescription(),
-            'priceCents' => $subscription->getPriceCents(),
-            'currency' => $subscription->getCurrency(),
+            'id' => $assignment->getId()?->toRfc4122(),
+            'name' => $service->getName(),
+            'description' => $service->getDescription(),
+            'priceCents' => $assignment->getEffectivePriceCents(),
+            'currency' => $version->getCurrency(),
             'billingCycle' => $cycle,
             'billingLabel' => $this->translator->trans('label.billing.' . $cycle),
             'status' => $status,
             'statusLabel' => $this->translator->trans('label.subscription_status.' . $status),
-            'nextBillingOn' => $subscription->getNextBillingOn()?->format('Y-m-d'),
-            'systemName' => $subscription->getSystem()?->getName(),
+            'nextBillingOn' => $assignment->getNextBillingOn()?->format('Y-m-d'),
+            'systemName' => $assignment->getSystem()?->getName(),
         ];
     }
 }

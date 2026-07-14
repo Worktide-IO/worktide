@@ -135,13 +135,13 @@ class CustomerSystem implements TaggableInterface
     #[ORM\Column]
     private bool $isActive = true;
 
-    /** @var Collection<int, ServiceSubscription> */
-    #[ORM\OneToMany(targetEntity: ServiceSubscription::class, mappedBy: 'system')]
-    private Collection $subscriptions;
+    /** @var Collection<int, ServiceAssignment> */
+    #[ORM\OneToMany(targetEntity: ServiceAssignment::class, mappedBy: 'system')]
+    private Collection $assignments;
 
     public function __construct()
     {
-        $this->subscriptions = new ArrayCollection();
+        $this->assignments = new ArrayCollection();
         $this->tags = new ArrayCollection();
     }
 
@@ -186,6 +186,6 @@ class CustomerSystem implements TaggableInterface
     public function isActive(): bool { return $this->isActive; }
     public function setIsActive(bool $v): self { $this->isActive = $v; return $this; }
 
-    /** @return Collection<int, ServiceSubscription> */
-    public function getSubscriptions(): Collection { return $this->subscriptions; }
+    /** @return Collection<int, ServiceAssignment> */
+    public function getAssignments(): Collection { return $this->assignments; }
 }

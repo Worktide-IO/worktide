@@ -6,7 +6,7 @@ namespace App\Controller\Api;
 
 use App\Entity\Enum\BillingCycle;
 use App\Entity\Enum\SubscriptionStatus;
-use App\Entity\ServiceSubscription;
+use App\Entity\ServiceAssignment;
 use App\Entity\User;
 use App\Entity\Workspace;
 use App\Entity\WorkspaceMember;
@@ -25,11 +25,12 @@ use Symfony\Component\Uid\Uuid;
  *   &to=YYYY-MM     (required, inclusive)
  *
  * Monthly recurring revenue trajectory derived from
- * {@see ServiceSubscription}. For each month in [from, to]:
+ * {@see ServiceAssignment} (effective price × the version's billing
+ * cycle). For each month in [from, to]:
  *
- *   - Take every subscription whose startedOn is <= the last day of
+ *   - Take every assignment whose startedOn is <= the last day of
  *     the month AND (status != Cancelled OR endedOn > first day of
- *     the month). Paused subscriptions are dropped — they don't bill
+ *     the month). Paused assignments are dropped — they don't bill
  *     this month.
  *   - Normalise price to a monthly amount: monthly = price, quarterly
  *     = price / 3, half-yearly = price / 6, yearly = price / 12,
@@ -78,12 +79,16 @@ final class MrrReportController
             throw new BadRequestHttpException(sprintf('Range too large; max %d months.', self::MAX_MONTHS));
         }
 
-        // Pull every subscription that *could* have contributed in the
+        // Pull every assignment that *could* have contributed in the
         // requested range. Cheaper than per-month queries and the data
-        // volume per workspace stays small.
-        $subs = $this->em->getRepository(ServiceSubscription::class)->createQueryBuilder('s')
+        // volume per workspace stays small. Join the version so price /
+        // cycle / currency reads don't fire per-row.
+        $subs = $this->em->getRepository(ServiceAssignment::class)->createQueryBuilder('s')
+            ->addSelect('sv')
+            ->join('s.serviceVersion', 'sv')
             ->where('s.workspace = :ws')
             ->andWhere('s.startedOn <= :rangeEnd')
+            ->andWhere('s.deletedAt IS NULL')
             ->setParameter('ws', $workspace)
             ->setParameter('rangeEnd', $to->modify('last day of this month')->setTime(23, 59, 59))
             ->getQuery()
@@ -98,7 +103,7 @@ final class MrrReportController
             $byCurrency = [];
             $activeCount = 0;
             foreach ($subs as $s) {
-                /** @var ServiceSubscription $s */
+                /** @var ServiceAssignment $s */
                 if ($s->getStartedOn() > $monthEnd) {
                     continue;
                 }
@@ -109,11 +114,11 @@ final class MrrReportController
                 if ($s->getStatus() === SubscriptionStatus::Paused) {
                     continue;
                 }
-                $monthlyCents = $this->normaliseToMonthlyCents($s->getPriceCents(), $s->getBillingCycle());
+                $monthlyCents = $this->normaliseToMonthlyCents($s->getEffectivePriceCents(), $s->getServiceVersion()->getBillingCycle());
                 if ($monthlyCents === 0) {
                     continue;
                 }
-                $cur = strtolower($s->getCurrency());
+                $cur = strtolower($s->getServiceVersion()->getCurrency());
                 $byCurrency[$cur] = ($byCurrency[$cur] ?? 0) + $monthlyCents;
                 $activeCount++;
             }

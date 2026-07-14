@@ -31,7 +31,9 @@ use App\Entity\ProjectTemplate;
 use App\Entity\ProjectType;
 use App\Entity\PublicFormSubmission;
 use App\Entity\RolePermissionOverride;
-use App\Entity\ServiceSubscription;
+use App\Entity\Service;
+use App\Entity\ServiceAssignment;
+use App\Entity\ServiceVersion;
 use App\Entity\SystemIncident;
 use App\Entity\Workflow;
 use App\Entity\Tag;
@@ -142,7 +144,9 @@ final class DomainEventEmitterSubscriber
         Customer::class => 'Customer',
         Contact::class => 'Contact',
         CustomerSystem::class => 'CustomerSystem',
-        ServiceSubscription::class => 'ServiceSubscription',
+        Service::class => 'Service',
+        ServiceVersion::class => 'ServiceVersion',
+        ServiceAssignment::class => 'ServiceAssignment',
         CustomerProduct::class => 'CustomerProduct',
         SystemIncident::class => 'SystemIncident',
         AIRecommendation::class => 'AIRecommendation',
