@@ -23,6 +23,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Mailer\Transport;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Uid\Uuid;
+use Webklex\PHPIMAP\Address;
+use Webklex\PHPIMAP\Attribute;
 use Webklex\PHPIMAP\ClientManager;
 use Webklex\PHPIMAP\Message;
 
@@ -201,11 +203,13 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
         int $maxBytes,
     ): InboundEvent {
         $header = $msg->getHeader();
-        $subject = $this->headerString($header?->get('subject')) ?? '';
+        $subject = $this->decodeMimeHeader($this->headerString($header?->get('subject'))) ?? '';
+        $senderRaw = $this->senderRawFromHeader($header?->get('from'));
         return (new InboundEvent())
             ->setWorkspace($channel->getWorkspace())
             ->setChannel($channel)
             ->setExternalId($messageId)
+            ->setSenderRaw($senderRaw)
             ->setSubject(mb_substr($subject, 0, 250))
             ->setBody(sprintf(
                 "[Mail skipped — %.1f MB exceeds the channel's %.1f MB limit. Headers were captured; full message remains on the IMAP server.]",
@@ -222,7 +226,7 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
                 'headers' => [
                     'Message-ID' => $messageId,
                     'Subject' => $subject,
-                    'From' => $this->headerString($header?->get('from')),
+                    'From' => $senderRaw,
                     'Date' => $this->headerString($header?->get('date')),
                 ],
             ]);
@@ -246,20 +250,8 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
         // us the raw string.
         $references = $this->headerArray($header?->get('references'));
         $inReplyTo = $this->headerString($header?->get('in_reply_to'));
-        $subject = $this->headerString($header?->get('subject')) ?? '';
-
-        $fromAddr = null;
-        $fromName = null;
-        $fromAttr = $header?->get('from');
-        if (is_array($fromAttr) && isset($fromAttr[0])) {
-            $fromAddr = $fromAttr[0]->mail ?? null;
-            $fromName = $fromAttr[0]->personal ?? null;
-        } elseif (is_object($fromAttr)) {
-            // sometimes webklex hands back a single object
-            $fromAddr = $fromAttr->mail ?? ($fromAttr->get('mail') ?? null);
-            $fromName = $fromAttr->personal ?? ($fromAttr->get('personal') ?? null);
-        }
-        $senderRaw = $fromName ? sprintf('%s <%s>', $fromName, $fromAddr) : ($fromAddr ?? null);
+        $subject = $this->decodeMimeHeader($this->headerString($header?->get('subject'))) ?? '';
+        $senderRaw = $this->senderRawFromHeader($header?->get('from'));
 
         $receivedAt = new \DateTimeImmutable();
         $dateAttr = $header?->get('date');
@@ -414,6 +406,60 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
     }
 
     /**
+     * Decode RFC 2047 encoded-words ("=?utf-8?B?…?=" / "=?iso-8859-1?Q?…?=") in a
+     * header value to plain UTF-8. Handles B/Q encodings, mixed charsets and
+     * multiple concatenated words; idempotent on already-plain text (webklex
+     * usually decodes, but not for every charset/encoding — this is the backstop
+     * that keeps raw MIME words out of the stored subject / sender name).
+     */
+    private function decodeMimeHeader(?string $value): ?string
+    {
+        if ($value === null || $value === '' || !str_contains($value, '=?')) {
+            return $value;
+        }
+        $decoded = @mb_decode_mimeheader($value);
+        return $decoded !== '' ? $decoded : $value;
+    }
+
+    /**
+     * Compose the raw sender string ("Name <addr>", or bare address/name) from a
+     * Webklex "from" header value, or null when neither is present.
+     */
+    public function senderRawFromHeader(mixed $fromAttr): ?string
+    {
+        [$mail, $name] = $this->firstAddress($fromAttr);
+        if ($mail !== null && $name !== null) {
+            return sprintf('%s <%s>', $name, $mail);
+        }
+
+        return $mail ?? $name;
+    }
+
+    /**
+     * Extract [email, displayName] from a Webklex address header. php-imap 6
+     * parses address headers into an {@see Attribute} wrapping {@see Address}
+     * objects, so we read the first Address rather than `->mail` off the
+     * Attribute itself (which silently yields null — the bug this fixes). The
+     * display name is MIME-decoded; empty parts become null.
+     *
+     * @return array{0: ?string, 1: ?string} [email, displayName]
+     */
+    private function firstAddress(mixed $fromAttr): array
+    {
+        $addr = $fromAttr instanceof Attribute
+            ? $fromAttr->first()
+            : (\is_array($fromAttr) ? ($fromAttr[0] ?? null) : $fromAttr);
+
+        if (!\is_object($addr)) {
+            return [null, null];
+        }
+        $mail = isset($addr->mail) && (string) $addr->mail !== '' ? (string) $addr->mail : null;
+        $name = isset($addr->personal) && (string) $addr->personal !== '' ? (string) $addr->personal : null;
+
+        return [$mail, $this->decodeMimeHeader($name)];
+    }
+
+    /**
      * @return list<string>
      */
     private function headerArray(mixed $attr): array
@@ -432,7 +478,12 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
         return array_values(array_filter(array_map('trim', explode(' ', $s))));
     }
 
-    private function makeClient(Channel $channel)
+    /**
+     * Build a php-imap client from the channel's inbound + (decrypted) auth
+     * config. Public so repair tooling (sender backfill) can reuse the exact
+     * connection setup instead of duplicating it.
+     */
+    public function makeClient(Channel $channel)
     {
         $cfg = $channel->getInboundConfig();
         $auth = $channel->getAuthConfig();

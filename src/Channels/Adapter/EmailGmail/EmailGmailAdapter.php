@@ -213,8 +213,8 @@ final class EmailGmailAdapter implements InboundAdapter, OutboundAdapter, Testab
 
         $payload = $msg['payload'] ?? [];
         $headers = $this->headerMap($payload['headers'] ?? []);
-        $subject = (string) ($headers['Subject'] ?? '');
-        $fromRaw = (string) ($headers['From'] ?? '');
+        $subject = $this->decodeMimeHeader((string) ($headers['Subject'] ?? ''));
+        $fromRaw = $this->decodeMimeHeader((string) ($headers['From'] ?? ''));
         $fromAddr = $this->extractEmail($fromRaw);
 
         $receivedAt = isset($msg['internalDate'])
@@ -315,7 +315,7 @@ final class EmailGmailAdapter implements InboundAdapter, OutboundAdapter, Testab
             ->setWorkspace($channel->getWorkspace())
             ->setChannel($channel)
             ->setExternalId($messageId)
-            ->setSubject(mb_substr((string) ($headers['Subject'] ?? ''), 0, 250))
+            ->setSubject(mb_substr($this->decodeMimeHeader((string) ($headers['Subject'] ?? '')), 0, 250))
             ->setBody(sprintf(
                 "[Mail skipped — %.1f MB exceeds the channel's %.1f MB limit. Headers were captured; the mail remains in the source mailbox.]",
                 $size / 1024 / 1024,
@@ -380,6 +380,19 @@ final class EmailGmailAdapter implements InboundAdapter, OutboundAdapter, Testab
             }
         }
         return $out;
+    }
+
+    /**
+     * Decode RFC 2047 encoded-words in a header value to plain UTF-8 (B/Q
+     * encodings, mixed charsets, multiple words). Idempotent on plain text.
+     */
+    private function decodeMimeHeader(string $value): string
+    {
+        if ($value === '' || !str_contains($value, '=?')) {
+            return $value;
+        }
+        $decoded = @mb_decode_mimeheader($value);
+        return $decoded !== '' ? $decoded : $value;
     }
 
     private function fetchAttachmentBytes(string $accessToken, string $gmailId, string $attachmentId): ?string

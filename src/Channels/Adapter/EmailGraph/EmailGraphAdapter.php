@@ -192,10 +192,10 @@ final class EmailGraphAdapter implements InboundAdapter, OutboundAdapter, Testab
 
         $from = $msg['from']['emailAddress'] ?? null;
         $fromAddr = is_array($from) ? (string) ($from['address'] ?? '') : '';
-        $fromName = is_array($from) ? (string) ($from['name'] ?? '') : '';
+        $fromName = is_array($from) ? $this->decodeMimeHeader((string) ($from['name'] ?? '')) : '';
         $senderRaw = $fromName !== '' ? "$fromName <$fromAddr>" : ($fromAddr ?: null);
 
-        $subject = (string) ($msg['subject'] ?? '');
+        $subject = $this->decodeMimeHeader((string) ($msg['subject'] ?? ''));
         $receivedAt = isset($msg['receivedDateTime'])
             ? new \DateTimeImmutable((string) $msg['receivedDateTime'])
             : new \DateTimeImmutable();
@@ -282,7 +282,7 @@ final class EmailGraphAdapter implements InboundAdapter, OutboundAdapter, Testab
             ->setWorkspace($channel->getWorkspace())
             ->setChannel($channel)
             ->setExternalId($messageId)
-            ->setSubject(mb_substr((string) ($msg['subject'] ?? ''), 0, 250))
+            ->setSubject(mb_substr($this->decodeMimeHeader((string) ($msg['subject'] ?? '')), 0, 250))
             ->setBody(sprintf(
                 "[Mail skipped — %.1f MB exceeds the channel's %.1f MB limit. Headers were captured; the mail remains in the source mailbox.]",
                 $size / 1024 / 1024,
@@ -473,6 +473,20 @@ final class EmailGraphAdapter implements InboundAdapter, OutboundAdapter, Testab
             return $m[1];
         }
         return trim($raw);
+    }
+
+    /**
+     * Decode RFC 2047 encoded-words in a header value to plain UTF-8. Graph
+     * usually returns decoded subjects, but this is an idempotent backstop
+     * (no-op on plain text) matching the IMAP/Gmail adapters.
+     */
+    private function decodeMimeHeader(string $value): string
+    {
+        if ($value === '' || !str_contains($value, '=?')) {
+            return $value;
+        }
+        $decoded = @mb_decode_mimeheader($value);
+        return $decoded !== '' ? $decoded : $value;
     }
 
     private function referencesChain(InboundEvent $inReplyTo): string
