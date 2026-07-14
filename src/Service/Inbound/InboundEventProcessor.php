@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\Inbound;
 
+use App\Channels\AdapterRegistry;
 use App\Entity\Enum\InboundEventState;
 use App\Entity\InboundEvent;
 use App\Message\SuggestConversationTicketMessage;
@@ -44,10 +45,19 @@ final class InboundEventProcessor
         private readonly ContactResolver $contactResolver,
         private readonly MailRelevanceClassifier $relevance,
         private readonly MessageBusInterface $bus,
+        private readonly AdapterRegistry $registry,
     ) {}
 
     public function process(InboundEvent $event, bool $live = true): void
     {
+        // Conversation threading — create or join the thread. Done here, off the
+        // pull thread, so the Conversation has a single writer (this worker):
+        // the pull only inserts InboundEvents, so it never contends with us on
+        // the Conversation's optimistic lock. Non-threading channels (webhook,
+        // social) have no threader → the event stays conversation-less.
+        $channel = $event->getChannel();
+        $this->registry->getThreader($channel->getAdapterCode())?->attach($channel, $event);
+
         // Sender resolution — match the from-email onto a known Contact and
         // propagate its Customer onto the conversation (auto-resolve).
         $this->contactResolver->resolveForEvent($event);

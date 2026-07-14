@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Channels\Adapter\EmailGraph;
 
-use App\Channels\Adapter\Email\MailThreader;
 use App\Channels\InboundAdapter;
 use App\Channels\InboundResult;
 use App\Channels\OAuth\OAuth2Client;
@@ -69,7 +68,6 @@ final class EmailGraphAdapter implements InboundAdapter, OutboundAdapter, Testab
         private readonly OAuth2Client $oauth,
         private readonly InboundEventRepository $events,
         private readonly ContactRepository $contacts,
-        private readonly MailThreader $threader,
         private readonly FileStorage $fileStorage,
     ) {}
 
@@ -124,13 +122,11 @@ final class EmailGraphAdapter implements InboundAdapter, OutboundAdapter, Testab
             if ($size > $maxBytes) {
                 $event = $this->buildOversizedStub($channel, $msg, $messageId, $size, $maxBytes);
                 $this->em->persist($event);
-                $this->threader->attach($channel, $event);
                 $newEvents[] = $event;
                 continue;
             }
             $event = $this->buildEvent($channel, $msg, $messageId, $accessToken);
             $this->em->persist($event);
-            $this->threader->attach($channel, $event);
             $newEvents[] = $event;
         }
 

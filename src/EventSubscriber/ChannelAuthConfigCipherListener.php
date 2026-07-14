@@ -7,6 +7,7 @@ namespace App\EventSubscriber;
 use App\Channels\SecretBox;
 use App\Entity\Channel;
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\PostLoadEventArgs;
 use Doctrine\ORM\Event\PrePersistEventArgs;
 use Doctrine\ORM\Event\PreUpdateEventArgs;
@@ -99,7 +100,22 @@ final class ChannelAuthConfigCipherListener
         if (!$entity instanceof Channel) {
             return;
         }
-        $entity->setAuthConfig($this->decryptTree($entity->getAuthConfig()));
+        $decrypted = $this->decryptTree($entity->getAuthConfig());
+        $entity->setAuthConfig($decrypted);
+
+        // Realign Doctrine's change-tracking snapshot to the decrypted value.
+        // Otherwise the snapshot keeps the encrypted form, so authConfig reads as
+        // "changed" on EVERY flush that has this Channel loaded — Doctrine then
+        // spuriously UPDATEs the row (re-encrypting authConfig) and bumps its
+        // optimistic-lock version. That turns any flush touching a Channel (e.g.
+        // the inbound worker resolving event->getChannel()) into a second writer,
+        // which makes a concurrent `channel:pull` lose the version race on its
+        // cursor write. With the snapshot aligned, an unrelated flush leaves
+        // authConfig out of the changeset entirely.
+        $om = $event->getObjectManager();
+        if ($om instanceof EntityManagerInterface) {
+            $om->getUnitOfWork()->setOriginalEntityProperty(spl_object_id($entity), 'authConfig', $decrypted);
+        }
     }
 
     /**

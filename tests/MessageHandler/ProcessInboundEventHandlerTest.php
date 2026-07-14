@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\MessageHandler;
 
+use App\Channels\AdapterRegistry;
 use App\Entity\Channel;
 use App\Entity\Enum\InboundEventState;
 use App\Entity\InboundEvent;
@@ -81,6 +82,9 @@ final class ProcessInboundEventHandlerTest extends TestCase
                 new ContactResolver($contacts),
                 new MailRelevanceClassifier(),
                 $this->createStub(MessageBusInterface::class),
+                // Empty registry → no threader for the channel; threading is
+                // covered by InboundEventProcessorTest.
+                new AdapterRegistry([], [], []),
             ),
             new NullLogger(),
         );
