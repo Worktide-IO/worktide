@@ -7,7 +7,7 @@ namespace App\Notification\Resolver;
 use App\Entity\CustomerProduct;
 use App\Entity\DomainEventLog;
 use App\Entity\Enum\NotificationType;
-use App\Entity\ServiceSubscription;
+use App\Entity\ServiceAssignment;
 use App\Notification\NotificationResolverInterface;
 use App\Notification\RecipientResolver;
 use App\Notification\ResolvedNotification;
@@ -18,7 +18,7 @@ use Doctrine\ORM\EntityManagerInterface;
  * portal users.
  *
  * Handles the two per-customer launch signals:
- *  - `servicesubscription.created` (ServiceSubscription is already tracked)
+ *  - `serviceassignment.created` (ServiceAssignment is already tracked)
  *  - `customerproduct.created`     (CustomerProduct added to the TRACKED map)
  *
  * Catalog-wide `product.created` / `productversion.created` are intentionally
@@ -34,7 +34,7 @@ final class LaunchResolver implements NotificationResolverInterface
 
     public function supports(DomainEventLog $event): bool
     {
-        return \in_array($event->getName(), ['servicesubscription.created', 'customerproduct.created'], true);
+        return \in_array($event->getName(), ['serviceassignment.created', 'customerproduct.created'], true);
     }
 
     public function resolve(DomainEventLog $event): iterable
@@ -44,12 +44,12 @@ final class LaunchResolver implements NotificationResolverInterface
             return;
         }
 
-        if ($event->getName() === 'servicesubscription.created') {
-            $sub = $this->em->find(ServiceSubscription::class, $id);
-            if (!$sub instanceof ServiceSubscription) {
+        if ($event->getName() === 'serviceassignment.created') {
+            $sub = $this->em->find(ServiceAssignment::class, $id);
+            if (!$sub instanceof ServiceAssignment) {
                 return;
             }
-            yield from $this->fanOut($sub->getCustomer(), 'notification.launch_service', $sub->getName());
+            yield from $this->fanOut($sub->getCustomer(), 'notification.launch_service', $sub->getServiceVersion()->getService()->getName());
 
             return;
         }

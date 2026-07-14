@@ -4,16 +4,6 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
-use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
-use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
-use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
-use ApiPlatform\Metadata\ApiFilter;
-use ApiPlatform\Metadata\ApiResource;
-use ApiPlatform\Metadata\Delete;
-use ApiPlatform\Metadata\Get;
-use ApiPlatform\Metadata\GetCollection;
-use ApiPlatform\Metadata\Patch;
-use ApiPlatform\Metadata\Post;
 use App\Entity\Enum\BillingCycle;
 use App\Entity\Enum\SubscriptionStatus;
 use App\Entity\Trait\AuditableTrait;
@@ -28,21 +18,14 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
- * A billable service the agency provides to one Customer. Optionally pinned
- * to a specific CustomerSystem when the service is system-bound
- * (hosting for the Foo TYPO3 instance) vs. customer-wide (general
- * maintenance retainer covering all of Foo's sites).
+ * LEGACY — superseded by the {@see Service} / {@see ServiceVersion} /
+ * {@see ServiceAssignment} catalogue. This entity is retained as a plain,
+ * API-less Doctrine mapping ONLY so the one-off data migration
+ * (app:oneoff:migrate-subscriptions-to-services) can read the old rows on each
+ * environment. Once stage + prod have migrated, a follow-up drops the
+ * service_subscriptions table and deletes this class + its repository.
  *
- * Money is stored as integer cents in the {@see self::$priceCents} column;
- * no float column, no Decimal cast — multiplication and rounding stays
- * exact. {@see self::$currency} is an ISO 4217 alpha-3 code in lowercase.
- *
- * Lifecycle:
- *   Trial → Active → (Paused) → Cancelled
- *
- * `nextBillingOn` is auto-recomputed by the prePersist/preUpdate listener
- * from (startedOn, billingCycle, status). When the subscription is
- * Cancelled or Once-billed, nextBillingOn becomes null.
+ * Do NOT write to this entity — the app reads and writes ServiceAssignment now.
  */
 #[ORM\Entity(repositoryClass: ServiceSubscriptionRepository::class)]
 #[ORM\Table(name: 'service_subscriptions')]
@@ -52,27 +35,6 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Index(name: 'svc_sub_status_idx', columns: ['status'])]
 #[ORM\Index(name: 'svc_sub_next_billing_idx', columns: ['next_billing_on'])]
 #[ORM\HasLifecycleCallbacks]
-#[ApiResource(
-    shortName: 'ServiceSubscription',
-    operations: [
-        new GetCollection(security: "is_granted('ROLE_USER')"),
-        new Get(security: "is_granted('VIEW', object.getWorkspace())"),
-        new Post(security: "is_granted('ROLE_USER')"),
-        new Patch(security: "is_granted('EDIT', object.getWorkspace())"),
-        new Delete(security: "is_granted('EDIT', object.getWorkspace())"),
-    ],
-    mercure: true,
-)]
-#[ApiFilter(SearchFilter::class, properties: [
-    'workspace' => 'exact',
-    'customer' => 'exact',
-    'system' => 'exact',
-    'status' => 'exact',
-    'billingCycle' => 'exact',
-    'name' => 'partial',
-])]
-#[ApiFilter(BooleanFilter::class, properties: ['autoRenew'])]
-#[ApiFilter(OrderFilter::class, properties: ['name', 'startedOn', 'nextBillingOn', 'priceCents'])]
 class ServiceSubscription
 {
     use EntityIdTrait;
@@ -93,7 +55,10 @@ class ServiceSubscription
      *   - system-bound:   hosting for the Acme TYPO3 instance
      *   - customer-wide:  monthly support retainer covering every Acme site
      */
-    #[ORM\ManyToOne(inversedBy: 'subscriptions')]
+    // Inverse side dropped (CustomerSystem now exposes ServiceAssignments). This
+    // legacy entity is retained read-only until the data migration to
+    // ServiceAssignment has run, then removed.
+    #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?CustomerSystem $system = null;
 

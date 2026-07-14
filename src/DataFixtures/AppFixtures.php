@@ -35,7 +35,9 @@ use App\Entity\Enum\SubscriptionStatus;
 use App\Entity\Enum\SystemEnvironment;
 use App\Entity\Enum\SystemType;
 use App\Entity\RolePermissionOverride;
-use App\Entity\ServiceSubscription;
+use App\Entity\Service;
+use App\Entity\ServiceAssignment;
+use App\Entity\ServiceVersion;
 use App\Entity\Webhook;
 use App\Entity\Enum\DocumentAccess;
 use App\Entity\Enum\DocumentBodyFormat;
@@ -842,67 +844,68 @@ MD)
             ->setNotes('Noch im Pitch — Shop ist beim aktuellen Anbieter, Übernahme bei Auftrag.');
         $om->persist($globexShop);
 
+        // Each catalogue service gets one current priced version; customers are
+        // then assigned to that version. Helper keeps the version bookkeeping
+        // (isCurrent / currentVersion) in one place.
+        $makeVersion = static function (string $name, ?string $desc, int $priceCents, BillingCycle $cycle) use ($om, $acmeCustomer): ServiceVersion {
+            $service = (new Service())->setName($name)->setDescription($desc);
+            $service->setWorkspace($acmeCustomer->getWorkspace());
+            $version = (new ServiceVersion())
+                ->setService($service)
+                ->setVersionNo(1)
+                ->setNetPriceCents($priceCents)
+                ->setCurrency('eur')
+                ->setBillingCycle($cycle)
+                ->setIsCurrent(true);
+            $service->addVersion($version);
+            $service->setCurrentVersion($version);
+            $om->persist($service);
+            $om->persist($version);
+
+            return $version;
+        };
+
         // System-bound: monthly TYPO3 hosting + maintenance
-        $om->persist((new ServiceSubscription())
+        $om->persist((new ServiceAssignment())
             ->setCustomer($acmeCustomer)
             ->setSystem($acmeTypo3)
-            ->setName('TYPO3 Hosting + Maintenance')
-            ->setDescription('Hetzner Cloud CPX21, Backups, TYPO3 Updates, SSL.')
-            ->setPriceCents(28000)
-            ->setCurrency('eur')
-            ->setBillingCycle(BillingCycle::Monthly)
+            ->setServiceVersion($makeVersion('TYPO3 Hosting + Maintenance', 'Hetzner Cloud CPX21, Backups, TYPO3 Updates, SSL.', 28000, BillingCycle::Monthly))
             ->setStatus(SubscriptionStatus::Active)
             ->setStartedOn(new \DateTimeImmutable('2024-09-01'))
             ->setAutoRenew(true));
 
         // System-bound: yearly WordPress security pack
-        $om->persist((new ServiceSubscription())
+        $om->persist((new ServiceAssignment())
             ->setCustomer($acmeCustomer)
             ->setSystem($acmeWordpress)
-            ->setName('WordPress Security Pack')
-            ->setDescription('Wordfence Premium + monthly security audits.')
-            ->setPriceCents(120000)
-            ->setCurrency('eur')
-            ->setBillingCycle(BillingCycle::Yearly)
+            ->setServiceVersion($makeVersion('WordPress Security Pack', 'Wordfence Premium + monthly security audits.', 120000, BillingCycle::Yearly))
             ->setStatus(SubscriptionStatus::Active)
             ->setStartedOn(new \DateTimeImmutable('2025-01-15'))
             ->setAutoRenew(true));
 
         // Customer-wide retainer (no system FK)
-        $om->persist((new ServiceSubscription())
+        $om->persist((new ServiceAssignment())
             ->setCustomer($acmeCustomer)
-            ->setName('Premium Retainer 10h')
-            ->setDescription('10 monthly support hours, carry-over for 1 quarter.')
-            ->setPriceCents(95000)
-            ->setCurrency('eur')
-            ->setBillingCycle(BillingCycle::Monthly)
+            ->setServiceVersion($makeVersion('Premium Retainer 10h', '10 monthly support hours, carry-over for 1 quarter.', 95000, BillingCycle::Monthly))
             ->setStatus(SubscriptionStatus::Active)
             ->setStartedOn(new \DateTimeImmutable('2024-06-01'))
             ->setAutoRenew(true));
 
         // One-off setup fee from a year ago (already billed, kept for history)
-        $om->persist((new ServiceSubscription())
+        $om->persist((new ServiceAssignment())
             ->setCustomer($acmeCustomer)
             ->setSystem($acmeTypo3)
-            ->setName('Initial setup')
-            ->setDescription('Migration TYPO3 v11→v13 inkl. Datenmodell-Cleanup.')
-            ->setPriceCents(450000)
-            ->setCurrency('eur')
-            ->setBillingCycle(BillingCycle::Once)
+            ->setServiceVersion($makeVersion('Initial setup', 'Migration TYPO3 v11→v13 inkl. Datenmodell-Cleanup.', 450000, BillingCycle::Once))
             ->setStatus(SubscriptionStatus::Cancelled)
             ->setStartedOn(new \DateTimeImmutable('2024-08-01'))
             ->setEndedOn(new \DateTimeImmutable('2024-08-31'))
             ->setAutoRenew(false));
 
-        // Trial subscription for Globex
-        $om->persist((new ServiceSubscription())
+        // Trial assignment for Globex
+        $om->persist((new ServiceAssignment())
             ->setCustomer($globexCustomer)
             ->setSystem($globexShop)
-            ->setName('Hosting Migration — Trial')
-            ->setDescription('30-day trial, then transition to standard hosting.')
-            ->setPriceCents(0)
-            ->setCurrency('eur')
-            ->setBillingCycle(BillingCycle::Monthly)
+            ->setServiceVersion($makeVersion('Hosting Migration — Trial', '30-day trial, then transition to standard hosting.', 0, BillingCycle::Monthly))
             ->setStatus(SubscriptionStatus::Trial)
             ->setStartedOn(new \DateTimeImmutable('-3 days'))
             ->setAutoRenew(false));
