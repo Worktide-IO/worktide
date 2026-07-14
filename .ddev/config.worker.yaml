@@ -1,9 +1,20 @@
-# Local dev only: run a Symfony Messenger worker so async messages
-# (emails, chat webhooks, Mercure updates, batched notification delivery) are
-# actually consumed. In prod the dedicated `worker` container does this; DDEV
-# has no worker by default. The while-loop restarts the consumer after its
+# Local dev only: run Symfony Messenger workers so queued messages are actually
+# consumed (DDEV has no worker by default; in prod the dedicated `worker`
+# container does it). Each while-loop restarts its consumer after the
 # time/memory limit or a crash so it stays up across a dev session.
+#
+# Two SEPARATE consumers on purpose:
+#   * async + search — the fast path (emails, webhooks, Mercure, notifications)
+#     plus the Meilisearch index sync. Kept live so search stays in step during
+#     bulk mail backfills.
+#   * ai_agents — LLM triage/research. Split off so a slow/hanging Claude call
+#     can never starve the search queue (it did when combined), and so bulk
+#     backfills don't fire a paid LLM call per message. Commented out by default;
+#     uncomment only when you actually want to exercise triage locally.
 web_extra_daemons:
   - name: messenger-async
-    command: "bash -c 'while true; do php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M -v || sleep 2; done'"
+    command: "bash -c 'while true; do php bin/console messenger:consume async search --time-limit=3600 --memory-limit=256M -v || sleep 2; done'"
     directory: /var/www/html
+  # - name: messenger-ai
+  #   command: "bash -c 'while true; do php bin/console messenger:consume ai_agents --time-limit=3600 --memory-limit=256M --limit=1 -v || sleep 2; done'"
+  #   directory: /var/www/html
