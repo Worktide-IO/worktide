@@ -87,6 +87,12 @@ final class ChannelPullCommand extends Command
             // batch returns 0 new events) or --max-batches is reached, pausing
             // --throttle-ms between batches. Each batch persists the cursor, so
             // a stop/restart resumes where it left off.
+            //
+            // Clear the EM and re-load the channel after every batch to keep
+            // memory flat across a large backfill (the pull only inserts
+            // InboundEvents + updates the cursor, so nothing threaded needs to
+            // survive the clear). Mirrors SearchReindexCommand's per-batch clear.
+            $channelId = $channel->getId();
             $batches = 0;
             while (true) {
                 $n = $this->pullBatch($channel, $io, live: false);
@@ -97,6 +103,11 @@ final class ChannelPullCommand extends Command
                 if ($maxBatches > 0 && ++$batches >= $maxBatches) {
                     $io->writeln(sprintf(' (--max-batches=%d reached; re-run to continue)', $maxBatches));
                     break;
+                }
+                $this->em->clear();
+                $channel = $this->em->find(Channel::class, $channelId);
+                if ($channel === null) {
+                    break; // channel removed mid-backfill
                 }
                 if ($throttleMs > 0) {
                     usleep($throttleMs * 1000);

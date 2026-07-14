@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Channels\Adapter\Email;
 
-use App\Channels\ConversationThreader;
 use App\Channels\InboundAdapter;
 use App\Channels\InboundResult;
 use App\Channels\OutboundAdapter;
@@ -38,9 +37,11 @@ use Webklex\PHPIMAP\Message;
  *   - For every fetched message we build an InboundEvent keyed by
  *     Message-ID (UNIQUE(channel, externalId) makes the pull
  *     idempotent — re-running on the same mailbox is a no-op).
- *   - Sender resolution: a Contact lookup on the From-header
- *     primary-address. Conversation threading is delegated to
- *     {@see MailThreader} via the registry.
+ *   - The pull only persists InboundEvents (+ the raw headers the
+ *     threader needs in sourceMetadata); Conversation threading and
+ *     sender→Contact resolution happen off the pull thread in
+ *     {@see \App\Service\Inbound\InboundEventProcessor}, so the pull
+ *     never writes a Conversation and can run alongside the worker.
  *
  * Outbound (SMTP):
  *   - Builds a fresh `symfony/mailer` Transport per channel from
@@ -83,7 +84,6 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
         private readonly EntityManagerInterface $em,
         private readonly InboundEventRepository $events,
         private readonly ContactRepository $contacts,
-        private readonly MailThreader $threader,
         private readonly FileStorage $fileStorage,
     ) {}
 
@@ -160,7 +160,6 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
                 if ($size > $maxBytes) {
                     $event = $this->buildOversizedStub($channel, $msgStub, $messageId, $size, $maxBytes);
                     $this->em->persist($event);
-                    $this->threader->attach($channel, $event);
                     $newEvents[] = $event;
                     continue;
                 }
@@ -175,7 +174,6 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
 
                 $event = $this->buildEvent($channel, $full, $messageId);
                 $this->em->persist($event);
-                $this->threader->attach($channel, $event);
                 $newEvents[] = $event;
 
                 // Hint GC to drop the heavy message object — webklex

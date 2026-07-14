@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
-use App\Channels\Adapter\Email\MailThreader;
 use App\Channels\Adapter\EmailGraph\EmailGraphAdapter;
 use App\Channels\OAuth\OAuth2Client;
 use App\Entity\Channel;
 use App\Repository\ContactRepository;
-use App\Repository\ConversationRepository;
 use App\Repository\InboundEventRepository;
 use App\Service\FileStorage;
 use Doctrine\ORM\EntityManagerInterface;
@@ -79,21 +77,14 @@ final class EmailGraphConsumeWebhookTest extends TestCase
         $oauth = $this->createMock(OAuth2Client::class);
         $oauth->expects($tokenCalls)->method('ensureAccessToken')->willReturn('access-token');
 
-        // MailThreader is final (can't be doubled) but is never invoked on an
-        // empty delta — build a real one with mocked collaborators.
-        $threader = new MailThreader(
-            $this->createMock(ConversationRepository::class),
-            $this->createMock(InboundEventRepository::class),
-            $this->createMock(EntityManagerInterface::class),
-        );
-
+        // Threading now happens in the worker (InboundEventProcessor), not the
+        // adapter — no threader dependency here.
         return new EmailGraphAdapter(
             $this->createMock(EntityManagerInterface::class),
             $http,
             $oauth,
             $this->createMock(InboundEventRepository::class),
             $this->createMock(ContactRepository::class),
-            $threader,
             new FileStorage($this->createMock(FilesystemOperator::class)),
         );
     }
