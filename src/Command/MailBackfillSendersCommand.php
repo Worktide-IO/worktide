@@ -16,6 +16,8 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Uid\Uuid;
+use Webklex\PHPIMAP\Client;
+use Webklex\PHPIMAP\IMAP;
 
 /**
  * One-off repair: re-fetch the From header from IMAP for inbound events whose
@@ -149,18 +151,32 @@ final class MailBackfillSendersCommand extends Command
                     // Per-message fetch is fault-isolated: a single unreadable
                     // message ("no headers found", server hiccup) must not abort
                     // the whole channel — count it and move on.
+                    $sender = null;
+                    $gone = false;
                     try {
                         $msg = $folder->messages()->getMessageByUid((int) $uid);
                         if ($msg === null) {
-                            ++$missing; // gone from the server
-                            continue;
+                            $gone = true;
+                        } else {
+                            $sender = $this->imap->senderRawFromHeader($msg->getHeader()?->get('from'));
                         }
-                        $sender = $this->imap->senderRawFromHeader($msg->getHeader()?->get('from'));
                     } catch (\Throwable) {
-                        ++$failed;
+                        // php-imap's message parser choked (malformed/old headers).
+                        // Fall through to the raw-header fallback below.
+                    }
+                    // Fallback: fetch the raw From header straight off the wire,
+                    // bypassing the message parser that just failed.
+                    if ($sender === null && !$gone) {
+                        $sender = $this->rawSenderByUid($client, (int) $uid);
+                    }
+                    if ($gone) {
+                        ++$missing; // no longer on the server
+
                         continue;
                     }
                     if ($sender === null) {
+                        ++$failed; // fetched but no usable From (parser + raw both empty)
+
                         continue;
                     }
                     $event->setSenderRaw(mb_substr($sender, 0, 200));
@@ -212,5 +228,59 @@ final class MailBackfillSendersCommand extends Command
         $channels = $qb->getQuery()->getResult();
 
         return array_values(array_filter($channels, static fn (Channel $c) => $c->supports(ChannelCapability::Inbound)));
+    }
+
+    /**
+     * Fallback for messages php-imap's parser can't read ("no headers found"):
+     * fetch the raw RFC822 header block off the wire by uid and pull the From
+     * line out ourselves. Returns the composed sender or null when even the raw
+     * header has no usable From.
+     */
+    private function rawSenderByUid(Client $client, int $uid): ?string
+    {
+        try {
+            $data = $client->getConnection()->headers([$uid], 'RFC822', IMAP::ST_UID)->data();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $raw = null;
+        if (is_array($data)) {
+            $raw = $data[$uid] ?? (is_array($data) && $data !== [] ? reset($data) : null);
+        } elseif (is_string($data)) {
+            $raw = $data;
+        }
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+
+        // Unfold header continuation lines (CRLF + leading WSP → single space),
+        // then take the first From: line.
+        $unfolded = (string) preg_replace('/\r?\n[ \t]+/', ' ', $raw);
+        if (preg_match('/^From:\s*(.+)$/im', $unfolded, $m) !== 1) {
+            return null;
+        }
+
+        return $this->parseFromLine(trim($m[1]));
+    }
+
+    /**
+     * "=?utf-8?…?= <a@b>" / "Name <a@b>" / "<a@b>" / "a@b" → "Name <a@b>" or the
+     * bare address, MIME-decoding the display name.
+     */
+    private function parseFromLine(string $from): ?string
+    {
+        if ($from === '') {
+            return null;
+        }
+        $decoded = trim(str_contains($from, '=?') ? (@mb_decode_mimeheader($from) ?: $from) : $from);
+        if (preg_match('/^(.*?)<([^>]+)>\s*$/', $decoded, $m) === 1) {
+            $name = trim(trim($m[1]), " \"'");
+            $addr = trim($m[2]);
+
+            return $name !== '' ? sprintf('%s <%s>', $name, $addr) : ($addr !== '' ? $addr : null);
+        }
+
+        return $decoded !== '' ? $decoded : null;
     }
 }
