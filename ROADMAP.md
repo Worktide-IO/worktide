@@ -206,9 +206,9 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 - Planungs-Ansicht zum Akzeptieren / Ändern
 
 ### Schicht 4 — Mail + Outbound
-- AI klassifiziert Conversations (Anfrage / Beschwerde / Antwort / Newsletter / …) und priorisiert
-- Reply-Suggestions im Conversation-Editor — nutzt Saved Replies als Few-Shot-Beispiele
-- Automatische Status-Updates an Kunden bei Conversation-Closed
+- ~~AI klassifiziert Conversations~~ — **erledigt** (Fundament): Conversation-Triage (`TicketTriageAssistant::triageConversation` → Summary + Status inkl. Spam, + „Ticket aus Konversation?") über das `AiTriagePanel` auf der Inbox-Detailseite. Feinere Kategorien/Prioritäts-Scoring bleiben ausbaubar.
+- ~~Reply-Suggestions im Conversation-Editor — nutzt Saved Replies als Few-Shot-Beispiele~~ — **erledigt**: `ReplySuggestionAssistant` + synchroner `POST /v1/conversations/{id}/suggest-reply` (Saved Replies als Few-Shot, kunden­sprachiger Entwurf), SPA-Button „KI-Antwort" im Reply-Composer fügt den Entwurf zum Bearbeiten ein — nichts wird automatisch gesendet.
+- **Automatische Status-Updates an Kunden bei Conversation-Closed** (offen).
 
 ### Schicht 5 — Smart Features
 - "Diese Aufgabe in Subtasks aufbrechen" (AI-Breakdown)
@@ -359,7 +359,7 @@ Die ursprüngliche Sequenz A → C → B → D → D⁺ → E ist **weitgehend a
 
 1. **Gebautes produktiv schalten** — Go-Live-Config für Notifications/Mail (`EGRESS_ALLOW`, `MAILER_DSN`, `worker`/`scheduler`-Container; [docs/notifications-go-live.md](docs/notifications-go-live.md)) + die offenen SPA-Lücken zu bereits fertigem Backend schließen: Smart-Links-oEmbed-Proxy (A). (Portal Invoices-/Goals-UI ✓ + Discovered-Postfach-UI ✓ + visueller Workflow-Editor ✓ erledigt.)
 2. **Phase C — Helpdesk komplettieren**: Google-Workspace-OAuth, Auto-Reply pro Mailbox, Collision-Detection (Mercure-Presence), Inbound-Webhook (SendGrid/Mailgun/Resend). Schließt den Support-Loop, den Portal-Tickets bereits anstoßen.
-3. **Phase D — KI-Ausbau** (Phase-C-Daten + Portal liefern jetzt den Kontext): Aufwands-Schätzung ✓ (Lern-Schleife offen), Mail-Klassifikation + Reply-Suggestions, danach Auto-Scheduling. Modell-Routing (Ollama/vLLM) für datenschutzsensible Workspaces parallel.
+3. **Phase D — KI-Ausbau** (Phase-C-Daten + Portal liefern jetzt den Kontext): Aufwands-Schätzung ✓ (Lern-Schleife offen), Mail-Klassifikation ✓ + Reply-Suggestions ✓ (Auto-Status-Update bei Close offen), danach Auto-Scheduling. Modell-Routing (Ollama/vLLM) für datenschutzsensible Workspaces parallel.
 4. **Phase E — Rest**: Document-Vault (SSE + Retention/GoBD, baut auf dem S3-Adapter auf) + Portal-Vertiefung (Signatur, Retainer-Burndown, Magic-Link/SSO, Themability-Builder).
 5. **Phase D⁺ — Rest**: per-Workspace-Toggle + Hybrid-/Vektor-Suche — erst wenn Volumen/Qualität es rechtfertigen.
 6. **Phase F — Enterprise**: bedarfsgetrieben nach erster Enterprise-Anfrage (SSO/SCIM, 2FA/WebAuthn, Account-Lockout, Permission-/Notification-Schemes, Audit-SIEM-Export, OAuth-Server).
