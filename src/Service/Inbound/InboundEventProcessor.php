@@ -10,6 +10,7 @@ use App\Entity\InboundEvent;
 use App\Message\SuggestConversationTicketMessage;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 
 /**
  * Turns a Pending {@see InboundEvent} into work and marks it settled.
@@ -46,6 +47,7 @@ final class InboundEventProcessor
         private readonly MailRelevanceClassifier $relevance,
         private readonly MessageBusInterface $bus,
         private readonly AdapterRegistry $registry,
+        private readonly RateLimiterFactory $aiAutoSuggestLimiter,
     ) {}
 
     public function process(InboundEvent $event, bool $live = true): void
@@ -77,6 +79,11 @@ final class InboundEventProcessor
      * relevance heuristic deems actionable (no newsletters/automated mail).
      * Backfill and personal mailboxes never auto-trigger the LLM — those use the
      * on-demand endpoint. The actual LLM call happens in the ai_agents handler.
+     *
+     * A per-workspace rate limit caps the spend: a busy mailbox or a pull spike
+     * can't burn thousands of paid LLM calls (which is what filled the ai_agents
+     * queue). Once the hourly budget is used up, further mail simply gets no
+     * auto-suggestion — staff can still trigger it on demand.
      */
     private function maybeSuggestTicket(InboundEvent $event, bool $live): void
     {
@@ -88,6 +95,18 @@ final class InboundEventProcessor
             return;
         }
         if (!$this->relevance->isActionable($event)) {
+            return;
+        }
+
+        // Per-workspace budget: keyed on the workspace so one tenant's flood
+        // can't starve/charge another, and the cap is per-tenant.
+        $workspaceId = $event->getChannel()->getWorkspace()->getId()?->toRfc4122() ?? 'unknown';
+        if (!$this->aiAutoSuggestLimiter->create($workspaceId)->consume(1)->isAccepted()) {
+            $this->logger->info('Auto ticket-suggestion skipped: per-workspace AI budget reached.', [
+                'workspaceId' => $workspaceId,
+                'conversationId' => $conversation->getId()->toRfc4122(),
+            ]);
+
             return;
         }
 

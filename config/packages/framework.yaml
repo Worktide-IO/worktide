@@ -73,6 +73,17 @@ framework:
             policy: 'sliding_window'
             limit: 120
             interval: '1 minute'
+        # Cost guardrail for the automatic "create a ticket?" LLM call fired per
+        # inbound mail (InboundEventProcessor). Keyed per WORKSPACE, not IP: caps
+        # how many auto-suggestions a single workspace can burn per hour so a busy
+        # shared mailbox or a pull spike can't run thousands of paid LLM calls
+        # (this is what produced the 3k+ ai_agents backlog). Excess mail simply
+        # gets no auto-suggestion — the on-demand "suggest ticket" button still
+        # works. Tune per deployment / lift once per-workspace budgets land.
+        ai_auto_suggest:
+            policy: 'sliding_window'
+            limit: 30
+            interval: '1 hour'
 
     #esi: true
     #fragments: true

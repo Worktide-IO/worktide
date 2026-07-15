@@ -136,6 +136,12 @@ services:
             $authResetPasswordLimiter: '@limiter.auth_reset_password'
             $authMagicLinkConsumeLimiter: '@limiter.auth_magic_link_consume'
 
+    # Per-workspace cost guardrail: caps the automatic "suggest ticket?" LLM
+    # call fired per inbound mail (see framework.rate_limiter.ai_auto_suggest).
+    App\Service\Inbound\InboundEventProcessor:
+        arguments:
+            $aiAutoSuggestLimiter: '@limiter.ai_auto_suggest'
+
     # Same explicit binding for the public-form submission limiter.
     App\Controller\Api\PublicFormController:
         arguments:
