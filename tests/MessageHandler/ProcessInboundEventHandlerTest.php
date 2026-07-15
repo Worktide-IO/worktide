@@ -19,6 +19,8 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Psr\Log\NullLogger;
 use Symfony\Component\Messenger\Exception\UnrecoverableMessageHandlingException;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\RateLimiter\Storage\InMemoryStorage;
 use Symfony\Component\Uid\Uuid;
 
 /**
@@ -85,6 +87,7 @@ final class ProcessInboundEventHandlerTest extends TestCase
                 // Empty registry → no threader for the channel; threading is
                 // covered by InboundEventProcessorTest.
                 new AdapterRegistry([], [], []),
+                new RateLimiterFactory(['id' => 'ai_auto_suggest', 'policy' => 'no_limit'], new InMemoryStorage()),
             ),
             new NullLogger(),
         );

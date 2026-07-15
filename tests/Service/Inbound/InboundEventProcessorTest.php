@@ -20,6 +20,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\RateLimiter\Storage\InMemoryStorage;
 
 /**
  * Threading moved out of the mail adapters into the processor so the pull never
@@ -54,6 +56,7 @@ final class InboundEventProcessorTest extends TestCase
             new MailRelevanceClassifier(),
             $this->createStub(MessageBusInterface::class),
             new AdapterRegistry([], [], [$threader], [], [], ['email_imap' => 0]),
+            new RateLimiterFactory(['id' => 'ai_auto_suggest', 'policy' => 'no_limit'], new InMemoryStorage()),
         );
 
         $processor->process($event, live: false);
@@ -78,6 +81,7 @@ final class InboundEventProcessorTest extends TestCase
             new MailRelevanceClassifier(),
             $this->createStub(MessageBusInterface::class),
             new AdapterRegistry([], [], []), // no threaders registered
+            new RateLimiterFactory(['id' => 'ai_auto_suggest', 'policy' => 'no_limit'], new InMemoryStorage()),
         );
 
         $processor->process($event, live: false);

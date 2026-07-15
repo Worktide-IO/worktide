@@ -14,6 +14,7 @@ use App\Repository\CommentRepository;
 use App\Repository\TagRepository;
 use App\Repository\TrackerRepository;
 use App\Service\Ai\TicketTriageAssistant;
+use App\Service\Llm\AiUsageContext;
 use App\Service\Llm\LlmProviderInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
@@ -82,6 +83,7 @@ final class TicketTriageAssistantTest extends TestCase
             $this->createStub(TagRepository::class),
             $this->createStub(CommentRepository::class),
             $this->createStub(EntityManagerInterface::class),
+            new AiUsageContext(),
         );
 
         self::assertFalse($assistant->isAvailable());
@@ -124,6 +126,7 @@ final class TicketTriageAssistantTest extends TestCase
             $tagRepo,
             $commentRepo,
             $this->createStub(EntityManagerInterface::class),
+            new AiUsageContext(),
         );
     }
 
@@ -144,7 +147,7 @@ final class TicketTriageAssistantTest extends TestCase
             'reasoning' => 'Konkretes Problem.',
         ]);
 
-        $out = $assistant->suggestTicketForConversation((new Conversation())->setSubject('Login kaputt'));
+        $out = $assistant->suggestTicketForConversation((new Conversation())->setWorkspace(new Workspace())->setSubject('Login kaputt'));
 
         self::assertTrue($out['suggestion']['shouldCreateTicket']);
         self::assertSame('Login behebt 500', $out['suggestion']['title']);
@@ -155,7 +158,7 @@ final class TicketTriageAssistantTest extends TestCase
     {
         $assistant = $this->conversationAssistant(['shouldCreateTicket' => false]);
 
-        $out = $assistant->suggestTicketForConversation((new Conversation())->setSubject('Danke!'));
+        $out = $assistant->suggestTicketForConversation((new Conversation())->setWorkspace(new Workspace())->setSubject('Danke!'));
 
         self::assertFalse($out['suggestion']['shouldCreateTicket']);
         self::assertSame('Danke!', $out['suggestion']['title']); // empty title → subject
@@ -182,6 +185,7 @@ final class TicketTriageAssistantTest extends TestCase
             $this->createStub(TagRepository::class),
             $this->createStub(CommentRepository::class),
             $em,
+            new AiUsageContext(),
         );
     }
 }

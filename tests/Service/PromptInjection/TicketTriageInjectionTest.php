@@ -15,6 +15,7 @@ use App\Repository\TagRepository;
 use App\Repository\TrackerRepository;
 use App\Service\Ai\TicketTriageAssistant;
 use App\Tests\Support\PromptInjectionPayloads;
+use App\Service\Llm\AiUsageContext;
 use App\Tests\Support\RecordingLlmProvider;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
@@ -76,7 +77,7 @@ final class TicketTriageInjectionTest extends TestCase
     {
         // The email/conversation vector: subject is attacker-controlled.
         $llm = new RecordingLlmProvider(['shouldCreateTicket' => false]);
-        $conversation = (new Conversation())->setSubject(PromptInjectionPayloads::FAKE_SYSTEM);
+        $conversation = (new Conversation())->setWorkspace(new Workspace())->setSubject(PromptInjectionPayloads::FAKE_SYSTEM);
 
         $this->conversationAssistant($llm)->suggestTicketForConversation($conversation);
 
@@ -103,6 +104,7 @@ final class TicketTriageInjectionTest extends TestCase
             $tagRepo,
             $commentRepo,
             $this->createStub(EntityManagerInterface::class),
+            new AiUsageContext(),
         );
     }
 
@@ -119,6 +121,7 @@ final class TicketTriageInjectionTest extends TestCase
             $this->createStub(TagRepository::class),
             $this->createStub(CommentRepository::class),
             $em,
+            new AiUsageContext(),
         );
     }
 }
