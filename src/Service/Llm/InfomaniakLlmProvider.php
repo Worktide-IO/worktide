@@ -35,6 +35,8 @@ final class InfomaniakLlmProvider implements LlmProviderInterface
         private readonly HttpClientInterface $httpClient,
         private readonly EgressGuard $egress,
         private readonly LlmUsageRecorder $usage,
+        private readonly AiUsageContext $usageContext,
+        private readonly LlmBudgetGuard $budget,
         ?string $apiToken = null,
         ?string $productId = null,
         ?string $model = null,
@@ -88,6 +90,8 @@ final class InfomaniakLlmProvider implements LlmProviderInterface
         if (!$this->egress->isAllowed(EgressModule::Llm)) {
             throw new LlmException('LLM egress not approved (module "llm").');
         }
+        // Stop before the paid call once the workspace hits its monthly budget.
+        $this->budget->assertWithinBudget($this->usageContext->getWorkspace());
 
         $payload = [
             'model' => $this->model,
