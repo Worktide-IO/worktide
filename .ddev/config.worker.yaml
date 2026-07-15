@@ -15,6 +15,6 @@ web_extra_daemons:
   - name: messenger-async
     command: "bash -c 'while true; do php bin/console messenger:consume async search --time-limit=3600 --memory-limit=256M -v || sleep 2; done'"
     directory: /var/www/html
-  # - name: messenger-ai
-  #   command: "bash -c 'while true; do php bin/console messenger:consume ai_agents --time-limit=3600 --memory-limit=256M --limit=1 -v || sleep 2; done'"
-  #   directory: /var/www/html
+  - name: messenger-ai
+    command: "bash -c 'while true; do php bin/console messenger:consume ai_agents --time-limit=3600 --memory-limit=256M --limit=1 -v || sleep 2; done'"
+    directory: /var/www/html
