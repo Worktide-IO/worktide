@@ -66,6 +66,7 @@ framework:
             # starves the fast async queue.
             App\Message\TriageTicketMessage: ai_agents
             App\Message\EstimateTaskMessage: ai_agents
+            App\Message\PlanScheduleMessage: ai_agents
             App\Message\SuggestConversationTicketMessage: ai_agents
             App\Message\GenerateMarketingCopyMessage: ai_agents
             App\Message\GenerateUpgradeOutreachMessage: ai_agents

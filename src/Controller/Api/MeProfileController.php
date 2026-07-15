@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Entity\DomainEventLog;
+use App\Entity\Enum\Discipline;
 use App\Entity\User;
 use App\Service\I18n\LocaleResolver;
 use App\Service\PasswordPolicy;
@@ -105,6 +106,20 @@ final class MeProfileController
             }
         }
 
+        if (array_key_exists('discipline', $body)) {
+            $value = $body['discipline'];
+            if ($value === null || $value === '') {
+                $user->setDiscipline(null);
+            } elseif (is_string($value) && ($case = Discipline::tryFrom($value)) !== null) {
+                $user->setDiscipline($case);
+            } else {
+                throw new BadRequestHttpException(sprintf(
+                    'discipline must be null or one of: %s.',
+                    implode(', ', array_map(static fn (Discipline $d): string => $d->value, Discipline::cases())),
+                ));
+            }
+        }
+
         $this->em->flush();
         return new JsonResponse($this->snapshot($user));
     }
@@ -186,6 +201,8 @@ final class MeProfileController
             'roles' => $user->getRoles(),
             'lastLoginAt' => $user->getLastLoginAt()?->format(\DateTimeInterface::ATOM),
             'preferredLanguage' => $user->getPreferredLanguage(),
+            'discipline' => $user->getDiscipline()?->value,
+            'disciplines' => array_map(static fn (Discipline $d): string => $d->value, Discipline::cases()),
             'supportedLanguages' => $this->localeResolver->supportedLocales(),
             // The fully-resolved display locale: user preference → current
             // workspace's locale (via X-Workspace-Id) → app default. The SPA
