@@ -11,6 +11,7 @@ use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use App\ApiPlatform\Filter\UuidExactFilter;
+use App\Entity\Enum\Discipline;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\ExternalReferenceTrait;
 use App\Entity\Trait\SoftDeletableTrait;
@@ -79,6 +80,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      */
     #[ORM\Column(length: 8, nullable: true)]
     private ?string $preferredLanguage = null;
+
+    /**
+     * Skill discipline (developer/designer/…) — drives role-based ticket
+     * offering + AI scheduling. Set via MeProfileController (self) or member edit.
+     */
+    #[ORM\Column(length: 20, nullable: true, enumType: Discipline::class)]
+    private ?Discipline $discipline = null;
 
     /** @var Collection<int, WorkspaceMember> */
     #[ORM\OneToMany(targetEntity: WorkspaceMember::class, mappedBy: 'user', orphanRemoval: true)]
@@ -184,6 +192,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setPreferredLanguage(?string $locale): self
     {
         $this->preferredLanguage = $locale;
+        return $this;
+    }
+
+    public function getDiscipline(): ?Discipline
+    {
+        return $this->discipline;
+    }
+
+    public function setDiscipline(?Discipline $discipline): self
+    {
+        $this->discipline = $discipline;
         return $this;
     }
 

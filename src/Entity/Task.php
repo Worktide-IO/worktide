@@ -18,6 +18,7 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use App\Entity\Enum\TaskCreatedVia;
+use App\Entity\Enum\Discipline;
 use App\Entity\Enum\TaskPriority;
 use App\Entity\Trait\AuditableTrait;
 use App\Entity\Trait\EntityIdTrait;
@@ -143,6 +144,13 @@ class Task
 
     #[ORM\Column(length: 12, enumType: TaskPriority::class)]
     private TaskPriority $priority = TaskPriority::Normal;
+
+    /**
+     * Skill discipline this task needs (developer/designer/…). Drives role-based
+     * offering of unassigned tickets + AI scheduling; null = unspecified.
+     */
+    #[ORM\Column(length: 20, nullable: true, enumType: Discipline::class)]
+    private ?Discipline $requiredDiscipline = null;
 
     /**
      * Polymorphic assignment principals — a mix of Users and Teams.
@@ -375,6 +383,17 @@ class Task
     public function setPriority(TaskPriority $priority): self
     {
         $this->priority = $priority;
+        return $this;
+    }
+
+    public function getRequiredDiscipline(): ?Discipline
+    {
+        return $this->requiredDiscipline;
+    }
+
+    public function setRequiredDiscipline(?Discipline $discipline): self
+    {
+        $this->requiredDiscipline = $discipline;
         return $this;
     }
 
