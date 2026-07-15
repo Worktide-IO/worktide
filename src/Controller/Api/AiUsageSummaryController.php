@@ -7,12 +7,15 @@ namespace App\Controller\Api;
 use App\Controller\Api\Concern\ResolvesWorkspaceMembership;
 use App\Entity\Enum\WorkspaceMemberRole;
 use App\Entity\User;
+use App\Entity\Workspace;
 use App\Entity\WorkspaceMember;
+use App\Service\Llm\LlmBudgetGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -35,25 +38,13 @@ final class AiUsageSummaryController
     public function __construct(
         private readonly Security $security,
         private readonly EntityManagerInterface $em,
+        private readonly LlmBudgetGuard $budget,
     ) {}
 
     #[Route(path: '/v1/ai-usage/summary', name: 'api_ai_usage_summary', methods: ['GET'])]
     public function __invoke(Request $request): JsonResponse
     {
-        $user = $this->security->getUser();
-        if (!$user instanceof User) {
-            throw new AccessDeniedHttpException();
-        }
-        $workspace = $this->resolveWorkspace($request, $user);
-        if ($workspace === null) {
-            throw new AccessDeniedHttpException('No workspace context.');
-        }
-
-        // Cost is admin-only: require Owner/Admin membership.
-        $member = $this->em->getRepository(WorkspaceMember::class)->findOneBy(['workspace' => $workspace, 'user' => $user]);
-        if ($member === null || !\in_array($member->getRole(), [WorkspaceMemberRole::Owner, WorkspaceMemberRole::Admin], true)) {
-            throw new AccessDeniedHttpException('AI cost data is restricted to workspace admins.');
-        }
+        $workspace = $this->requireAdminWorkspace($request);
 
         $days = max(1, min(self::MAX_DAYS, (int) $request->query->get('days', '30')));
         $since = (new \DateTimeImmutable())->modify(sprintf('-%d days', $days))->format('Y-m-d H:i:s');
@@ -90,6 +81,8 @@ final class AiUsageSummaryController
         return new JsonResponse([
             'periodDays' => $days,
             'currency' => 'USD',
+            'monthlyBudgetMicros' => $this->budget->budgetMicros($workspace),
+            'monthSpentMicros' => $this->budget->monthSpentMicros($workspace),
             'totalCostMicros' => (int) ($totals['cost'] ?? 0),
             'callCount' => (int) ($totals['calls'] ?? 0),
             'totalInputTokens' => (int) ($totals['in_t'] ?? 0),
@@ -105,6 +98,52 @@ final class AiUsageSummaryController
                 $byDay,
             ),
         ]);
+    }
+
+    /**
+     * Set the workspace's monthly AI budget (USD; 0 = unlimited). Owner/Admin only.
+     *
+     *   PUT /v1/ai-usage/budget   { "monthlyUsd": 50 }
+     */
+    #[Route(path: '/v1/ai-usage/budget', name: 'api_ai_usage_budget', methods: ['PUT'])]
+    public function setBudget(Request $request): JsonResponse
+    {
+        $workspace = $this->requireAdminWorkspace($request);
+
+        $body = json_decode($request->getContent(), true);
+        $usd = \is_array($body) ? ($body['monthlyUsd'] ?? null) : null;
+        if (!is_numeric($usd) || (float) $usd < 0) {
+            throw new BadRequestHttpException('"monthlyUsd" must be a number >= 0.');
+        }
+
+        $micros = (int) round((float) $usd * 1_000_000);
+        $settings = $workspace->getSettings() ?? [];
+        $ai = \is_array($settings['ai'] ?? null) ? $settings['ai'] : [];
+        $ai['monthlyBudgetMicros'] = $micros;
+        $settings['ai'] = $ai;
+        $workspace->setSettings($settings);
+        $this->em->flush();
+
+        return new JsonResponse(['monthlyBudgetMicros' => $micros]);
+    }
+
+    /** Resolve + require an Owner/Admin membership for the caller's workspace. */
+    private function requireAdminWorkspace(Request $request): Workspace
+    {
+        $user = $this->security->getUser();
+        if (!$user instanceof User) {
+            throw new AccessDeniedHttpException();
+        }
+        $workspace = $this->resolveWorkspace($request, $user);
+        if ($workspace === null) {
+            throw new AccessDeniedHttpException('No workspace context.');
+        }
+        $member = $this->em->getRepository(WorkspaceMember::class)->findOneBy(['workspace' => $workspace, 'user' => $user]);
+        if ($member === null || !\in_array($member->getRole(), [WorkspaceMemberRole::Owner, WorkspaceMemberRole::Admin], true)) {
+            throw new AccessDeniedHttpException('AI cost data is restricted to workspace admins.');
+        }
+
+        return $workspace;
     }
 
     /**

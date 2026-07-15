@@ -26,6 +26,8 @@ final class AnthropicLlmProvider implements LlmProviderInterface
     public function __construct(
         private readonly EgressGuard $egress,
         private readonly LlmUsageRecorder $usage,
+        private readonly AiUsageContext $usageContext,
+        private readonly LlmBudgetGuard $budget,
         ?string $apiKey = null,
         ?string $model = null,
     ) {
@@ -48,6 +50,8 @@ final class AnthropicLlmProvider implements LlmProviderInterface
         if (!$this->egress->isAllowed(EgressModule::Llm)) {
             throw new LlmException('LLM egress not approved (module "llm").');
         }
+        // Stop before the paid call once the workspace hits its monthly budget.
+        $this->budget->assertWithinBudget($this->usageContext->getWorkspace());
 
         $client = new Client(apiKey: $this->apiKey);
 
