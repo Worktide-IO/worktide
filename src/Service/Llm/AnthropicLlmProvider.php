@@ -25,6 +25,7 @@ final class AnthropicLlmProvider implements LlmProviderInterface
 
     public function __construct(
         private readonly EgressGuard $egress,
+        private readonly LlmUsageRecorder $usage,
         ?string $apiKey = null,
         ?string $model = null,
     ) {
@@ -60,6 +61,15 @@ final class AnthropicLlmProvider implements LlmProviderInterface
         } catch (\Throwable $e) {
             throw new LlmException('LLM request failed: ' . $e->getMessage(), previous: $e);
         }
+
+        // Account for the call as soon as we have a response — a refusal / empty
+        // reply below still consumed tokens.
+        $this->usage->record(
+            'anthropic',
+            $this->model,
+            (int) ($message->usage->inputTokens ?? 0),
+            (int) ($message->usage->outputTokens ?? 0),
+        );
 
         $stopReason = $message->stopReason;
         $stopValue = $stopReason instanceof \BackedEnum ? (string) $stopReason->value : (string) $stopReason;

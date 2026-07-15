@@ -17,6 +17,7 @@ use App\Entity\Tracker;
 use App\Repository\CommentRepository;
 use App\Repository\TagRepository;
 use App\Repository\TrackerRepository;
+use App\Service\Llm\AiUsageContext;
 use App\Service\Llm\LlmProviderInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -43,6 +44,7 @@ final class TicketTriageAssistant
         private readonly TagRepository $tags,
         private readonly CommentRepository $comments,
         private readonly EntityManagerInterface $em,
+        private readonly AiUsageContext $usageContext,
     ) {}
 
     public function isAvailable(): bool
@@ -79,6 +81,7 @@ final class TicketTriageAssistant
         $system = $this->taskSystemPrompt($trackerNames, $tagNames, $priorities);
         $user = $this->buildTaskContext($task);
 
+        $this->usageContext->set('triage', $workspace);
         $raw = $this->llm->completeJson($system, $user);
 
         $suggestion = [
@@ -102,6 +105,7 @@ final class TicketTriageAssistant
         $system = $this->conversationSystemPrompt($statuses);
         $user = $this->buildConversationContext($conversation);
 
+        $this->usageContext->set('triage', $conversation->getWorkspace());
         $raw = $this->llm->completeJson($system, $user);
 
         $suggestion = [
@@ -122,6 +126,7 @@ final class TicketTriageAssistant
      */
     public function suggestTicketForConversation(Conversation $conversation): array
     {
+        $this->usageContext->set('ticket_from_conversation', $conversation->getWorkspace());
         $raw = $this->llm->completeJson($this->ticketSuggestionSystemPrompt(), $this->buildConversationContext($conversation));
 
         $title = trim((string) ($raw['title'] ?? ''));
