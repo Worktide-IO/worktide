@@ -65,6 +65,7 @@ framework:
             # AI ticket triage — slow LLM call on its own transport so it never
             # starves the fast async queue.
             App\Message\TriageTicketMessage: ai_agents
+            App\Message\EstimateTaskMessage: ai_agents
             App\Message\SuggestConversationTicketMessage: ai_agents
             App\Message\GenerateMarketingCopyMessage: ai_agents
             App\Message\GenerateUpgradeOutreachMessage: ai_agents

@@ -350,6 +350,12 @@ final class RecommendationApplier
         $workspace = $task->getWorkspace();
         $suggestion = $recommendation->getSuggestion();
 
+        // Effort-estimate recommendations (kind Estimate) carry only this key.
+        $estimate = $suggestion['estimatedMinutes'] ?? null;
+        if (\is_int($estimate) && $estimate > 0) {
+            $task->setEstimatedMinutes($estimate);
+        }
+
         $trackerName = $suggestion['tracker'] ?? null;
         if (\is_string($trackerName) && $trackerName !== '') {
             $tracker = $this->trackers->findOneBy(['workspace' => $workspace, 'name' => $trackerName]);

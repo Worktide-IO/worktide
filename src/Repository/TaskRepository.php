@@ -6,8 +6,10 @@ namespace App\Repository;
 
 use App\Entity\Project;
 use App\Entity\Task;
+use App\Entity\Workspace;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @extends ServiceEntityRepository<Task>
@@ -17,6 +19,31 @@ class TaskRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Task::class);
+    }
+
+    /**
+     * Completed, non-deleted tasks in the workspace (excluding one id) — the
+     * candidate pool the effort-estimation assistant learns from. Newest first;
+     * the assistant re-ranks by similarity (tracker/tags) and keeps only those
+     * that actually have logged time.
+     *
+     * @return list<Task>
+     */
+    public function findEstimationCandidates(Workspace $workspace, Uuid $excludeId, int $limit = 30): array
+    {
+        /** @var list<Task> $rows */
+        $rows = $this->createQueryBuilder('t')
+            ->join('t.status', 's')
+            ->andWhere('t.workspace = :ws')->setParameter('ws', $workspace)
+            ->andWhere('s.isCompleted = true')
+            ->andWhere('t.deletedAt IS NULL')
+            ->andWhere('t.id != :exclude')->setParameter('exclude', $excludeId, 'uuid')
+            ->orderBy('t.updatedAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return $rows;
     }
 
     /**
