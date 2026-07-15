@@ -203,8 +203,10 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 - **Lern-Schleife** (offen): bei Task-Close Schätzung vs. Ist vergleichen, das per-Workspace-Modell kalibrieren.
 
 ### Schicht 3 — Auto-Scheduling
-- Aus (Prio + Schätzung + Deadline + Dependencies + UserCapacity + Absences) → Vorschlag wann/wer
-- Planungs-Ansicht zum Akzeptieren / Ändern
+- ~~Aus (Prio + Schätzung + Deadline + UserCapacity + Absences) → Vorschlag wann~~ — **Phase 1 erledigt**: LLM-Planer (`SchedulePlanningAssistant`) ordnet die offenen, zugewiesenen Tickets eines Staff (≤40) und verteilt sie über die freie Kapazität der nächsten 14 Tage (`UserCapacity` − Absences); `PlanScheduleHandler` schreibt sequentielle `startOn`/`scheduledEnd`-Slots. Trigger `POST /v1/me/ai-plan` (ai_agents, Budget/Usage-getrackt, Feature `schedule`). Dashboard-Widget „Meine Planung" (`/v1/dashboard/my-schedule`). Neues **Disziplin-Feld** (User + Task) als Grundlage.
+- **Phase 2 (offen):** rollenbasierte Angebote unzugeordneter Tickets (nach `Task.requiredDiscipline` ↔ `User.discipline`), Accept durch Staff → Re-Plan (Roadmap-Feature vom User).
+- **Phase 3 (offen):** Staff meldet **Krankheit/spontane Abwesenheit per Freitext** an die KI → LLM extrahiert (mit Rückfragen bei Unklarheit) eine `Absence` → Zeitplan wird neu berechnet → anschließend **Angebot, betroffene Kunden zu informieren**, sofern terminierte Aufgaben im Abwesenheitsfenster liegen (egress-gated Draft, Human-in-the-Loop).
+- Planungs-Ansicht zum Akzeptieren / Ändern (offen; heute schreibt der Plan direkt in die Team-Planner-Felder).
 
 ### Schicht 4 — Mail + Outbound
 - ~~AI klassifiziert Conversations~~ — **erledigt** (Fundament): Conversation-Triage (`TicketTriageAssistant::triageConversation` → Summary + Status inkl. Spam, + „Ticket aus Konversation?") über das `AiTriagePanel` auf der Inbox-Detailseite. Feinere Kategorien/Prioritäts-Scoring bleiben ausbaubar.
