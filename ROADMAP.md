@@ -198,8 +198,8 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 - **Entscheidung Polling vs. Langläufer**: Cron-Tick (1–5 min Latenz, einfach, crash-sicher) ist Default. Echte Sekunden-Latenz (IMAP IDLE / persistenter Agent-Loop = echter Daemon) nur bei konkretem Bedarf.
 
 ### Schicht 2 — Aufwands-Schätzung
-- AI schlägt `estimatedMinutes` vor — basierend auf TimeEntry-History ähnlicher Tasks (gleiches Projekttyp / Customer / Tags)
-- Lern-Schleife: bei Task-Close vergleicht Schätzung vs Ist, kalibriert das per-Workspace-Modell
+- ~~AI schlägt `estimatedMinutes` vor — basierend auf TimeEntry-History ähnlicher Tasks~~ — **erledigt**: `EffortEstimationAssistant` rankt abgeschlossene Workspace-Tasks nach Ähnlichkeit (gleicher Tracker / geteilte Tags), nimmt nur solche mit echter TimeEntry-Ist-Zeit als Ground-Truth, validiert die LLM-Zahl auf einen sinnvollen Int. Reused Human-in-the-Loop-Envelope: `POST /v1/tasks/{id}/ai-estimate` → `ai_agents` → Pending `AIRecommendation` (neuer Kind `estimate`) → Accept setzt `Task.estimatedMinutes` via `RecommendationApplier`. SPA: `AiEstimatePanel` im Task-Sheet (neben KI-Triage).
+- **Lern-Schleife** (offen): bei Task-Close Schätzung vs. Ist vergleichen, das per-Workspace-Modell kalibrieren.
 
 ### Schicht 3 — Auto-Scheduling
 - Aus (Prio + Schätzung + Deadline + Dependencies + UserCapacity + Absences) → Vorschlag wann/wer
@@ -359,7 +359,7 @@ Die ursprüngliche Sequenz A → C → B → D → D⁺ → E ist **weitgehend a
 
 1. **Gebautes produktiv schalten** — Go-Live-Config für Notifications/Mail (`EGRESS_ALLOW`, `MAILER_DSN`, `worker`/`scheduler`-Container; [docs/notifications-go-live.md](docs/notifications-go-live.md)) + die offenen SPA-Lücken zu bereits fertigem Backend schließen: Smart-Links-oEmbed-Proxy (A). (Portal Invoices-/Goals-UI ✓ + Discovered-Postfach-UI ✓ + visueller Workflow-Editor ✓ erledigt.)
 2. **Phase C — Helpdesk komplettieren**: Google-Workspace-OAuth, Auto-Reply pro Mailbox, Collision-Detection (Mercure-Presence), Inbound-Webhook (SendGrid/Mailgun/Resend). Schließt den Support-Loop, den Portal-Tickets bereits anstoßen.
-3. **Phase D — KI-Ausbau** (Phase-C-Daten + Portal liefern jetzt den Kontext): Aufwands-Schätzung + Lern-Schleife, Mail-Klassifikation + Reply-Suggestions, danach Auto-Scheduling. Modell-Routing (Ollama/vLLM) für datenschutzsensible Workspaces parallel.
+3. **Phase D — KI-Ausbau** (Phase-C-Daten + Portal liefern jetzt den Kontext): Aufwands-Schätzung ✓ (Lern-Schleife offen), Mail-Klassifikation + Reply-Suggestions, danach Auto-Scheduling. Modell-Routing (Ollama/vLLM) für datenschutzsensible Workspaces parallel.
 4. **Phase E — Rest**: Document-Vault (SSE + Retention/GoBD, baut auf dem S3-Adapter auf) + Portal-Vertiefung (Signatur, Retainer-Burndown, Magic-Link/SSO, Themability-Builder).
 5. **Phase D⁺ — Rest**: per-Workspace-Toggle + Hybrid-/Vektor-Suche — erst wenn Volumen/Qualität es rechtfertigen.
 6. **Phase F — Enterprise**: bedarfsgetrieben nach erster Enterprise-Anfrage (SSO/SCIM, 2FA/WebAuthn, Account-Lockout, Permission-/Notification-Schemes, Audit-SIEM-Export, OAuth-Server).
