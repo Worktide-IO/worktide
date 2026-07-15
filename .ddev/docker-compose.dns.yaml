@@ -1,0 +1,13 @@
+# Local dev only: the container's embedded DNS (127.0.0.11) forwards external
+# lookups to the host's upstreams — which include IPv6 resolvers the Docker
+# bridge can't reach, so external names (api.anthropic.com, google.com, …) time
+# out while inter-service names (db, meilisearch) still resolve. Pinning public
+# IPv4 upstreams here fixes external resolution WITHOUT breaking service
+# discovery: on a user-defined network Docker keeps 127.0.0.11 in resolv.conf
+# and only uses these as the forwarders. Egress itself already works (TCP 443 to
+# the API reaches it) — this is purely a resolver fix.
+services:
+  web:
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
