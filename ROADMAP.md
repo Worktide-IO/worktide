@@ -80,7 +80,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 - **Smart-Links** — externe URLs als Rich-Cards (oEmbed: YouTube, Figma, Confluence, …) — **teilweise**: die SPA rendert bereits Link-Cards / farbige Chips (`linkCard.tsx`, clientseitiger Resolver); der serverseitige oEmbed-Proxy hinter dem `EgressGuard` (echte Titel/Thumbnails) ist noch offen
 - ~~**Status-Updates** — strukturierte Projekt-Berichte (was läuft, Risiken, nächste Schritte)~~ — **erledigt** (Backend): `ProjectStatusUpdate`-Entity (CRUD unter `/v1/project_status_updates`), `ProjectHealth`-RAG (on_track/at_risk/off_track/on_hold/complete), drei Sektionen summary/risks/nextSteps, Autor via `createdByUser`, pro-Projekt-Feed (`?project=`), Domain-Events + Webhooks via `DomainEventEmitterSubscriber`. Report-Editor-UI **erledigt** (SPA): „Status-Updates"-Tab auf der Projekt-Detailseite + Dashboard-Widget „Status-Updates"
 - ~~**Top-Level-Routes** ausbauen: Kalender, Planer, Personen, Auswertungen~~ — **erledigt** (alle vier als Routen vorhanden)
-- **404-Seite** — eigene, gebrandete Not-Found-Seite für die Staff-SPA (und ggf. Portal) statt der Default-Fehlerseite, mit „zurück zum Dashboard"-Link.
+- ~~**404-Seite** — eigene, gebrandete Not-Found-Seite für die Staff-SPA (und ggf. Portal) statt der Default-Fehlerseite, mit „zurück zum Dashboard"-Link.~~ — **erledigt** (beide SPAs): `NotFoundPage` in `worktide-web` (Catch-all `*` innerhalb der authentifizierten Shell, Sidebar/Header bleiben, „Zurück zum Dashboard"-Link) und in `worktide-portal` (gebrandete Standalone-Seite mit `BrandMark`/`Footer` + „Zur Übersicht", ersetzt die bisherige stille `*→/tickets`-Weiterleitung; explizites `/→/tickets` bleibt), DE/EN.
 
 ---
 
