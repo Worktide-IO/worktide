@@ -134,6 +134,7 @@ services:
             $authPasswordChangeLimiter: '@limiter.auth_password_change'
             $authForgotPasswordLimiter: '@limiter.auth_forgot_password'
             $authResetPasswordLimiter: '@limiter.auth_reset_password'
+            $authMagicLinkConsumeLimiter: '@limiter.auth_magic_link_consume'
 
     # Same explicit binding for the public-form submission limiter.
     App\Controller\Api\PublicFormController:
@@ -195,6 +196,12 @@ services:
         arguments:
             $spaBaseUrl: '%env(SPA_BASE_URL)%'
     App\Controller\Api\Portal\PortalChatWebhookController:
+        arguments:
+            $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
+
+    # Passwordless portal login / staff impersonation link — needs the portal
+    # base to build the /auth/magic URL.
+    App\Service\Portal\MagicLinkService:
         arguments:
             $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
 

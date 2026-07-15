@@ -37,6 +37,7 @@ final class AuthRateLimitSubscriber implements EventSubscriberInterface
         private readonly RateLimiterFactory $authPasswordChangeLimiter,
         private readonly RateLimiterFactory $authForgotPasswordLimiter,
         private readonly RateLimiterFactory $authResetPasswordLimiter,
+        private readonly RateLimiterFactory $authMagicLinkConsumeLimiter,
     ) {}
 
     public static function getSubscribedEvents(): array
@@ -62,6 +63,8 @@ final class AuthRateLimitSubscriber implements EventSubscriberInterface
                 => $this->authForgotPasswordLimiter,
             $path === '/v1/auth/reset-password' && $request->isMethod('POST')
                 => $this->authResetPasswordLimiter,
+            $path === '/v1/auth/magic-link/consume' && $request->isMethod('POST')
+                => $this->authMagicLinkConsumeLimiter,
             default => null,
         };
         if ($factory === null) {
