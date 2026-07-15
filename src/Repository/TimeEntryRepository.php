@@ -8,6 +8,7 @@ use App\Entity\Project;
 use App\Entity\TimeEntry;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @extends ServiceEntityRepository<TimeEntry>
@@ -17,6 +18,16 @@ class TimeEntryRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, TimeEntry::class);
+    }
+
+    /** Total tracked minutes logged against one task (0 when none). */
+    public function sumMinutesForTask(Uuid $taskId): int
+    {
+        return (int) $this->createQueryBuilder('te')
+            ->select('COALESCE(SUM(te.durationMinutes), 0)')
+            ->andWhere('te.task = :task')->setParameter('task', $taskId, 'uuid')
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 
     /**
