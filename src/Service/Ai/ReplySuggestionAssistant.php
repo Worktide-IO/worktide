@@ -8,6 +8,7 @@ use App\Entity\Conversation;
 use App\Entity\InboundEvent;
 use App\Entity\SavedReply;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Service\Llm\AiUsageContext;
 use App\Service\Llm\LlmProviderInterface;
 
 /**
@@ -27,6 +28,7 @@ final class ReplySuggestionAssistant
     public function __construct(
         private readonly LlmProviderInterface $llm,
         private readonly EntityManagerInterface $em,
+        private readonly AiUsageContext $usageContext,
     ) {}
 
     public function isAvailable(): bool
@@ -42,6 +44,7 @@ final class ReplySuggestionAssistant
     /** Draft a reply body for the conversation. Returns the trimmed suggestion text. */
     public function suggestReply(Conversation $conversation): string
     {
+        $this->usageContext->set('reply', $conversation->getWorkspace());
         $reply = $this->llm->complete(
             $this->systemPrompt($conversation),
             $this->buildContext($conversation),

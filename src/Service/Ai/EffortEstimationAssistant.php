@@ -8,6 +8,7 @@ use App\Entity\Tag;
 use App\Entity\Task;
 use App\Repository\TaskRepository;
 use App\Repository\TimeEntryRepository;
+use App\Service\Llm\AiUsageContext;
 use App\Service\Llm\LlmProviderInterface;
 
 /**
@@ -34,6 +35,7 @@ final class EffortEstimationAssistant
         private readonly LlmProviderInterface $llm,
         private readonly TaskRepository $tasks,
         private readonly TimeEntryRepository $timeEntries,
+        private readonly AiUsageContext $usageContext,
     ) {}
 
     public function isAvailable(): bool
@@ -54,6 +56,7 @@ final class EffortEstimationAssistant
     {
         $history = $this->buildHistory($task);
 
+        $this->usageContext->set('estimate', $task->getWorkspace());
         $raw = $this->llm->completeJson($this->systemPrompt(), $this->buildContext($task, $history));
 
         return [

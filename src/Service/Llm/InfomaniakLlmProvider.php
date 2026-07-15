@@ -34,6 +34,7 @@ final class InfomaniakLlmProvider implements LlmProviderInterface
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly EgressGuard $egress,
+        private readonly LlmUsageRecorder $usage,
         ?string $apiToken = null,
         ?string $productId = null,
         ?string $model = null,
@@ -114,6 +115,15 @@ final class InfomaniakLlmProvider implements LlmProviderInterface
         } catch (\Throwable $e) {
             throw new LlmException('LLM request failed: ' . $e->getMessage(), previous: $e);
         }
+
+        // OpenAI-shape usage block; account before the content/finish-reason checks.
+        $usage = \is_array($data['usage'] ?? null) ? $data['usage'] : [];
+        $this->usage->record(
+            'infomaniak',
+            $this->model,
+            (int) ($usage['prompt_tokens'] ?? 0),
+            (int) ($usage['completion_tokens'] ?? 0),
+        );
 
         $choice = $data['choices'][0] ?? null;
         $finishReason = \is_array($choice) ? ($choice['finish_reason'] ?? null) : null;
