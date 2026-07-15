@@ -95,7 +95,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 
 ### Schicht 2 — Workflow-Engine
 - ~~**Workflow-per-Tracker × Status × Role**: WorkflowTransition + WorkflowPermission. Wer darf welchen Status-Wechsel auslösen, welche Felder sind in welchem Status editierbar.~~ — **erledigt** (Backend; SPA prüft Transitions im Board client-seitig vor)
-- **Visueller Workflow-Editor** (Drag-Drop, ähnlich Asana Workflow Builder). — **Backend vollständig** (`Workflow` + `WorkflowTransition` mit voller CRUD-API); verbleibt reine SPA-Arbeit.
+- ~~**Visueller Workflow-Editor** (Drag-Drop, ähnlich Asana Workflow Builder).~~ — **erledigt** (SPA): Übergangs-**Matrix** unter `/workflow` (Admin-Nav) — Zeilen = von-Status, Spalten = zu-Status, Zelle togglet eine `WorkflowTransition` je Tracker (Baseline = null-Tracker); Zell-Popover setzt erlaubte Rollen + Label, Default-open-Semantik sichtbar („offen"-Badge). CRUD gegen `/v1/workflow_transitions` (PATCH via merge-patch). Bewusst Matrix statt Node-Graph (kein neuer Graph-Lib-Dependency; bildet das `(Tracker × from → to)`-Modell 1:1 ab).
 
 ### Schicht 3 — Reporting
 - ~~**Reports SPA-UI mit Charts** (Recharts)~~ — **erledigt** (Phase B.3b/B.3c): Tabs unter `/auswertungen` für Zeit, Burndown, Created-vs-Resolved, Cycle-Time, MRR und **Cumulative Flow** (Status-Bänder pro Tag via DomainEventLog-Replay). Workload als Overlay im Team-Planner.
@@ -357,7 +357,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 
 Die ursprüngliche Sequenz A → C → B → D → D⁺ → E ist **weitgehend abgearbeitet**: A, B und D⁺ stehen, ebenso die Foundation von C, D und E; Kundenportal, Booking, Newsletter und Notifications sind live. Die Reihenfolge orientiert sich daher jetzt an den **Restarbeiten** — höchster Hebel zuerst:
 
-1. **Gebautes produktiv schalten** — Go-Live-Config für Notifications/Mail (`EGRESS_ALLOW`, `MAILER_DSN`, `worker`/`scheduler`-Container; [docs/notifications-go-live.md](docs/notifications-go-live.md)) + die offenen SPA-Lücken zu bereits fertigem Backend schließen: **visueller Workflow-Editor** (B), Smart-Links-oEmbed-Proxy (A). (Portal Invoices-/Goals-UI ✓ + Discovered-Postfach-UI ✓ erledigt.)
+1. **Gebautes produktiv schalten** — Go-Live-Config für Notifications/Mail (`EGRESS_ALLOW`, `MAILER_DSN`, `worker`/`scheduler`-Container; [docs/notifications-go-live.md](docs/notifications-go-live.md)) + die offenen SPA-Lücken zu bereits fertigem Backend schließen: Smart-Links-oEmbed-Proxy (A). (Portal Invoices-/Goals-UI ✓ + Discovered-Postfach-UI ✓ + visueller Workflow-Editor ✓ erledigt.)
 2. **Phase C — Helpdesk komplettieren**: Google-Workspace-OAuth, Auto-Reply pro Mailbox, Collision-Detection (Mercure-Presence), Inbound-Webhook (SendGrid/Mailgun/Resend). Schließt den Support-Loop, den Portal-Tickets bereits anstoßen.
 3. **Phase D — KI-Ausbau** (Phase-C-Daten + Portal liefern jetzt den Kontext): Aufwands-Schätzung + Lern-Schleife, Mail-Klassifikation + Reply-Suggestions, danach Auto-Scheduling. Modell-Routing (Ollama/vLLM) für datenschutzsensible Workspaces parallel.
 4. **Phase E — Rest**: Document-Vault (SSE + Retention/GoBD, baut auf dem S3-Adapter auf) + Portal-Vertiefung (Signatur, Retainer-Burndown, Magic-Link/SSO, Themability-Builder).
