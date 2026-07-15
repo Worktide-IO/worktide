@@ -1,6 +1,6 @@
 # Worktide Roadmap
 
-Stand 2026-07-12. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (via bluemine), Asana, Jira und FreeScout.
+Stand 2026-07-15. Konsolidierte Roadmap aus Inspiration durch awork, Redmine (via bluemine), Asana, Jira und FreeScout.
 
 ## Bereits gebaut
 
