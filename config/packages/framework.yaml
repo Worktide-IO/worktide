@@ -36,6 +36,13 @@ framework:
             policy: 'fixed_window'
             limit: 5
             interval: '15 minutes'
+        # Passwordless portal login consume (/v1/auth/magic-link/consume). The
+        # token is long-random + single-use + short-TTL, so this is
+        # defense-in-depth against guessing. Keyed on client IP.
+        auth_magic_link_consume:
+            policy: 'fixed_window'
+            limit: 10
+            interval: '15 minutes'
         # Anonymous public-form submissions (/v1/forms/{slug}), keyed on
         # client IP. Applied inside PublicFormController, not the firewall.
         public_form_submit:

@@ -9,6 +9,7 @@ use App\Entity\User;
 use App\Repository\ContactRepository;
 use App\Repository\UserRepository;
 use App\Service\PasswordResetService;
+use App\Service\Portal\MagicLinkService;
 use App\Service\Portal\PortalAccessResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -41,6 +42,7 @@ final class PortalAccessGrantController
         private readonly EntityManagerInterface $em,
         private readonly UserPasswordHasherInterface $hasher,
         private readonly PasswordResetService $resets,
+        private readonly MagicLinkService $magicLink,
         private readonly Security $security,
     ) {}
 
@@ -123,6 +125,39 @@ final class PortalAccessGrantController
         $this->em->flush();
 
         return new JsonResponse($this->grantResult($contact, $user, invited: true));
+    }
+
+    /**
+     * Issue a one-time magic link that logs the *staff member* into the portal
+     * AS this contact, to preview the customer's view without knowing their
+     * password. Returns the URL to open (in a new tab) — nothing is emailed.
+     * The generation is authorized (EDIT on the workspace); the resulting portal
+     * session is a short-lived, no-refresh preview (see MagicLinkService).
+     */
+    #[Route(
+        path: '/v1/contacts/{id}/portal-impersonation-link',
+        name: 'api_contacts_portal_impersonation_link',
+        requirements: ['id' => '[0-9a-fA-F-]{36}'],
+        methods: ['POST'],
+    )]
+    public function impersonationLink(string $id): JsonResponse
+    {
+        $contact = $this->loadEditableContact($id);
+
+        $user = $contact->getLinkedUser();
+        if (!$user instanceof User) {
+            throw new ConflictHttpException('Portal access is not granted yet — grant it first.');
+        }
+        if (!$contact->getCustomer()->isPortalEnabled()) {
+            throw new ConflictHttpException('Portal is not enabled for this customer.');
+        }
+
+        $staff = $this->security->getUser();
+        if (!$staff instanceof User) {
+            throw new AccessDeniedHttpException('Staff session required.');
+        }
+
+        return new JsonResponse(['url' => $this->magicLink->issueForImpersonation($contact, $staff)]);
     }
 
     #[Route(
