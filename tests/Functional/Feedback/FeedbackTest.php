@@ -144,6 +144,35 @@ final class FeedbackTest extends WebTestCase
         self::assertCount(1, $self, 'no self-notification for the reporter’s own reply');
     }
 
+    public function testPlatformMemberSeesSubmitterAndScreenshotIsGated(): void
+    {
+        $reporter = $this->member($this->user('reporter.fb@example.test'), $this->workspace('fb-rep'));
+        // A Worktide-team member = a member of the platform (feedback) workspace.
+        $platformWs = self::getContainer()->get(FeedbackProjectLocator::class)->platformWorkspace();
+        self::assertNotNull($platformWs);
+        $teamMember = $this->member($this->user('team.fb@example.test'), $platformWs);
+        $outsider = $this->member($this->user('outsider.fb@example.test'), $this->workspace('fb-out'));
+        $this->em->flush();
+
+        $this->post('/v1/feedback', $this->token($reporter), ['title' => 'Team can see me', 'category' => 'bug']);
+        $id = $this->json()['id'];
+
+        // The Worktide-team member sees the real submitter.
+        $this->get('/v1/feedback/' . $id, $this->token($teamMember));
+        self::assertSame('T User', $this->json()['ticket']['submitter']['name'] ?? null);
+
+        // An outside tenant's staff does NOT.
+        $this->get('/v1/feedback/' . $id, $this->token($outsider));
+        self::assertArrayNotHasKey('submitter', $this->json()['ticket']);
+
+        // The screenshot endpoint is Worktide-team-only (403 for outsiders,
+        // 404-not-403 for the team member when there is no screenshot).
+        $this->get('/v1/feedback/' . $id . '/screenshot', $this->token($outsider));
+        self::assertSame(403, $this->code());
+        $this->get('/v1/feedback/' . $id . '/screenshot', $this->token($teamMember));
+        self::assertSame(404, $this->code());
+    }
+
     public function testPortalToggleGatesClientsButNotStaff(): void
     {
         $ws = $this->workspace('fb-portal', ['portal' => ['enabled' => true, 'features' => ['feedback' => false]]]);
