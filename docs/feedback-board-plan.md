@@ -2,11 +2,11 @@
 
 > **STATUS (2026-07-16): IMPLEMENTED across all three repos, on `main`.** Backend
 > `worktide@818005d`; staff SPA `worktide-web@75014c9`; portal `worktide-portal@1290aec`.
-> Backend tests green (427; `tests/Functional/Feedback/FeedbackTest.php`). Verified live in the
-> staff browser (submit → board → cross-tenant anonymization "Ein Nutzer" vs "Du" → auto-refresh).
-> Portal verified by typecheck + production build + curl-tested endpoints (portal live walkthrough
-> pending — the portal vite dev server wasn't serving in the local env). Not yet deployed to prod
-> (needs the usual redeploy; the bootstrap command runs from the deploy entrypoint).
+> Backend tests green (427; `tests/Functional/Feedback/FeedbackTest.php`). **Verified live in both
+> browsers** (staff + portal): submit → board → cross-tenant anonymization confirmed both directions
+> (own = "You"/"Du", other-tenant = "A user"/"Ein Nutzer"), reply thread (reporter = "Reporter"/
+> "Ersteller"), public cross-tenant reply, and board auto-refresh after a widget submit. Not yet
+> deployed to prod (needs the usual redeploy; the bootstrap command runs from the deploy entrypoint).
 
 
 Goal: give **every Worktide user** — agency staff *and* their portal clients — a low-friction
