@@ -219,6 +219,14 @@ final class FeedbackService
         $this->em->flush();
     }
 
+    /** The admin-only screenshot File for a ticket, or null. */
+    public function screenshotFile(Uuid $id): ?File
+    {
+        $task = $this->requireTicket($id);
+
+        return $this->submissions->findOneByTask($task)?->getScreenshotFile();
+    }
+
     private function requireTicket(Uuid $id): Task
     {
         $task = $this->tasks->findFeedbackTicket($id, $this->locator->feedbackProjectOrFail());

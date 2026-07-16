@@ -111,12 +111,50 @@ final class FeedbackAnonymizer
             $dto['description'] = $task->getDescription();
         }
 
-        // Super-admins (Worktide triage) additionally see who filed it.
-        if ($this->security->isGranted('ROLE_SUPER_ADMIN')) {
-            $dto['submitter'] = $this->identity($reporter);
+        // The Worktide team (platform-workspace members / super-admins) also see
+        // who filed it and — in the detail view — the diagnostics + screenshot.
+        if ($this->isViewerPlatformAdmin()) {
+            $dto['submitter'] = $this->adminSubmitter($submission);
+            if ($withDescription) {
+                $dto['diagnostics'] = $submission?->getDiagnostics();
+                $dto['hasScreenshot'] = $submission?->getScreenshotFile() !== null;
+            }
         }
 
         return $dto;
+    }
+
+    /**
+     * True when the current viewer is on the Worktide side (a member of the
+     * platform feedback workspace, or a super-admin) — the only viewers who see
+     * submitter identity, diagnostics and screenshots. Everyone else gets the
+     * anonymized board.
+     */
+    public function isViewerPlatformAdmin(): bool
+    {
+        if ($this->security->isGranted('ROLE_SUPER_ADMIN')) {
+            return true;
+        }
+        $viewer = $this->security->getUser();
+        $id = $viewer instanceof User ? $viewer->getId()?->toRfc4122() : null;
+
+        return $id !== null && \in_array($id, $this->platformMemberIds(), true);
+    }
+
+    /** @return array{name: ?string, workspace: ?string, sourceApp: ?string, route: ?string} */
+    private function adminSubmitter(?FeedbackSubmission $submission): array
+    {
+        $contact = $submission?->getSubmitterContact();
+        $name = $contact !== null
+            ? trim($contact->getFirstName() . ' ' . $contact->getLastName())
+            : $this->reporterOf($submission)?->getFullName();
+
+        return [
+            'name' => $name !== null && $name !== '' ? $name : null,
+            'workspace' => $submission?->getOriginWorkspace()?->getName(),
+            'sourceApp' => $submission?->getSourceApp(),
+            'route' => $submission?->getRoute(),
+        ];
     }
 
     /**
@@ -170,7 +208,7 @@ final class FeedbackAnonymizer
      */
     private function authorLabel(?User $author, ?User $reporter): string|array
     {
-        if ($this->security->isGranted('ROLE_SUPER_ADMIN')) {
+        if ($this->isViewerPlatformAdmin()) {
             return $this->identity($author);
         }
         if ($this->isViewer($author)) {

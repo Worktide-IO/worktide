@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Controller\Api\Feedback;
 
 use App\Repository\WorkspaceRepository;
+use App\Service\Feedback\FeedbackAnonymizer;
 use App\Service\Feedback\FeedbackService;
+use App\Service\FileStorage;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use App\Entity\User;
@@ -13,7 +15,12 @@ use App\Entity\Workspace;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
@@ -29,6 +36,8 @@ final class FeedbackController
 {
     public function __construct(
         private readonly FeedbackService $feedback,
+        private readonly FeedbackAnonymizer $anonymizer,
+        private readonly FileStorage $storage,
         private readonly Security $security,
         private readonly WorkspaceRepository $workspaces,
         private readonly EntityManagerInterface $em,
@@ -113,6 +122,48 @@ final class FeedbackController
         $this->feedback->attachScreenshot(Uuid::fromString($id), $upload, $user);
 
         return new JsonResponse(null, 204);
+    }
+
+    /**
+     * Stream the admin-only screenshot for a ticket — Worktide team only
+     * (platform-workspace members / super-admins). Never exposed on the
+     * anonymized board.
+     */
+    #[Route(path: '/v1/feedback/{id}/screenshot', name: 'api_feedback_screenshot', requirements: ['id' => '[0-9a-fA-F-]{36}'], methods: ['GET'])]
+    public function screenshot(string $id): Response
+    {
+        if (!$this->anonymizer->isViewerPlatformAdmin()) {
+            throw new AccessDeniedHttpException('Feedback screenshots are visible to the Worktide team only.');
+        }
+
+        $file = $this->feedback->screenshotFile(Uuid::fromString($id));
+        $version = $file?->getCurrentVersion();
+        if ($file === null || $version === null) {
+            throw new NotFoundHttpException('No screenshot for this ticket.');
+        }
+
+        $response = new StreamedResponse(function () use ($version): void {
+            $stream = $this->storage->readStream($version);
+            $out = fopen('php://output', 'wb');
+            if ($out === false) {
+                return;
+            }
+            try {
+                stream_copy_to_stream($stream, $out);
+            } finally {
+                if (\is_resource($stream)) {
+                    fclose($stream);
+                }
+                fclose($out);
+            }
+        });
+        $response->headers->set('Content-Type', $version->getMimeType());
+        $response->headers->set(
+            'Content-Disposition',
+            $response->headers->makeDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $version->getOriginalFilename()),
+        );
+
+        return $response;
     }
 
     private function workspaceFromHeader(Request $request): ?Workspace

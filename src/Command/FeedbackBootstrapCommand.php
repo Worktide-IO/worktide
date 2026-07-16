@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Entity\Enum\WorkspaceMemberRole;
 use App\Entity\Project;
 use App\Entity\ProjectStatus;
 use App\Entity\TaskStatus;
 use App\Entity\Tracker;
+use App\Entity\User;
 use App\Entity\Workspace;
+use App\Entity\WorkspaceMember;
 use App\Service\Feedback\FeedbackProjectLocator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
@@ -61,6 +65,16 @@ final class FeedbackBootstrapCommand extends Command
         parent::__construct();
     }
 
+    protected function configure(): void
+    {
+        $this->addOption(
+            'admin',
+            null,
+            InputOption::VALUE_REQUIRED,
+            'Email of a user to add as a Worktide-team member of the platform workspace (they then see submitter identity + screenshots + diagnostics on the board).',
+        );
+    }
+
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
@@ -71,11 +85,33 @@ final class FeedbackBootstrapCommand extends Command
         $this->ensureTrackers($workspace, $statuses['New'] ?? null);
         $this->ensureProject($workspace, $projectStatus);
 
+        $adminEmail = (string) ($input->getOption('admin') ?? '');
+        if ($adminEmail !== '') {
+            $this->ensurePlatformMember($workspace, $adminEmail, $io);
+        }
+
         $this->em->flush();
 
         $io->success('Feedback board is provisioned (workspace "worktide-platform", project WTFB).');
 
         return Command::SUCCESS;
+    }
+
+    private function ensurePlatformMember(Workspace $workspace, string $email, SymfonyStyle $io): void
+    {
+        $user = $this->em->getRepository(User::class)->findOneBy(['email' => mb_strtolower(trim($email))]);
+        if (!$user instanceof User) {
+            $io->warning(sprintf('No user with email "%s" — skipped adding a Worktide-team member.', $email));
+
+            return;
+        }
+        $existing = $this->em->getRepository(WorkspaceMember::class)->findOneBy(['workspace' => $workspace, 'user' => $user]);
+        if ($existing instanceof WorkspaceMember) {
+            return;
+        }
+        $member = (new WorkspaceMember())->setUser($user)->setWorkspace($workspace)->setRole(WorkspaceMemberRole::Owner);
+        $this->em->persist($member);
+        $io->writeln(sprintf('Added %s as a Worktide-team member of the feedback workspace.', $email));
     }
 
     private function ensureWorkspace(): Workspace
