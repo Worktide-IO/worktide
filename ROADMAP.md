@@ -214,6 +214,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 - **Automatische Status-Updates an Kunden bei Conversation-Closed** (offen).
 
 ### Schicht 5 — Smart Features
+- ~~**KI-Kommandozeile** aufs Dashboard~~ — **erledigt (MVP)**: Freitext-Eingabe (`AiAssistantWidget`) → `AgentCommandRouter` (LLM, Feature `command`) klassifiziert in Intent (Abwesenheit / Ticket anlegen / Produkt bewerben / Rückfrage) + extrahiert Namen; `POST /v1/me/agent-command` schlägt vor (Namen serverseitig deterministisch aufgelöst), `/execute` handelt nach Bestätigung. **Berechtigungslogik:** der Assistent handelt strikt AS der User — jede Aktion ist an dessen Capability gebunden (`PermissionResolver`: `TaskCreate`, Workspace-`EDIT` für Marketing; Abwesenheit self-service), keine Eskalation; fehlende Rechte → `denied`/403. Erweiterbar um weitere Intents.
 - "Diese Aufgabe in Subtasks aufbrechen" (AI-Breakdown)
 - Natural-Language-Search → API-Filter-Generierung
 
