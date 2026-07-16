@@ -114,6 +114,7 @@ final class PortalAccessResolver
         'newsletters',
         'booking',
         'absence',
+        'feedback',
     ];
 
     /**
@@ -132,9 +133,14 @@ final class PortalAccessResolver
         // hidden are forced off, even when the workspace enables them.
         $hidden = $this->contact()->getPortalHiddenFeatures();
 
+        // `tickets` and `feedback` are on by default (opt-out); the feedback
+        // board is a per-workspace switch the agency admin can turn off for
+        // their portal clients. Every other screen is off unless enabled.
+        $defaultOn = ['tickets', 'feedback'];
+
         $features = [];
         foreach (self::FEATURE_KEYS as $key) {
-            $features[$key] = ($stored[$key] ?? ($key === 'tickets')) === true
+            $features[$key] = ($stored[$key] ?? \in_array($key, $defaultOn, true)) === true
                 && !\in_array($key, $hidden, true);
         }
         return $features;

@@ -22,6 +22,48 @@ class TaskRepository extends ServiceEntityRepository
     }
 
     /**
+     * The shared, cross-tenant feedback board: all tickets in the feedback
+     * project, optionally filtered by category (tracker) / status. A plain
+     * repo query — NOT touched by WorkspaceScopeExtension — so every tenant's
+     * submissions are returned for the (anonymized) board. Newest first.
+     *
+     * @return list<Task>
+     */
+    public function findFeedbackBoard(Project $feedbackProject, ?Uuid $trackerId = null, ?Uuid $statusId = null): array
+    {
+        $qb = $this->createQueryBuilder('t')
+            ->andWhere('t.project = :project')
+            ->andWhere('t.deletedAt IS NULL')
+            ->setParameter('project', $feedbackProject)
+            ->orderBy('t.createdAt', 'DESC');
+
+        if ($trackerId !== null) {
+            $qb->andWhere('t.tracker = :tracker')->setParameter('tracker', $trackerId, 'uuid');
+        }
+        if ($statusId !== null) {
+            $qb->andWhere('t.status = :status')->setParameter('status', $statusId, 'uuid');
+        }
+
+        return $qb->getQuery()->getResult();
+    }
+
+    /**
+     * A single feedback ticket by id, scoped to the feedback project (so this
+     * endpoint can never reach a normal tenant task). Null if not found.
+     */
+    public function findFeedbackTicket(Uuid $id, Project $feedbackProject): ?Task
+    {
+        return $this->createQueryBuilder('t')
+            ->andWhere('t.id = :id')
+            ->andWhere('t.project = :project')
+            ->andWhere('t.deletedAt IS NULL')
+            ->setParameter('id', $id, 'uuid')
+            ->setParameter('project', $feedbackProject)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    /**
      * Completed, non-deleted tasks in the workspace (excluding one id) — the
      * candidate pool the effort-estimation assistant learns from. Newest first;
      * the assistant re-ranks by similarity (tracker/tags) and keeps only those

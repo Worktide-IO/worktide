@@ -49,6 +49,17 @@ framework:
             policy: 'sliding_window'
             limit: 10
             interval: '1 minute'
+        # Feedback board submit / reply. Authenticated + write to ONE shared
+        # global board, so keyed on the USER id (not IP) — one account can't
+        # flood the board. Applied inside the feedback controllers.
+        feedback_submit:
+            policy: 'sliding_window'
+            limit: 10
+            interval: '1 minute'
+        feedback_reply:
+            policy: 'sliding_window'
+            limit: 20
+            interval: '1 minute'
         # Token-as-credential accept endpoints (workspace + customer
         # invitations). Tokens are long-random, so this is defense-in-depth
         # against token guessing. Keyed on client IP. Applied in

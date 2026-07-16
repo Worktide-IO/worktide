@@ -49,6 +49,12 @@ if [ "$1" = 'frankenphp' ] || [ "$1" = 'php' ] || [ "$1" = 'bin/console' ] || [ 
 	if [ "${AUTO_MIGRATE:-0}" = "1" ]; then
 		echo "[entrypoint] running doctrine migrations..."
 		php bin/console doctrine:migrations:migrate --no-interaction --all-or-nothing --allow-no-migration
+
+		# Idempotently provision the shared feedback board (platform workspace +
+		# WTFB project + trackers/statuses). ORM-based + safe to re-run; kept out
+		# of the migrations because it seeds trait-heavy entities via the ORM.
+		echo "[entrypoint] bootstrapping feedback board..."
+		php bin/console app:feedback:bootstrap --no-interaction || true
 	fi
 
 	# Warm the cache (idempotent, cheap when already warm)
