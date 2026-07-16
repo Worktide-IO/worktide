@@ -263,3 +263,4 @@ notification:
   customer_file_upload: '%customer% hat eine Datei hochgeladen'
   file_shared: 'Neue Datei für Sie bereitgestellt'
   task_updated: '%ticket% wurde aktualisiert'
+  feedback_reply: 'Neue Antwort auf Ihr Feedback %ticket%'

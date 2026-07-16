@@ -15,4 +15,5 @@ enum TaskCreatedVia: string
     case Recurring = 'recurring';
     case Template = 'template';
     case Portal = 'portal';
+    case Feedback = 'feedback';
 }

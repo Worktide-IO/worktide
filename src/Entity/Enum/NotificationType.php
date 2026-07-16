@@ -24,6 +24,7 @@ enum NotificationType: string
     case CustomerFileUpload = 'customer_file_upload'; // customer uploaded → notify responsible staff
     case FileShared = 'file_shared';                  // staff shared a file → notify the customer's portal contacts
     case TaskUpdated = 'task_updated';                // an assigned ticket changed → notify its assignees
+    case FeedbackReply = 'feedback_reply';            // someone replied on a feedback-board ticket → notify the reporter
 
     /**
      * Types whose async (email/chat) delivery is collected and sent as ONE

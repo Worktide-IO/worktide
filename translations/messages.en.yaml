@@ -263,3 +263,4 @@ notification:
   customer_file_upload: '%customer% uploaded a file'
   file_shared: 'A new file was shared with you'
   task_updated: '%ticket% was updated'
+  feedback_reply: 'New reply on your feedback %ticket%'

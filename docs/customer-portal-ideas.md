@@ -126,6 +126,12 @@ Eine schlanke Produkt-/Feature-Roadmap, die im Portal sichtbar gemacht werden ka
   - **Launch-Benachrichtigung:** beim Übergang `stage → live` kann der bereits gebaute **Launch-Notification-Trigger** feuern („Neues Feature/Produkt live").
   - **Feature-Voting (optional):** Kunden drücken Interesse/Upvote aus – reuse des `Idea`/`IdeaVote`-Musters (deckt sich mit dem „Feature-Voting"-Punkt oben in §6).
 
+> **→ Inbound-Feedback (Bugs / Feature-Wünsche / UI-UX-Änderungen).** Die *eingehende* Hälfte
+> (Nutzer melden an Worktide) ist separat als geteiltes, tenant-übergreifendes Feedback-Board
+> geplant — siehe **`docs/feedback-board-plan.md`** (Entscheidungen 2026-07-16: ein globales
+> anonymisiertes Board aus `Task`/`Tracker`/`Comment`, cloud-first, Threaded-Replies, pro-Workspace
+> Client-Toggle). Diese §6a hier bleibt die *ausgehende* Produkt-Roadmap.
+
 ## 7. Kommunikation & Termine
 
 - Echtzeit-Aktivitätsfeed & Benachrichtigungen (Mercure)

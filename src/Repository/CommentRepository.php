@@ -29,6 +29,41 @@ class CommentRepository extends ServiceEntityRepository
      * @param list<Uuid> $taskIds
      * @return list<Comment>
      */
+    /**
+     * Reply counts per task (non-hidden Task comments), keyed by task rfc4122
+     * id. Used by the feedback board list to show a reply count without
+     * loading every comment.
+     *
+     * @param list<Uuid> $taskIds
+     * @return array<string, int>
+     */
+    public function countByTaskIds(array $taskIds): array
+    {
+        if ($taskIds === []) {
+            return [];
+        }
+
+        $rows = $this->createQueryBuilder('c')
+            ->select('c.targetId AS tid, COUNT(c.id) AS n')
+            ->andWhere('c.target = :target')
+            ->andWhere('c.targetId IN (:ids)')
+            ->andWhere('c.isHiddenForConnectUsers = false')
+            ->setParameter('target', CommentTarget::Task)
+            ->setParameter('ids', array_map(static fn (Uuid $id) => $id->toBinary(), $taskIds), ArrayParameterType::BINARY)
+            ->groupBy('c.targetId')
+            ->getQuery()
+            ->getResult();
+
+        $counts = [];
+        foreach ($rows as $row) {
+            $tid = $row['tid'];
+            $key = $tid instanceof Uuid ? $tid->toRfc4122() : (string) $tid;
+            $counts[$key] = (int) $row['n'];
+        }
+
+        return $counts;
+    }
+
     public function findRecentForTaskIds(array $taskIds, int $limit = 30): array
     {
         if ($taskIds === []) {

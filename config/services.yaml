@@ -152,6 +152,17 @@ services:
         arguments:
             $publicFormSubmitLimiter: '@limiter.public_form_submit'
 
+    # Feedback board submit/reply limiters (keyed on user id in the controllers).
+    App\Controller\Api\Feedback\FeedbackController:
+        arguments:
+            $feedbackSubmitLimiter: '@limiter.feedback_submit'
+            $feedbackReplyLimiter: '@limiter.feedback_reply'
+
+    App\Controller\Api\Portal\PortalFeedbackController:
+        arguments:
+            $feedbackSubmitLimiter: '@limiter.feedback_submit'
+            $feedbackReplyLimiter: '@limiter.feedback_reply'
+
     # Workspace-invitation email (branded accept link → SPA).
     App\Service\WorkspaceInvitationMailer:
         arguments:
