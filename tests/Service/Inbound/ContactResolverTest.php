@@ -56,6 +56,51 @@ final class ContactResolverTest extends TestCase
         self::assertNull((new ContactResolver($contacts))->resolveForEvent($event));
     }
 
+    public function testResolveForConversationAdoptsContactsCustomer(): void
+    {
+        $customer = $this->createStub(Customer::class);
+        $contact = $this->createStub(Contact::class);
+        $contact->method('getCustomer')->willReturn($customer);
+
+        $contacts = $this->createStub(ContactRepository::class);
+        $contacts->method('findOneByWorkspaceAndEmail')->willReturn($contact);
+
+        $conversation = $this->createMock(Conversation::class);
+        $conversation->method('getCustomer')->willReturn(null);
+        $conversation->method('getSenderRaw')->willReturn('Ada Lovelace <ada@x.test>');
+        $conversation->method('getWorkspace')->willReturn(new Workspace());
+        $conversation->expects(self::once())->method('setCustomer')->with($customer);
+
+        self::assertSame($contact, (new ContactResolver($contacts))->resolveForConversation($conversation));
+    }
+
+    public function testResolveForConversationLeavesAssignedThreadUntouched(): void
+    {
+        // Already has a customer → never re-queries, never overwrites (idempotent backfill).
+        $contacts = $this->createMock(ContactRepository::class);
+        $contacts->expects(self::never())->method('findOneByWorkspaceAndEmail');
+
+        $conversation = $this->createMock(Conversation::class);
+        $conversation->method('getCustomer')->willReturn($this->createStub(Customer::class));
+        $conversation->expects(self::never())->method('setCustomer');
+
+        self::assertNull((new ContactResolver($contacts))->resolveForConversation($conversation));
+    }
+
+    public function testResolveForConversationUnknownSenderResolvesToNull(): void
+    {
+        $contacts = $this->createStub(ContactRepository::class);
+        $contacts->method('findOneByWorkspaceAndEmail')->willReturn(null);
+
+        $conversation = $this->createMock(Conversation::class);
+        $conversation->method('getCustomer')->willReturn(null);
+        $conversation->method('getSenderRaw')->willReturn('stranger@x.test');
+        $conversation->method('getWorkspace')->willReturn(new Workspace());
+        $conversation->expects(self::never())->method('setCustomer');
+
+        self::assertNull((new ContactResolver($contacts))->resolveForConversation($conversation));
+    }
+
     public function testMalformedSenderShortCircuits(): void
     {
         $contacts = $this->createMock(ContactRepository::class);
