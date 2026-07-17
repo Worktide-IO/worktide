@@ -20,6 +20,39 @@ class ChannelRepository extends ServiceEntityRepository
     }
 
     /**
+     * Lowercased, distinct addresses of every (non-deleted) channel in the
+     * workspace — the workspace's *own* account addresses. A sender equal to
+     * one of these is us sending on our own behalf (contact-form mailer,
+     * invoice mailer, notification loop-back), never a real correspondent, so
+     * {@see \App\Service\Inbound\ContactResolver} uses this to refuse
+     * auto-linking such mail to a Contact/Customer.
+     *
+     * @return list<string>
+     */
+    public function findOwnAddresses(Workspace $workspace): array
+    {
+        /** @var list<array{address: ?string}> $rows */
+        $rows = $this->createQueryBuilder('c')
+            ->select('DISTINCT c.address AS address')
+            ->where('c.workspace = :ws')
+            ->andWhere('c.address IS NOT NULL')
+            ->andWhere('c.deletedAt IS NULL')
+            ->setParameter('ws', $workspace)
+            ->getQuery()
+            ->getScalarResult();
+
+        $addresses = [];
+        foreach ($rows as $row) {
+            $address = mb_strtolower(trim((string) $row['address']));
+            if ($address !== '') {
+                $addresses[] = $address;
+            }
+        }
+
+        return array_values(array_unique($addresses));
+    }
+
+    /**
      * Every enabled inbound channel in the workspace — what the
      * pull scheduler iterates over.
      *

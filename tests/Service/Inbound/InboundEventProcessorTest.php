@@ -10,6 +10,7 @@ use App\Entity\Channel;
 use App\Entity\Enum\InboundEventState;
 use App\Entity\InboundEvent;
 use App\Entity\Workspace;
+use App\Repository\ChannelRepository;
 use App\Repository\ContactRepository;
 use App\Repository\ConversationRepository;
 use App\Repository\InboundEventRepository;
@@ -52,7 +53,7 @@ final class InboundEventProcessorTest extends TestCase
 
         $processor = new InboundEventProcessor(
             new NullLogger(),
-            new ContactResolver($this->createStub(ContactRepository::class)),
+            new ContactResolver($this->createStub(ContactRepository::class), $this->createStub(ChannelRepository::class)),
             new MailRelevanceClassifier(),
             $this->createStub(MessageBusInterface::class),
             new AdapterRegistry([], [], [$threader], [], [], ['email_imap' => 0]),
@@ -77,7 +78,7 @@ final class InboundEventProcessorTest extends TestCase
 
         $processor = new InboundEventProcessor(
             new NullLogger(),
-            new ContactResolver($this->createStub(ContactRepository::class)),
+            new ContactResolver($this->createStub(ContactRepository::class), $this->createStub(ChannelRepository::class)),
             new MailRelevanceClassifier(),
             $this->createStub(MessageBusInterface::class),
             new AdapterRegistry([], [], []), // no threaders registered
