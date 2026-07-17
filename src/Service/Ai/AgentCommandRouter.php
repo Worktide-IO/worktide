@@ -18,7 +18,7 @@ use App\Service\Llm\LlmProviderInterface;
 final class AgentCommandRouter
 {
     private const INTENTS = ['absence', 'create_ticket', 'promote_product', 'clarify'];
-    private const TYPES = ['sick', 'vacation', 'other'];
+    private const TYPES = ['sick', 'child_sick', 'vacation', 'other'];
 
     public function __construct(
         private readonly LlmProviderInterface $llm,
@@ -38,7 +38,7 @@ final class AgentCommandRouter
     /**
      * @return array{
      *   intent: string, clarify: ?string,
-     *   startsOn: ?string, endsOn: ?string, absenceType: string,
+     *   startsOn: ?string, endsOn: ?string, absenceType: string, availabilityPercent: int,
      *   title: ?string, description: ?string, customerName: ?string, projectName: ?string,
      *   productName: ?string
      * }
@@ -54,7 +54,10 @@ final class AgentCommandRouter
 
         Intents:
         - "absence": the person reports being sick/away. Extract startsOn/endsOn
-          ("YYYY-MM-DD", resolve relative dates), absenceType ("sick"|"vacation"|"other").
+          ("YYYY-MM-DD", resolve relative dates), absenceType
+          ("sick"|"child_sick" (own child ill)|"vacation"|"other"), and
+          availabilityPercent (0–100, how much they can still work; 0 = fully away,
+          e.g. 50 for "halbtags krank"; default 0).
         - "create_ticket": a task/feature/request to track. Extract a concise "title",
           a "description" (the details/request), and any named "customerName" and/or
           "projectName" mentioned.
@@ -64,8 +67,8 @@ final class AgentCommandRouter
         Respond as a JSON object with keys: intent (one of absence|create_ticket|
         promote_product|clarify), clarify (a short question in the user's language when
         intent is clarify OR a needed field is ambiguous, else null), startsOn, endsOn,
-        absenceType, title, description, customerName, projectName, productName
-        (use null for anything not applicable). Extract names verbatim; do not invent ids.
+        absenceType, availabilityPercent, title, description, customerName, projectName,
+        productName (use null for anything not applicable). Extract names verbatim; do not invent ids.
         PROMPT;
 
         $raw = $this->llm->completeJson($system, mb_substr(trim($text), 0, 1000), 700);
@@ -78,6 +81,7 @@ final class AgentCommandRouter
             'startsOn' => $this->date($raw['startsOn'] ?? null),
             'endsOn' => $this->date($raw['endsOn'] ?? null) ?? $this->date($raw['startsOn'] ?? null),
             'absenceType' => \in_array($raw['absenceType'] ?? null, self::TYPES, true) ? $raw['absenceType'] : 'sick',
+            'availabilityPercent' => \is_numeric($raw['availabilityPercent'] ?? null) ? max(0, min(100, (int) $raw['availabilityPercent'])) : 0,
             'title' => $this->str($raw['title'] ?? null, 200),
             'description' => $this->str($raw['description'] ?? null, 4000),
             'customerName' => $this->str($raw['customerName'] ?? null, 120),

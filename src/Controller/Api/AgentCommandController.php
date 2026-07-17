@@ -113,6 +113,7 @@ final class AgentCommandController
             }
             return new JsonResponse(['intent' => 'absence', 'proposal' => [
                 'startsOn' => $r['startsOn'], 'endsOn' => $r['endsOn'], 'type' => $r['absenceType'],
+                'availabilityPercent' => $r['availabilityPercent'],
             ]]);
         }
 
@@ -192,11 +193,13 @@ final class AgentCommandController
         if ($start === null || $end === null) {
             throw new BadRequestHttpException('startsOn/endsOn required.');
         }
-        $type = \in_array($body['type'] ?? null, ['sick', 'vacation', 'other'], true) ? $body['type'] : 'sick';
+        $type = \in_array($body['type'] ?? null, ['sick', 'child_sick', 'vacation', 'other'], true) ? $body['type'] : 'sick';
+        $availabilityPercent = \is_numeric($body['availabilityPercent'] ?? null) ? (int) $body['availabilityPercent'] : 0;
 
         $absence = (new Absence())
             ->setWorkspace($workspace)->setUser($user)
-            ->setStartsOn($start->setTime(0, 0))->setEndsOn($end->setTime(0, 0))->setType($type);
+            ->setStartsOn($start->setTime(0, 0))->setEndsOn($end->setTime(0, 0))->setType($type)
+            ->setAvailabilityPercent($availabilityPercent);
         $this->em->persist($absence);
         $this->em->flush();
 
