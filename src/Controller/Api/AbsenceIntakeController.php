@@ -8,19 +8,12 @@ use App\Controller\Api\Concern\ResolvesWorkspaceMembership;
 use App\Egress\EgressGuard;
 use App\Egress\EgressModule;
 use App\Entity\Absence;
-use App\Entity\Customer;
-use App\Entity\Enum\AssigneePrincipalType;
-use App\Entity\Enum\OutboundMessageKind;
-use App\Entity\Enum\OutboundMessageStatus;
-use App\Entity\OutboundMessage;
-use App\Entity\Task;
 use App\Entity\User;
 use App\Message\PlanScheduleMessage;
-use App\Repository\ChannelRepository;
+use App\Service\Absence\AbsenceConflictResolver;
 use App\Service\Ai\AbsenceIntakeAssistant;
 use App\Service\Llm\LlmException;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -30,7 +23,6 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Uid\Uuid;
 
 /**
  * Conversational absence intake (Phase 3): a staff member tells the AI about a
@@ -51,8 +43,8 @@ final class AbsenceIntakeController
         private readonly EntityManagerInterface $em,
         private readonly MessageBusInterface $bus,
         private readonly AbsenceIntakeAssistant $assistant,
-        private readonly ChannelRepository $channels,
         private readonly EgressGuard $egress,
+        private readonly AbsenceConflictResolver $conflicts,
     ) {}
 
     #[Route(path: '/v1/me/absence-intake', name: 'api_me_absence_intake', methods: ['POST'])]
@@ -85,15 +77,16 @@ final class AbsenceIntakeController
         $start = new \DateTimeImmutable($parsed['startsOn']);
         $end = new \DateTimeImmutable($parsed['endsOn']);
 
-        // Compute affected customer-facing tickets BEFORE re-planning moves them.
-        $affected = $this->affectedCustomers($user, $workspace, $start, $end);
+        // Compute affected appointments + customer-facing tickets BEFORE re-planning moves them.
+        $affected = $this->conflicts->findConflicts($user, $workspace, $start, $end);
 
         $absence = (new Absence())
             ->setWorkspace($workspace)
             ->setUser($user)
             ->setStartsOn($start->setTime(0, 0))
             ->setEndsOn($end->setTime(0, 0))
-            ->setType($parsed['type']);
+            ->setType($parsed['type'])
+            ->setAvailabilityPercent($parsed['availabilityPercent']);
         $this->em->persist($absence);
         $this->em->flush();
 
@@ -110,7 +103,9 @@ final class AbsenceIntakeController
             'startsOn' => $parsed['startsOn'],
             'endsOn' => $parsed['endsOn'],
             'type' => $parsed['type'],
-            'affected' => $affected,
+            'availabilityPercent' => $parsed['availabilityPercent'],
+            'affected' => $affected['customers'],
+            'affectedBookings' => $affected['bookings'],
         ], Response::HTTP_CREATED);
     }
 
@@ -120,131 +115,14 @@ final class AbsenceIntakeController
         [$user, $workspace] = $this->context($request);
 
         $body = json_decode($request->getContent(), true);
-        $taskIds = \is_array($body) && \is_array($body['taskIds'] ?? null) ? $body['taskIds'] : [];
+        $taskIds = \is_array($body) && \is_array($body['taskIds'] ?? null) ? array_values($body['taskIds']) : [];
         if ($taskIds === []) {
             throw new BadRequestHttpException('taskIds required.');
         }
 
-        $channel = $this->channels->findEnabledEmailOutbound($workspace)[0] ?? null;
+        $result = $this->conflicts->resolve($user, $workspace, [], $taskIds);
 
-        // Group the (validated) tasks by customer.
-        /** @var array<string, array{customer: Customer, titles: list<string>}> $byCustomer */
-        $byCustomer = [];
-        foreach ($taskIds as $rawId) {
-            if (!\is_string($rawId) || !Uuid::isValid($rawId)) {
-                continue;
-            }
-            $task = $this->em->find(Task::class, Uuid::fromString($rawId));
-            $customer = $task?->getProject()?->getCustomer();
-            if ($task === null || $customer === null || !$task->getWorkspace()->getId()?->equals($workspace->getId())) {
-                continue;
-            }
-            $cid = $customer->getId()?->toRfc4122() ?? '';
-            $byCustomer[$cid] ??= ['customer' => $customer, 'titles' => []];
-            $byCustomer[$cid]['titles'][] = $task->getTitle();
-        }
-
-        $drafted = [];
-        foreach ($byCustomer as $entry) {
-            $customer = $entry['customer'];
-            $recipient = $this->resolveRecipientEmail($customer);
-            $result = ['customerId' => $customer->getId()?->toRfc4122(), 'customerName' => $customer->getName(), 'recipient' => $recipient];
-            if ($channel === null) {
-                $drafted[] = $result + ['created' => false, 'reason' => 'no_email_channel'];
-                continue;
-            }
-            if ($recipient === null) {
-                $drafted[] = $result + ['created' => false, 'reason' => 'no_recipient'];
-                continue;
-            }
-
-            $list = implode('', array_map(static fn (string $t): string => "\n· " . $t, $entry['titles']));
-            $message = (new OutboundMessage())
-                ->setWorkspace($workspace)
-                ->setChannel($channel)
-                ->setRecipientRaw($recipient)
-                ->setSubject('Kurzfristige Verzögerung bei Ihren offenen Aufgaben')
-                ->setBody(
-                    "Guten Tag,\n\naufgrund einer kurzfristigen Abwesenheit verzögert sich voraussichtlich die "
-                    . "Bearbeitung der folgenden Aufgaben:{$list}\n\nWir melden uns, sobald es weitergeht, und "
-                    . "bitten um Ihr Verständnis.\n\nBeste Grüße",
-                )
-                ->setKind(OutboundMessageKind::Reply)
-                ->setStatus(OutboundMessageStatus::Queued)
-                ->setCreatedByUser($user);
-            $this->em->persist($message);
-            $drafted[] = $result + ['created' => true];
-        }
-        $this->em->flush();
-
-        return new JsonResponse(['drafted' => $drafted]);
-    }
-
-    /**
-     * Open, customer-facing tickets assigned to the user with a planned slot in
-     * the [start, end] window, grouped by customer.
-     *
-     * @return list<array<string, mixed>>
-     */
-    private function affectedCustomers(User $user, \App\Entity\Workspace $workspace, \DateTimeImmutable $start, \DateTimeImmutable $end): array
-    {
-        /** @var list<Task> $tasks */
-        $tasks = $this->em->createQueryBuilder()
-            ->select('t', 'p', 'c')
-            ->from(Task::class, 't')
-            ->join('t.status', 's')
-            ->join('t.project', 'p')
-            ->join('p.customer', 'c')
-            ->innerJoin('t.assignedPrincipals', 'ap', 'WITH', 'ap.principalType = :ptype AND ap.principalId = :uid')
-            ->andWhere('t.workspace = :ws')
-            ->andWhere('t.deletedAt IS NULL')
-            ->andWhere('s.isCompleted = false')
-            ->andWhere('t.startOn >= :winStart AND t.startOn <= :winEnd')
-            ->setParameter('ptype', AssigneePrincipalType::User)
-            ->setParameter('uid', $user->getId(), UuidType::NAME)
-            ->setParameter('ws', $workspace->getId(), UuidType::NAME)
-            ->setParameter('winStart', $start->setTime(0, 0))
-            ->setParameter('winEnd', $end->setTime(23, 59, 59))
-            ->getQuery()->getResult();
-
-        /** @var array<string, array<string, mixed>> $grouped */
-        $grouped = [];
-        foreach ($tasks as $task) {
-            $customer = $task->getProject()?->getCustomer();
-            if ($customer === null) {
-                continue;
-            }
-            $cid = $customer->getId()?->toRfc4122() ?? '';
-            $grouped[$cid] ??= [
-                'customerId' => $cid,
-                'customerName' => $customer->getName(),
-                'recipient' => $this->resolveRecipientEmail($customer),
-                'tasks' => [],
-            ];
-            $grouped[$cid]['tasks'][] = [
-                'id' => $task->getId()?->toRfc4122(),
-                'title' => $task->getTitle(),
-                'startOn' => $task->getStartOn()?->format(\DateTimeInterface::ATOM),
-            ];
-        }
-
-        return array_values($grouped);
-    }
-
-    private function resolveRecipientEmail(Customer $customer): ?string
-    {
-        $email = trim((string) $customer->getEmail());
-        if ($email !== '') {
-            return $email;
-        }
-        foreach ($customer->getContacts() as $contact) {
-            $contactEmail = trim((string) $contact->getEmail());
-            if ($contactEmail !== '') {
-                return $contactEmail;
-            }
-        }
-
-        return null;
+        return new JsonResponse(['drafted' => $result['drafted']]);
     }
 
     /** @return array{0: User, 1: \App\Entity\Workspace} */

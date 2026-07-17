@@ -37,7 +37,6 @@ use Symfony\Component\Uid\Uuid;
 final class WorkloadController
 {
     private const MAX_RANGE_DAYS = 92;
-    private const MINUTES_PER_HALF_DAY = 240;
 
     public function __construct(
         private readonly Security $security,
@@ -78,7 +77,7 @@ final class WorkloadController
 
         $capacities = $this->loadCapacities($users);
         $trackedByUserDay = $this->loadTrackedMinutes($workspace, $users, $from, $to);
-        $absencesByUserDay = $this->loadAbsences($workspace, $users, $from, $to);
+        $absencesByUserDay = $this->loadAbsences($workspace, $users, $from, $to, $capacities);
         $workspaceOff = $this->loadWorkspaceAbsences($workspace, $from, $to);
 
         $rows = [];
@@ -265,9 +264,10 @@ final class WorkloadController
 
     /**
      * @param list<User> $users
+     * @param array<string, UserCapacity> $capacities  user-uuid → capacity
      * @return array<string, array<string, int>>
      */
-    private function loadAbsences(Workspace $workspace, array $users, \DateTimeImmutable $from, \DateTimeImmutable $to): array
+    private function loadAbsences(Workspace $workspace, array $users, \DateTimeImmutable $from, \DateTimeImmutable $to, array $capacities): array
     {
         /** @var list<\App\Entity\Absence> $rows */
         $rows = $this->em->getRepository(\App\Entity\Absence::class)->createQueryBuilder('a')
@@ -284,15 +284,24 @@ final class WorkloadController
         $out = [];
         foreach ($rows as $absence) {
             $uid = $absence->getUser()->getId()?->toRfc4122() ?? '';
-            $cur = max($absence->getStartsOn(), $from);
-            $end = min($absence->getEndsOn(), $to->modify('-1 day'));
+            $cap = $capacities[$uid] ?? null;
+            // Compare on date boundaries — absences are stored at noon while the
+            // day grid runs at midnight, so a naive datetime compare would skip
+            // single-day absences.
+            $cur = max($absence->getStartsOn()->setTime(0, 0), $from->setTime(0, 0));
+            $end = min($absence->getEndsOn()->setTime(0, 0), $to->modify('-1 day')->setTime(0, 0));
             while ($cur <= $end) {
                 $key = $cur->format('Y-m-d');
+                $dayCapacity = $cap ? $this->capacityForWeekday($cap, (int) $cur->format('N')) : 0;
                 $half = (
                     ($absence->isHalfDayOnStart() && $cur->format('Y-m-d') === $absence->getStartsOn()->format('Y-m-d'))
                     || ($absence->isHalfDayOnEnd() && $cur->format('Y-m-d') === $absence->getEndsOn()->format('Y-m-d'))
                 );
-                $out[$uid][$key] = ($out[$uid][$key] ?? 0) + ($half ? self::MINUTES_PER_HALF_DAY : 480);
+                // availabilityPercent is the canonical axis: blocked = capacity × (1 − available%).
+                // A half-day flag still forces at least 50% away for backward compatibility.
+                $effectivePercent = $half ? max(50, $absence->getAvailabilityPercent()) : $absence->getAvailabilityPercent();
+                $blocked = (int) round($dayCapacity * (100 - $effectivePercent) / 100);
+                $out[$uid][$key] = ($out[$uid][$key] ?? 0) + $blocked;
                 $cur = $cur->modify('+1 day');
             }
         }
