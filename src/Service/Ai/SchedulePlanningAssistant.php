@@ -113,10 +113,14 @@ final class SchedulePlanningAssistant
         for ($i = 0; $i < self::HORIZON_DAYS; $i++) {
             $day = $today->modify("+{$i} days");
             $minutes = $weekday((int) $day->format('N'));
+            $weekdayMinutes = $minutes;
             foreach ($absences as $absence) {
                 if ($day >= $absence->getStartsOn()->setTime(0, 0) && $day <= $absence->getEndsOn()->setTime(0, 0)) {
-                    $minutes = 0;
-                    break;
+                    // Limited-availability absences only shave off part of the day;
+                    // a full absence (0 %) zeroes it. Overlapping absences → keep the
+                    // most restrictive remaining capacity.
+                    $remaining = (int) round($weekdayMinutes * $absence->getAvailabilityPercent() / 100);
+                    $minutes = min($minutes, $remaining);
                 }
             }
             $free[$day->format('Y-m-d')] = $minutes;

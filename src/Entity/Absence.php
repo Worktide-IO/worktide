@@ -29,12 +29,17 @@ use Doctrine\ORM\Mapping as ORM;
  * Personal absence — vacation, sick leave, etc. Linked to a user; counts
  * against their UserCapacity when computing availability.
  *
- * Beyond awork: we have a `type` enum (vacation / sick / personal /
- * holiday / other) for filtering and reporting. awork doesn't model this,
- * so its UI relies on `description` heuristics.
+ * Beyond awork: we have a `type` enum (vacation / sick / child_sick /
+ * personal / holiday / other) for filtering and reporting. awork doesn't
+ * model this, so its UI relies on `description` heuristics.
  *
  * Half-day flags follow awork's semantics: if both start and end are the
  * same date, only one half-day flag matters.
+ *
+ * `availabilityPercent` (0–100, default 0) is the finer-grained axis for
+ * sickness / child-sickness: 0 means fully away (blocks the whole day), 50
+ * means the person can still work half their normal daily capacity. It
+ * supersedes the half-day flags for capacity math (see WorkloadController).
  */
 #[ORM\Entity(repositoryClass: AbsenceRepository::class)]
 #[ORM\Table(name: 'absences')]
@@ -81,6 +86,14 @@ class Absence
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
+    /**
+     * Share of the person's normal daily capacity they can still work despite
+     * this absence: 0 = fully away, 100 = fully available. Used for sickness /
+     * child-sickness with limited availability.
+     */
+    #[ORM\Column]
+    private int $availabilityPercent = 0;
+
     #[ORM\Column]
     private bool $isHalfDayOnStart = false;
 
@@ -102,6 +115,9 @@ class Absence
 
     public function getType(): string { return $this->type; }
     public function setType(string $type): self { $this->type = $type; return $this; }
+
+    public function getAvailabilityPercent(): int { return $this->availabilityPercent; }
+    public function setAvailabilityPercent(int $percent): self { $this->availabilityPercent = max(0, min(100, $percent)); return $this; }
 
     public function getDescription(): ?string { return $this->description; }
     public function setDescription(?string $desc): self { $this->description = $desc; return $this; }
