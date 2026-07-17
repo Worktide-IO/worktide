@@ -81,10 +81,12 @@ final class BookingSlotService
             }
         }
 
-        // Whole-day absences blank out slots: the host's personal absences +
+        // Full-day absences blank out slots: the host's personal absences +
         // workspace-wide closures. Half-day flags are ignored (v1) — a half-day
         // absence blocks the whole day, which over-blocks safely rather than
-        // risking a booking while the host is away.
+        // risking a booking while the host is away. Limited-availability
+        // absences (availabilityPercent > 0, e.g. child-sickness) do NOT block
+        // slots — the host is deemed reachable for booked appointments.
         $dayBlock = static function (\DateTimeImmutable $startsOn, \DateTimeImmutable $endsOn) use ($tz, $utc): array {
             $s = new \DateTimeImmutable($startsOn->format('Y-m-d') . ' 00:00:00', $tz);
             $e = (new \DateTimeImmutable($endsOn->format('Y-m-d') . ' 00:00:00', $tz))->modify('+1 day');
@@ -94,7 +96,9 @@ final class BookingSlotService
         $workspace = $type->getWorkspace();
         if ($host !== null && $workspace !== null) {
             foreach ($this->absences->findForUserBetween($host, $workspace, $slackFrom, $slackTo) as $absence) {
-                $busy[] = $dayBlock($absence->getStartsOn(), $absence->getEndsOn());
+                if ($absence->getAvailabilityPercent() === 0) {
+                    $busy[] = $dayBlock($absence->getStartsOn(), $absence->getEndsOn());
+                }
             }
         }
         if ($workspace !== null) {

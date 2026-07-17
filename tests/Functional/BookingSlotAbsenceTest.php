@@ -55,6 +55,21 @@ final class BookingSlotAbsenceTest extends KernelTestCase
         self::assertNotEmpty($this->slotsOn($type, $dayB), 'day B unaffected');
     }
 
+    public function testLimitedAvailabilityAbsenceKeepsSlotsOpen(): void
+    {
+        [$type, $host, $ws] = $this->seedType();
+        $day = new \DateTimeImmutable('+6 days 00:00', new \DateTimeZone('UTC'));
+
+        self::assertNotEmpty($this->slotsOn($type, $day), 'baseline: day has slots');
+
+        $this->persistAbsence($host, $ws, $day, availabilityPercent: 50);
+
+        self::assertNotEmpty(
+            $this->slotsOn($type, $day),
+            'a limited-availability absence (50 %) must NOT blank booking slots',
+        );
+    }
+
     public function testWorkspaceClosureBlocksThatDay(): void
     {
         [$type, , $ws] = $this->seedType();
@@ -106,14 +121,15 @@ final class BookingSlotAbsenceTest extends KernelTestCase
         return [$type, $host, $ws];
     }
 
-    private function persistAbsence(User $host, Workspace $ws, \DateTimeImmutable $day): void
+    private function persistAbsence(User $host, Workspace $ws, \DateTimeImmutable $day, int $availabilityPercent = 0): void
     {
         $berlin = new \DateTimeZone('Europe/Berlin');
         $absence = (new Absence())
             ->setUser($host)
             ->setStartsOn(new \DateTimeImmutable($day->format('Y-m-d') . ' 12:00', $berlin))
             ->setEndsOn(new \DateTimeImmutable($day->format('Y-m-d') . ' 12:00', $berlin))
-            ->setType('vacation');
+            ->setType($availabilityPercent > 0 ? 'sick' : 'vacation')
+            ->setAvailabilityPercent($availabilityPercent);
         $absence->setWorkspace($ws);
         $this->em->persist($absence);
         $this->em->flush();

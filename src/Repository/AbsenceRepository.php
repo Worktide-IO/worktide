@@ -41,4 +41,33 @@ class AbsenceRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * Ongoing / upcoming limited-availability absences (availabilityPercent > 0)
+     * for a set of users — surfaced in the customer portal for staff involved in
+     * the customer's tickets/projects. The medical `type` is intentionally NOT
+     * exposed by callers; only the availability window + percentage.
+     *
+     * @param list<User> $users
+     * @return list<Absence>
+     */
+    public function findLimitedAvailabilityForUsers(array $users, Workspace $workspace, \DateTimeImmutable $onOrAfter): array
+    {
+        if ($users === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('a')
+            ->andWhere('a.user IN (:users)')
+            ->andWhere('a.workspace = :ws')
+            ->andWhere('a.deletedAt IS NULL')
+            ->andWhere('a.availabilityPercent > 0')
+            ->andWhere('a.endsOn >= :onOrAfter')
+            ->setParameter('users', $users)
+            ->setParameter('ws', $workspace)
+            ->setParameter('onOrAfter', $onOrAfter)
+            ->orderBy('a.startsOn', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

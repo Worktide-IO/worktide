@@ -16,7 +16,7 @@ use App\Service\Llm\LlmProviderInterface;
  */
 final class AbsenceIntakeAssistant
 {
-    private const TYPES = ['sick', 'vacation', 'other'];
+    private const TYPES = ['sick', 'child_sick', 'vacation', 'other'];
 
     public function __construct(
         private readonly LlmProviderInterface $llm,
@@ -34,7 +34,7 @@ final class AbsenceIntakeAssistant
     }
 
     /**
-     * @return array{startsOn: ?string, endsOn: ?string, type: string, clarify: ?string}
+     * @return array{startsOn: ?string, endsOn: ?string, type: string, availabilityPercent: int, clarify: ?string}
      */
     public function parse(string $text, Workspace $workspace): array
     {
@@ -49,7 +49,11 @@ final class AbsenceIntakeAssistant
         Respond as a JSON object:
         - "startsOn": first absent day, "YYYY-MM-DD" (or null if unclear).
         - "endsOn": last absent day inclusive, "YYYY-MM-DD" (single day → same as startsOn; null if unclear).
-        - "type": one of "sick", "vacation", "other".
+        - "type": one of "sick", "child_sick" (own child is ill / "Kind krank"),
+          "vacation", "other".
+        - "availabilityPercent": 0–100, how much the person can still work despite
+          the absence. 0 = fully away (default). Use e.g. 50 for "halbtags krank" /
+          "kann noch halbtags arbeiten". Only set > 0 when the note clearly says so.
         - "clarify": a SHORT question in the note's language if the range/type is
           genuinely ambiguous; otherwise null. Ask at most one thing.
         PROMPT;
@@ -59,6 +63,9 @@ final class AbsenceIntakeAssistant
         $start = $this->cleanDate($raw['startsOn'] ?? null);
         $end = $this->cleanDate($raw['endsOn'] ?? null) ?? $start;
         $type = \in_array($raw['type'] ?? null, self::TYPES, true) ? $raw['type'] : 'sick';
+        $availabilityPercent = \is_numeric($raw['availabilityPercent'] ?? null)
+            ? max(0, min(100, (int) $raw['availabilityPercent']))
+            : 0;
         $clarify = \is_string($raw['clarify'] ?? null) && trim($raw['clarify']) !== ''
             ? trim(mb_substr($raw['clarify'], 0, 300))
             : null;
@@ -68,7 +75,7 @@ final class AbsenceIntakeAssistant
             $clarify ??= 'Bitte den Zeitraum präzisieren (Enddatum liegt vor dem Start).';
         }
 
-        return ['startsOn' => $start, 'endsOn' => $end, 'type' => $type, 'clarify' => $clarify];
+        return ['startsOn' => $start, 'endsOn' => $end, 'type' => $type, 'availabilityPercent' => $availabilityPercent, 'clarify' => $clarify];
     }
 
     private function cleanDate(mixed $value): ?string
