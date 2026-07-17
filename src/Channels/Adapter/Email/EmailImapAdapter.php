@@ -204,7 +204,8 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
     ): InboundEvent {
         $header = $msg->getHeader();
         $subject = $this->decodeMimeHeader($this->headerString($header?->get('subject'))) ?? '';
-        $senderRaw = $this->senderRawFromHeader($header?->get('from'));
+        $senderRaw = $this->senderRawFromHeader($header?->get('from'))
+            ?? $this->senderFromRawHeaderBlock($header?->raw);
         return (new InboundEvent())
             ->setWorkspace($channel->getWorkspace())
             ->setChannel($channel)
@@ -251,7 +252,8 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
         $references = $this->headerArray($header?->get('references'));
         $inReplyTo = $this->headerString($header?->get('in_reply_to'));
         $subject = $this->decodeMimeHeader($this->headerString($header?->get('subject'))) ?? '';
-        $senderRaw = $this->senderRawFromHeader($header?->get('from'));
+        $senderRaw = $this->senderRawFromHeader($header?->get('from'))
+            ?? $this->senderFromRawHeaderBlock($header?->raw);
 
         $receivedAt = new \DateTimeImmutable();
         $dateAttr = $header?->get('date');
@@ -433,6 +435,40 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
         }
 
         return $mail ?? $name;
+    }
+
+    /**
+     * Fallback when the parsed From {@see Attribute} yields no address — the
+     * case for the bracket-only, display-name-less `From: <addr>` form that
+     * Zabbix and other machine senders emit, which php-imap 6's address parser
+     * intermittently drops (leaving {@see senderRawFromHeader()} null even
+     * though the address is plainly in the header). Reads the raw From line off
+     * the already-fetched header block (no IMAP re-fetch), unfolds continuation
+     * lines, and extracts "Name <addr>" / bare address.
+     */
+    public function senderFromRawHeaderBlock(?string $rawHeader): ?string
+    {
+        if ($rawHeader === null || $rawHeader === '') {
+            return null;
+        }
+        // Unfold header continuation lines (CRLF + leading WSP → single space).
+        $unfolded = (string) preg_replace('/\r?\n[ \t]+/', ' ', $rawHeader);
+        if (preg_match('/^From:\s*(.+)$/im', $unfolded, $m) !== 1) {
+            return null;
+        }
+        $from = trim($m[1]);
+        if ($from === '') {
+            return null;
+        }
+        $decoded = trim(str_contains($from, '=?') ? (@mb_decode_mimeheader($from) ?: $from) : $from);
+        if (preg_match('/^(.*?)<([^>]+)>\s*$/', $decoded, $mm) === 1) {
+            $name = trim(trim($mm[1]), " \"'");
+            $addr = trim($mm[2]);
+
+            return $name !== '' ? sprintf('%s <%s>', $name, $addr) : ($addr !== '' ? $addr : null);
+        }
+
+        return $decoded !== '' ? $decoded : null;
     }
 
     /**
