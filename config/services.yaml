@@ -142,6 +142,13 @@ services:
         arguments:
             $aiAutoSuggestLimiter: '@limiter.ai_auto_suggest'
 
+    # Auto-link inbound mail → Contact/Customer. Shared / contact-form sender
+    # addresses that send on behalf of the real person must never match a
+    # Contact (see INBOUND_IGNORED_SENDER_EMAILS).
+    App\Service\Inbound\ContactResolver:
+        arguments:
+            $ignoredSenderEmails: '%env(default::INBOUND_IGNORED_SENDER_EMAILS)%'
+
     # Same explicit binding for the public-form submission limiter.
     App\Controller\Api\PublicFormController:
         arguments:
