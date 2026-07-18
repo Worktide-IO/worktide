@@ -135,6 +135,14 @@ class Customer
     #[Assert\Email(mode: Assert\Email::VALIDATION_MODE_STRICT)]
     private ?string $email = null;
 
+    /**
+     * Dedicated address for invoices/billing correspondence, separate from the
+     * general contact email above. Null = fall back to the general email.
+     */
+    #[ORM\Column(length: 254, nullable: true)]
+    #[Assert\Email(mode: Assert\Email::VALIDATION_MODE_STRICT)]
+    private ?string $invoiceEmail = null;
+
     #[ORM\Column(length: 40, nullable: true)]
     private ?string $phone = null;
 
@@ -269,10 +277,15 @@ class Customer
     #[ORM\OneToMany(targetEntity: CustomerAgreement::class, mappedBy: 'customer')]
     private Collection $agreements;
 
+    /** @var Collection<int, SocialProfile> */
+    #[ORM\OneToMany(targetEntity: SocialProfile::class, mappedBy: 'customer', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $socialProfiles;
+
     public function __construct()
     {
         $this->tags = new ArrayCollection();
         $this->contacts = new ArrayCollection();
+        $this->socialProfiles = new ArrayCollection();
         $this->projects = new ArrayCollection();
         $this->agreements = new ArrayCollection();
     }
@@ -324,6 +337,9 @@ class Customer
 
     public function getEmail(): ?string { return $this->email; }
     public function setEmail(?string $v): self { $this->email = $v === null ? null : mb_strtolower(trim($v)); return $this; }
+
+    public function getInvoiceEmail(): ?string { return $this->invoiceEmail; }
+    public function setInvoiceEmail(?string $v): self { $this->invoiceEmail = $v === null ? null : mb_strtolower(trim($v)); return $this; }
 
     public function getPhone(): ?string { return $this->phone; }
     public function setPhone(?string $v): self { $this->phone = $v; return $this; }
@@ -377,6 +393,24 @@ class Customer
 
     /** @return Collection<int, Contact> */
     public function getContacts(): Collection { return $this->contacts; }
+
+    /** @return Collection<int, SocialProfile> */
+    public function getSocialProfiles(): Collection { return $this->socialProfiles; }
+
+    public function addSocialProfile(SocialProfile $profile): self
+    {
+        if (!$this->socialProfiles->contains($profile)) {
+            $this->socialProfiles->add($profile);
+            $profile->setCustomer($this);
+        }
+        return $this;
+    }
+
+    public function removeSocialProfile(SocialProfile $profile): self
+    {
+        $this->socialProfiles->removeElement($profile);
+        return $this;
+    }
 
     /** @return Collection<int, Project> */
     public function getProjects(): Collection { return $this->projects; }

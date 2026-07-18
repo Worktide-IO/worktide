@@ -24,6 +24,7 @@ use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\ContactRepository;
 use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
@@ -176,9 +177,81 @@ class Contact implements TaggableInterface
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $portalHiddenFeatures = null;
 
+    /**
+     * All of this contact's email addresses. `Contact.email` mirrors the primary
+     * one for backward-compatible readers. @var Collection<int, ContactEmail>
+     */
+    #[ORM\OneToMany(targetEntity: ContactEmail::class, mappedBy: 'contact', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $emails;
+
+    /** @var Collection<int, ContactPhone> */
+    #[ORM\OneToMany(targetEntity: ContactPhone::class, mappedBy: 'contact', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $phones;
+
+    /** @var Collection<int, SocialProfile> */
+    #[ORM\OneToMany(targetEntity: SocialProfile::class, mappedBy: 'contact', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $socialProfiles;
+
     public function __construct()
     {
         $this->tags = new ArrayCollection();
+        $this->emails = new ArrayCollection();
+        $this->phones = new ArrayCollection();
+        $this->socialProfiles = new ArrayCollection();
+    }
+
+    /** @return Collection<int, ContactEmail> */
+    public function getEmails(): Collection { return $this->emails; }
+
+    public function addEmailAddress(ContactEmail $email): self
+    {
+        if (!$this->emails->contains($email)) {
+            $this->emails->add($email);
+            $email->setContact($this);
+        }
+        return $this;
+    }
+
+    public function removeEmailAddress(ContactEmail $email): self
+    {
+        $this->emails->removeElement($email);
+        return $this;
+    }
+
+    /** @return Collection<int, ContactPhone> */
+    public function getPhones(): Collection { return $this->phones; }
+
+    public function addPhone(ContactPhone $phone): self
+    {
+        if (!$this->phones->contains($phone)) {
+            $this->phones->add($phone);
+            $phone->setContact($this);
+        }
+        return $this;
+    }
+
+    public function removePhone(ContactPhone $phone): self
+    {
+        $this->phones->removeElement($phone);
+        return $this;
+    }
+
+    /** @return Collection<int, SocialProfile> */
+    public function getSocialProfiles(): Collection { return $this->socialProfiles; }
+
+    public function addSocialProfile(SocialProfile $profile): self
+    {
+        if (!$this->socialProfiles->contains($profile)) {
+            $this->socialProfiles->add($profile);
+            $profile->setContact($this);
+        }
+        return $this;
+    }
+
+    public function removeSocialProfile(SocialProfile $profile): self
+    {
+        $this->socialProfiles->removeElement($profile);
+        return $this;
     }
 
     public function getPortalNotificationsSeenAt(): ?\DateTimeImmutable { return $this->portalNotificationsSeenAt; }
