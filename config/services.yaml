@@ -322,6 +322,16 @@ services:
         arguments:
             $allow: '%env(default::EGRESS_ALLOW)%'
 
+    # Smart-link previews use their own cache pool (config/packages/cache.yaml).
+    App\Service\LinkPreview\LinkPreviewResolver:
+        arguments:
+            $linkPreviewCache: '@cache.link_preview'
+
+    # Smart-link preview fetch limiter (keyed on user id in the controller).
+    App\Controller\Api\LinkPreviewController:
+        arguments:
+            $linkPreviewLimiter: '@limiter.link_preview'
+
     # LLM providers behind LlmProviderInterface. Anthropic (Claude, default) and
     # Infomaniak (Swiss/EU-hosted, OpenAI-compatible) are both wired; LLM_PROVIDER
     # selects the active one (default: anthropic). Models default per provider.

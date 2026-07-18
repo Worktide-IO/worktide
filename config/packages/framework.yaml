@@ -95,6 +95,15 @@ framework:
             policy: 'sliding_window'
             limit: 30
             interval: '1 hour'
+        # Smart-link preview fetches (/v1/links/preview). Each hit is an
+        # egress-gated outbound fetch of a user-pasted external URL, so cap how
+        # many DISTINCT-URL fetches one user can trigger. Keyed per USER (the
+        # endpoint is authenticated). Generous because cache hits don't count
+        # against a well-behaved editor re-rendering the same cards.
+        link_preview:
+            policy: 'sliding_window'
+            limit: 60
+            interval: '1 minute'
 
     #esi: true
     #fragments: true
