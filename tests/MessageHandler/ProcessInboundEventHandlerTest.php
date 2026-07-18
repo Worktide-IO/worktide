@@ -10,6 +10,7 @@ use App\Entity\Enum\InboundEventState;
 use App\Entity\InboundEvent;
 use App\Message\ProcessInboundEventMessage;
 use App\MessageHandler\ProcessInboundEventHandler;
+use App\Repository\ChannelRepository;
 use App\Repository\ContactRepository;
 use App\Service\Inbound\ContactResolver;
 use App\Service\Inbound\InboundEventProcessor;
@@ -81,7 +82,7 @@ final class ProcessInboundEventHandlerTest extends TestCase
             $em,
             new InboundEventProcessor(
                 new NullLogger(),
-                new ContactResolver($contacts),
+                new ContactResolver($contacts, $this->createStub(ChannelRepository::class)),
                 new MailRelevanceClassifier(),
                 $this->createStub(MessageBusInterface::class),
                 // Empty registry → no threader for the channel; threading is
