@@ -71,6 +71,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
   - ~~**ActiveTimer-Widget** (große Stoppuhr + Heute-Summe + Quick-Start)~~ — **erledigt** (`ActiveTimerWidget` + `FloatingTimer`, `/v1/timers/*`)
   - ~~**"Alle offenen Kunden-Aufgaben"** (cross-project Liste)~~ — **erledigt** (`OpenCustomerTasksWidget`)
   - ~~**"Meine Aufgaben"** mit Tabs Heute / Diese Woche / Überfällig~~ — **erledigt** (`MyTasksWidget`)
+- **Eingeschränkte Mitarbeiter-Verfügbarkeit im Dashboard (workspace-übergreifend)** — reduzierte Verfügbarkeit einer Person (Abwesenheit / reduzierte `UserCapacity` / Krankmeldung via `AbsenceIntakeAssistant`) soll im Dashboard **jedes** Workspaces angezeigt werden, in dem die Person Mitglied ist — nicht nur im Heimat-Workspace. Zielbild: ein Dashboard-Widget / Team-Verfügbarkeits-Panel, das je Workspace die aktuell bzw. demnächst eingeschränkt verfügbaren Mitglieder listet (wer, Zeitraum, Umfang/Grund), gespeist aus `Absence` + `UserCapacity`. Cross-Workspace-Aggregation über die Workspace-Mitgliedschaften der User; Tenant-Isolation (Phase T) beachten — nur Verfügbarkeits-/Abwesenheits-Metadaten über die Grenze teilen, keine workspace-fremden Inhalte. — offen
 - Sidebar-Polish:
   - ~~Pinned / Recent Projects unter "Meine Projekte"~~ — **erledigt** (Sidebar-Favoriten)
   - ~~Sammelprojekte vs Kunden-Projekte Gruppierung~~ — **erledigt** (`MyProjectsSidebar`: Favoriten / „Eigene" (ohne Customer-FK) / pro-Kunde-Gruppen)
