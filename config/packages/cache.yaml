@@ -15,5 +15,9 @@ framework:
         #app: cache.adapter.apcu
 
         # Namespaced pools use the above "app" backend by default
-        #pools:
-            #my.dedicated.cache: null
+        pools:
+            # Smart-link preview cache (LinkPreviewResolver). Own pool so its
+            # short-lived entries can be cleared independently of cache.app and,
+            # under load, be pointed at Redis/Valkey (Phase S) on its own.
+            cache.link_preview:
+                default_lifetime: 86400
