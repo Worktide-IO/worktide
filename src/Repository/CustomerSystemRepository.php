@@ -6,6 +6,7 @@ namespace App\Repository;
 
 use App\Entity\Customer;
 use App\Entity\CustomerSystem;
+use App\Entity\Workspace;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -17,6 +18,27 @@ class CustomerSystemRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, CustomerSystem::class);
+    }
+
+    /**
+     * Look up a system by its (externalSource, externalId) pair within a
+     * workspace — e.g. the Zabbix host mapping ("zabbix", "<hostid>"). The pair
+     * is unique per workspace ({@see \App\Entity\Trait\ExternalReferenceTrait}),
+     * so at most one row matches.
+     */
+    public function findByExternalRef(Workspace $workspace, string $externalSource, string $externalId): ?CustomerSystem
+    {
+        return $this->createQueryBuilder('s')
+            ->andWhere('s.workspace = :workspace')
+            ->andWhere('s.externalSource = :source')
+            ->andWhere('s.externalId = :externalId')
+            ->andWhere('s.deletedAt IS NULL')
+            ->setParameter('workspace', $workspace)
+            ->setParameter('source', $externalSource)
+            ->setParameter('externalId', $externalId)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 
     /**

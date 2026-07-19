@@ -23,4 +23,23 @@ class ConversationRepository extends ServiceEntityRepository
     {
         return $this->findOneBy(['channel' => $channel, 'threadKey' => $threadKey]);
     }
+
+    /**
+     * Every customer-less conversation for a Zabbix host on this channel —
+     * threadKey shape is "zabbix:<hostId>:<triggerId>". Used to back-fill the
+     * customer onto all of a host's threads the moment it is assigned.
+     *
+     * @return list<Conversation>
+     */
+    public function findZabbixByHostWithoutCustomer(Channel $channel, string $hostId): array
+    {
+        return $this->createQueryBuilder('c')
+            ->andWhere('c.channel = :channel')
+            ->andWhere('c.customer IS NULL')
+            ->andWhere('c.threadKey LIKE :prefix')
+            ->setParameter('channel', $channel)
+            ->setParameter('prefix', 'zabbix:' . $hostId . ':%')
+            ->getQuery()
+            ->getResult();
+    }
 }
