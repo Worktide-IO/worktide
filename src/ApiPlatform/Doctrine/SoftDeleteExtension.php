@@ -8,23 +8,25 @@ use ApiPlatform\Doctrine\Orm\Extension\QueryCollectionExtensionInterface;
 use ApiPlatform\Doctrine\Orm\Extension\QueryItemExtensionInterface;
 use ApiPlatform\Doctrine\Orm\Util\QueryNameGeneratorInterface;
 use ApiPlatform\Metadata\Operation;
+use App\Entity\Conversation;
 use App\Entity\File;
 use App\Entity\Folder;
 use Doctrine\ORM\QueryBuilder;
 
 /**
- * Hides soft-deleted rows from API Platform reads for the file-manager entities.
+ * Hides soft-deleted rows from API Platform reads for the entities whose DELETE
+ * is soft (via {@see \App\State\SoftDeleteProcessor}).
  *
  * The app uses {@see \App\Entity\Trait\SoftDeletableTrait} widely but has no
  * global query filter, so soft-deleted rows otherwise still surface in
- * collections. For the Nextcloud-like file tree that's wrong: a recursively
- * deleted folder (and its files) must vanish. Scoped to File + Folder on purpose
- * to keep the blast radius tiny; broadening this to every SoftDeletable resource
- * is a sensible follow-up but out of scope here.
+ * collections. Enrolled per-entity (not globally) so read-hiding and the
+ * soft-delete processor stay in lockstep: File + Folder (recursive file tree)
+ * and Conversation (deleting a thread must not orphan its inbound/outbound
+ * history). Broadening to every SoftDeletable resource is a sensible follow-up.
  */
 final class SoftDeleteExtension implements QueryCollectionExtensionInterface, QueryItemExtensionInterface
 {
-    private const CLASSES = [File::class, Folder::class];
+    private const CLASSES = [File::class, Folder::class, Conversation::class];
 
     public function applyToCollection(
         QueryBuilder $queryBuilder,
