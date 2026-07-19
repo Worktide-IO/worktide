@@ -48,6 +48,7 @@ final class InboundEventProcessor
         private readonly MessageBusInterface $bus,
         private readonly AdapterRegistry $registry,
         private readonly RateLimiterFactory $aiAutoSuggestLimiter,
+        private readonly AutoReplyResponder $autoReplyResponder,
     ) {}
 
     public function process(InboundEvent $event, bool $live = true): void
@@ -65,6 +66,13 @@ final class InboundEventProcessor
         $this->contactResolver->resolveForEvent($event);
 
         $event->setState(InboundEventState::Processed);
+
+        // Auto-reply (receipt acknowledgement) for any mailbox — personal or
+        // shared — that has one configured. LIVE-only so a backfill doesn't
+        // blast old senders. Loop-safety + throttle live in the responder.
+        if ($live) {
+            $this->autoReplyResponder->maybeReply($event);
+        }
 
         $this->maybeSuggestTicket($event, $live);
 

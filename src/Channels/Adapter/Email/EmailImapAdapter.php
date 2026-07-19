@@ -15,6 +15,7 @@ use App\Entity\Contact;
 use App\Entity\InboundEvent;
 use App\Entity\OutboundMessage;
 use App\Entity\Enum\InboundEventState;
+use App\Entity\Enum\OutboundMessageKind;
 use App\Repository\ContactRepository;
 use App\Repository\InboundEventRepository;
 use App\Service\FileStorage;
@@ -608,6 +609,20 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
                 ->to($message->getRecipientRaw())
                 ->subject((string) ($message->getSubject() ?? '(no subject)'))
                 ->text($message->getBody());
+
+            // HTML variant → multipart/alternative (text stays the fallback).
+            $html = $message->getBodyHtml();
+            if ($html !== null && $html !== '') {
+                $email->html($html);
+            }
+
+            // Auto-reply loop safety (RFC 3834): tag the acknowledgement so a
+            // remote responder / mailing list won't bounce a reply back.
+            if ($message->getKind() === OutboundMessageKind::AutoReply) {
+                $email->getHeaders()->addTextHeader('Auto-Submitted', 'auto-replied');
+                $email->getHeaders()->addTextHeader('Precedence', 'bulk');
+                $email->getHeaders()->addTextHeader('X-Auto-Response-Suppress', 'All');
+            }
 
             // Attachments — pulled from FileStorage at send-time so the
             // OutboundMessage row stays a thin pointer. The attachments

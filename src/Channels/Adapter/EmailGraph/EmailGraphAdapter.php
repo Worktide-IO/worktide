@@ -15,6 +15,7 @@ use App\Channels\TestResult;
 use App\Entity\Channel;
 use App\Entity\Contact;
 use App\Entity\Enum\InboundEventState;
+use App\Entity\Enum\OutboundMessageKind;
 use App\Entity\InboundEvent;
 use App\Entity\OutboundMessage;
 use App\Repository\ContactRepository;
@@ -399,12 +400,17 @@ final class EmailGraphAdapter implements InboundAdapter, OutboundAdapter, Testab
             ));
         }
 
+        // HTML variant → Graph "HTML" content type (it renders the HTML and
+        // derives a plaintext part); otherwise send the plaintext body.
+        $html = $message->getBodyHtml();
+        $useHtml = $html !== null && $html !== '';
+
         $payload = [
             'message' => [
                 'subject' => $message->getSubject() ?? '(no subject)',
                 'body' => [
-                    'contentType' => 'Text',
-                    'content' => $message->getBody(),
+                    'contentType' => $useHtml ? 'HTML' : 'Text',
+                    'content' => $useHtml ? $html : $message->getBody(),
                 ],
                 'toRecipients' => [[
                     'emailAddress' => ['address' => $this->extractEmail($message->getRecipientRaw())],
@@ -416,12 +422,19 @@ final class EmailGraphAdapter implements InboundAdapter, OutboundAdapter, Testab
         // Thread-stitching: add In-Reply-To + References as
         // internetMessageHeaders. Graph silently ignores reserved
         // header names like Message-ID so the request stays well-formed.
+        $headers = [];
         $inReplyTo = $message->getInReplyToInboundEvent();
         if ($inReplyTo !== null) {
-            $payload['message']['internetMessageHeaders'] = [
-                ['name' => 'In-Reply-To', 'value' => '<' . $inReplyTo->getExternalId() . '>'],
-                ['name' => 'References', 'value' => $this->referencesChain($inReplyTo)],
-            ];
+            $headers[] = ['name' => 'In-Reply-To', 'value' => '<' . $inReplyTo->getExternalId() . '>'];
+            $headers[] = ['name' => 'References', 'value' => $this->referencesChain($inReplyTo)];
+        }
+        // Auto-reply loop safety. Graph only accepts x-prefixed custom headers,
+        // so use the Microsoft-recognized suppressor rather than Auto-Submitted.
+        if ($message->getKind() === OutboundMessageKind::AutoReply) {
+            $headers[] = ['name' => 'X-Auto-Response-Suppress', 'value' => 'All'];
+        }
+        if ($headers !== []) {
+            $payload['message']['internetMessageHeaders'] = $headers;
         }
 
         // Attachments

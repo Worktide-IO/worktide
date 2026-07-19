@@ -16,6 +16,7 @@ use App\Channels\WebhookNotSupportedException;
 use App\Entity\Channel;
 use App\Entity\Contact;
 use App\Entity\Enum\InboundEventState;
+use App\Entity\Enum\OutboundMessageKind;
 use App\Entity\InboundEvent;
 use App\Entity\OutboundMessage;
 use App\Repository\ContactRepository;
@@ -511,20 +512,44 @@ final class EmailGmailAdapter implements InboundAdapter, OutboundAdapter, Testab
             $lines[] = 'References: ' . trim($existing === '' ? $own : $existing . ' ' . $own);
         }
 
+        // Auto-reply loop safety (RFC 3834) so the far side won't bounce back.
+        if ($message->getKind() === OutboundMessageKind::AutoReply) {
+            $lines[] = 'Auto-Submitted: auto-replied';
+            $lines[] = 'Precedence: bulk';
+            $lines[] = 'X-Auto-Response-Suppress: All';
+        }
+
+        $html = $message->getBodyHtml();
+        $useHtml = $html !== null && $html !== '';
         $attachments = $message->getAttachments();
-        if ($attachments === []) {
+
+        if ($attachments === [] && !$useHtml) {
             $lines[] = 'Content-Type: text/plain; charset=UTF-8';
             $lines[] = 'Content-Transfer-Encoding: 8bit';
             $lines[] = '';
             $lines[] = $message->getBody();
+        } elseif ($attachments === [] && $useHtml) {
+            // text + HTML, no attachments → multipart/alternative.
+            $altBoundary = 'wt-alt-' . bin2hex(random_bytes(8));
+            $lines[] = 'Content-Type: multipart/alternative; boundary="' . $altBoundary . '"';
+            $lines[] = '';
+            array_push($lines, ...$this->alternativeParts($altBoundary, $message->getBody(), $html));
         } else {
             $lines[] = 'Content-Type: multipart/mixed; boundary="' . $boundary . '"';
             $lines[] = '';
             $lines[] = '--' . $boundary;
-            $lines[] = 'Content-Type: text/plain; charset=UTF-8';
-            $lines[] = 'Content-Transfer-Encoding: 8bit';
-            $lines[] = '';
-            $lines[] = $message->getBody();
+            if ($useHtml) {
+                // Wrap the text+HTML alternative as the first mixed part.
+                $altBoundary = 'wt-alt-' . bin2hex(random_bytes(8));
+                $lines[] = 'Content-Type: multipart/alternative; boundary="' . $altBoundary . '"';
+                $lines[] = '';
+                array_push($lines, ...$this->alternativeParts($altBoundary, $message->getBody(), $html));
+            } else {
+                $lines[] = 'Content-Type: text/plain; charset=UTF-8';
+                $lines[] = 'Content-Transfer-Encoding: 8bit';
+                $lines[] = '';
+                $lines[] = $message->getBody();
+            }
             foreach ($attachments as $att) {
                 $path = $att['storedAt'] ?? null;
                 if (!is_string($path) || $path === '') continue;
@@ -543,6 +568,29 @@ final class EmailGmailAdapter implements InboundAdapter, OutboundAdapter, Testab
             $lines[] = '--' . $boundary . '--';
         }
         return implode("\r\n", $lines);
+    }
+
+    /**
+     * Render the text + HTML parts of a multipart/alternative body.
+     * Text first (fallback), HTML second (preferred), per RFC 2046.
+     *
+     * @return list<string>
+     */
+    private function alternativeParts(string $boundary, string $text, string $html): array
+    {
+        return [
+            '--' . $boundary,
+            'Content-Type: text/plain; charset=UTF-8',
+            'Content-Transfer-Encoding: 8bit',
+            '',
+            $text,
+            '--' . $boundary,
+            'Content-Type: text/html; charset=UTF-8',
+            'Content-Transfer-Encoding: 8bit',
+            '',
+            $html,
+            '--' . $boundary . '--',
+        ];
     }
 
     public function selfTest(Channel $channel): TestResult
