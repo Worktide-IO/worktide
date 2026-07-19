@@ -23,6 +23,7 @@ use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\VersionedTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\ConversationRepository;
+use App\State\SoftDeleteProcessor;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -59,7 +60,10 @@ use Doctrine\ORM\Mapping as ORM;
         new Get(),
         new Post(),
         new Patch(),
-        new Delete(),
+        // Soft-delete: keep the row (restorable) and hide it from reads via
+        // SoftDeleteExtension, rather than hard-removing the thread + orphaning
+        // its inbound/outbound history.
+        new Delete(processor: SoftDeleteProcessor::class),
     ],
     mercure: true,
 )]
