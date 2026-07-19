@@ -298,6 +298,7 @@ services:
                 email_imap: 0
                 email_graph: 0
                 email_gmail: 0
+                email_webhook: 0
                 zabbix: 1
 
     # Build/version identity for GET /v1/version. Values from build-time env
