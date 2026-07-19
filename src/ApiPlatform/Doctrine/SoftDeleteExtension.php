@@ -8,25 +8,24 @@ use ApiPlatform\Doctrine\Orm\Extension\QueryCollectionExtensionInterface;
 use ApiPlatform\Doctrine\Orm\Extension\QueryItemExtensionInterface;
 use ApiPlatform\Doctrine\Orm\Util\QueryNameGeneratorInterface;
 use ApiPlatform\Metadata\Operation;
-use App\Entity\Conversation;
-use App\Entity\File;
-use App\Entity\Folder;
+use App\Entity\Trait\SoftDeletableTrait;
 use Doctrine\ORM\QueryBuilder;
 
 /**
- * Hides soft-deleted rows from API Platform reads for the entities whose DELETE
- * is soft (via {@see \App\State\SoftDeleteProcessor}).
+ * Hides soft-deleted rows from every API Platform read for any resource whose
+ * entity uses {@see SoftDeletableTrait} — the read-side counterpart of the
+ * global soft-delete on DELETE ({@see \App\State\SoftDeleteRemoveProcessorDecorator}).
  *
- * The app uses {@see \App\Entity\Trait\SoftDeletableTrait} widely but has no
- * global query filter, so soft-deleted rows otherwise still surface in
- * collections. Enrolled per-entity (not globally) so read-hiding and the
- * soft-delete processor stay in lockstep: File + Folder (recursive file tree)
- * and Conversation (deleting a thread must not orphan its inbound/outbound
- * history). Broadening to every SoftDeletable resource is a sensible follow-up.
+ * Trait-detected, not a hand-maintained whitelist, so a new SoftDeletable
+ * resource is hidden-when-deleted by default. Only the API surface is filtered;
+ * repositories (threading, backfills, the retention purge) still see deleted
+ * rows on purpose. Entities that hard-delete never set deletedAt, so the added
+ * `deletedAt IS NULL` predicate is a harmless no-op for them.
  */
 final class SoftDeleteExtension implements QueryCollectionExtensionInterface, QueryItemExtensionInterface
 {
-    private const CLASSES = [File::class, Folder::class, Conversation::class];
+    /** @var array<class-string, bool> */
+    private array $softDeletableCache = [];
 
     public function applyToCollection(
         QueryBuilder $queryBuilder,
@@ -54,10 +53,26 @@ final class SoftDeleteExtension implements QueryCollectionExtensionInterface, Qu
 
     private function apply(QueryBuilder $queryBuilder, string $resourceClass): void
     {
-        if (!\in_array($resourceClass, self::CLASSES, true)) {
+        if (!$this->isSoftDeletable($resourceClass)) {
             return;
         }
         $alias = $queryBuilder->getRootAliases()[0];
         $queryBuilder->andWhere(sprintf('%s.deletedAt IS NULL', $alias));
+    }
+
+    /** @param class-string $class */
+    private function isSoftDeletable(string $class): bool
+    {
+        return $this->softDeletableCache[$class] ??= (function () use ($class): bool {
+            if (!class_exists($class)) {
+                return false;
+            }
+            $traits = [];
+            for ($c = $class; $c !== false; $c = get_parent_class($c)) {
+                $traits += class_uses($c) ?: [];
+            }
+
+            return isset($traits[SoftDeletableTrait::class]);
+        })();
     }
 }

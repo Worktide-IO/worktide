@@ -70,7 +70,7 @@ use Doctrine\ORM\Mapping as ORM;
 ])]
 #[ApiFilter(BooleanFilter::class, properties: ['autoRenew'])]
 #[ApiFilter(OrderFilter::class, properties: ['startedOn', 'nextBillingOn'])]
-class ServiceAssignment
+class ServiceAssignment implements HardDeleteOnly
 {
     use EntityIdTrait;
     use TimestampableTrait;

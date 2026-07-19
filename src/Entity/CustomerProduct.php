@@ -58,7 +58,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
     'status' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['acquiredAt', 'createdAt'])]
-class CustomerProduct
+class CustomerProduct implements HardDeleteOnly
 {
     use EntityIdTrait;
     use TimestampableTrait;
