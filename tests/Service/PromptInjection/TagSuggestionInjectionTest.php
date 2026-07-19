@@ -9,6 +9,7 @@ use App\Entity\Tag;
 use App\Entity\Workspace;
 use App\Repository\TagRepository;
 use App\Service\Ai\TagSuggestionAssistant;
+use App\Service\Llm\AiUsageContext;
 use App\Tests\Support\PromptInjectionPayloads;
 use App\Tests\Support\RecordingLlmProvider;
 use PHPUnit\Framework\TestCase;
@@ -68,6 +69,6 @@ final class TagSuggestionInjectionTest extends TestCase
             (new Tag())->setName('bug')->setScope(TagScope::Any)->setWorkspace($ws),
         ]);
 
-        return new TagSuggestionAssistant($llm, $tagRepo);
+        return new TagSuggestionAssistant($llm, $tagRepo, new AiUsageContext());
     }
 }

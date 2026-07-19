@@ -333,9 +333,9 @@ services:
         arguments:
             $linkPreviewLimiter: '@limiter.link_preview'
 
-    # LLM providers behind LlmProviderInterface. Anthropic (Claude, default) and
-    # Infomaniak (Swiss/EU-hosted, OpenAI-compatible) are both wired; LLM_PROVIDER
-    # selects the active one (default: anthropic). Models default per provider.
+    # Cloud LLM providers. Anthropic (Claude, default) and Infomaniak
+    # (Swiss/EU-hosted, OpenAI-compatible) are both wired; LLM_PROVIDER selects
+    # the active *cloud* one via LlmProviderFactory (default: anthropic).
     App\Service\Llm\AnthropicLlmProvider:
         arguments:
             $apiKey: '%env(default::ANTHROPIC_API_KEY)%'
@@ -349,8 +349,17 @@ services:
     App\Service\Llm\LlmProviderFactory:
         arguments:
             $providerName: '%env(default::LLM_PROVIDER)%'
-    App\Service\Llm\LlmProviderInterface:
-        factory: ['@App\Service\Llm\LlmProviderFactory', 'create']
+    # On-infra local provider (Ollama/vLLM, OpenAI-compatible). Inert until
+    # OLLAMA_API_BASE is set — until then every local route degrades to cloud
+    # (unchanged default behaviour); see LlmRouter.
+    App\Service\Llm\OllamaLlmProvider:
+        arguments:
+            $apiBase: '%env(default::OLLAMA_API_BASE)%'
+            $apiKey: '%env(default::OLLAMA_API_KEY)%'
+            $model: '%env(default::OLLAMA_MODEL)%'
+    # The interface the app depends on is the per-task-type router (RoutingLlmProvider),
+    # which picks local vs. cloud per feature + workspace via LlmRouter.
+    App\Service\Llm\LlmProviderInterface: '@App\Service\Llm\RoutingLlmProvider'
 
     # External-search adapters for the research agent. Inert without their API
     # key (isConfigured() = false); every call is gated by the external_search

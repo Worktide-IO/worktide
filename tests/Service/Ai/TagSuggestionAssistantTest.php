@@ -9,6 +9,7 @@ use App\Entity\Tag;
 use App\Entity\Workspace;
 use App\Repository\TagRepository;
 use App\Service\Ai\TagSuggestionAssistant;
+use App\Service\Llm\AiUsageContext;
 use App\Service\Llm\LlmProviderInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -67,7 +68,7 @@ final class TagSuggestionAssistantTest extends TestCase
         $llm = $this->createStub(LlmProviderInterface::class);
         $llm->method('isConfigured')->willReturn(false);
 
-        $assistant = new TagSuggestionAssistant($llm, $this->createStub(TagRepository::class));
+        $assistant = new TagSuggestionAssistant($llm, $this->createStub(TagRepository::class), new AiUsageContext());
 
         self::assertFalse($assistant->isAvailable());
     }
@@ -94,6 +95,6 @@ final class TagSuggestionAssistantTest extends TestCase
         }
         $tagRepo->method('findBy')->willReturn($tags);
 
-        return new TagSuggestionAssistant($llm, $tagRepo);
+        return new TagSuggestionAssistant($llm, $tagRepo, new AiUsageContext());
     }
 }

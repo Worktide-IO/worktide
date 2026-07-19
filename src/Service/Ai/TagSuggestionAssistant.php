@@ -8,6 +8,7 @@ use App\Entity\Enum\TagScope;
 use App\Entity\Tag;
 use App\Entity\Workspace;
 use App\Repository\TagRepository;
+use App\Service\Llm\AiUsageContext;
 use App\Service\Llm\LlmProviderInterface;
 
 /**
@@ -26,6 +27,7 @@ final class TagSuggestionAssistant
     public function __construct(
         private readonly LlmProviderInterface $llm,
         private readonly TagRepository $tags,
+        private readonly AiUsageContext $usageContext,
     ) {}
 
     public function isAvailable(): bool
@@ -60,6 +62,8 @@ final class TagSuggestionAssistant
         }
         $tagNames = array_map(static fn (Tag $t): string => $t->getName(), $scoped);
 
+        // Attribute + route this high-volume classification call (default: local).
+        $this->usageContext->set('tags', $workspace);
         $raw = $this->llm->completeJson(
             $this->systemPrompt($tagNames),
             mb_substr($context, 0, self::MAX_CONTEXT),
