@@ -255,6 +255,16 @@ final class EmailImapAdapter implements InboundAdapter, OutboundAdapter, Testabl
         $senderRaw = $this->senderRawFromHeader($header?->get('from'))
             ?? $this->senderFromRawHeaderBlock($header?->raw);
 
+        // Bare sender address for the Contact lookup below — the parsed address
+        // first, falling back to the address embedded in $senderRaw (covers the
+        // raw-header recovery path where php-imap's parser dropped the address).
+        [$fromAddr] = $this->firstAddress($header?->get('from'));
+        if ($fromAddr === null && $senderRaw !== null) {
+            $fromAddr = preg_match('/<([^>]+)>/', $senderRaw, $m) === 1
+                ? trim($m[1])
+                : (str_contains($senderRaw, '@') ? trim($senderRaw) : null);
+        }
+
         $receivedAt = new \DateTimeImmutable();
         $dateAttr = $header?->get('date');
         if (is_object($dateAttr)) {
