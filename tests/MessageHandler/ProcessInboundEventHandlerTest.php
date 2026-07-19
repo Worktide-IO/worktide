@@ -12,6 +12,8 @@ use App\Message\ProcessInboundEventMessage;
 use App\MessageHandler\ProcessInboundEventHandler;
 use App\Repository\ChannelRepository;
 use App\Repository\ContactRepository;
+use App\Repository\OutboundMessageRepository;
+use App\Service\Inbound\AutoReplyResponder;
 use App\Service\Inbound\ContactResolver;
 use App\Service\Inbound\InboundEventProcessor;
 use App\Service\Inbound\MailRelevanceClassifier;
@@ -89,6 +91,13 @@ final class ProcessInboundEventHandlerTest extends TestCase
                 // covered by InboundEventProcessorTest.
                 new AdapterRegistry([], [], []),
                 new RateLimiterFactory(['id' => 'ai_auto_suggest', 'policy' => 'no_limit'], new InMemoryStorage()),
+                new AutoReplyResponder(
+                    new MailRelevanceClassifier(),
+                    $this->createStub(OutboundMessageRepository::class),
+                    $this->createStub(MessageBusInterface::class),
+                    $em,
+                    new NullLogger(),
+                ),
             ),
             new NullLogger(),
         );

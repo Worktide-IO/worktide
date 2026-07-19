@@ -138,7 +138,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 
 ### Schicht 3 — Collaboration
 - **Collision Detection** via Mercure-Presence — Hinweis wenn 2 User dieselbe Conversation öffnen
-- **Auto-Reply pro Mailbox** (Empfangsbestätigung)
+- ~~**Auto-Reply pro Mailbox** (Empfangsbestätigung)~~ — **erledigt**: Auto-Reply-Felder auf `Channel` (persönliches Postfach = Owner-Nachricht, geteiltes = Team-Nachricht; HTML + Plain + Betreff + Pro-Absender-Throttle), gesetzt über den bewusst großzügigeren `PUT /v1/channels/{id}/auto-reply` (persönlich → Owner/Admin, geteilt → jedes aktive Mitglied). `AutoReplyResponder` (im `InboundEventProcessor`, LIVE-only, feuert für persönliche **und** geteilte Postfächer) mit dreifachem Loop-Schutz (MailRelevanceClassifier gegen bulk/auto/no-reply · Pro-Absender-Throttle · `Auto-Submitted`/`Precedence`/`X-Auto-Response-Suppress` im Versand). Neuer fokussierter Sende-Pfad `SendOutboundMessage` → `OutboundMessageSender` (egress-gated `email_outbound`, per-Nachricht statt poll-all — die bestehenden Human-in-the-Loop-Entwürfe bleiben unversendet), HTML-Body (`OutboundMessage.bodyHtml`) in allen drei Email-Adaptern (IMAP/Graph/Gmail). SPA: Auto-Antwort-Sektion im Channel-Dialog (DE/EN). Live gegen Mailpit verifiziert (multipart/alternative + Loop-Header).
 - **Phone-Conversation** (manuelles Ticket für Telefonate)
 
 ### Schicht 4 — Routing + Conversion
@@ -364,7 +364,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 Die ursprüngliche Sequenz A → C → B → D → D⁺ → E ist **weitgehend abgearbeitet**: A, B und D⁺ stehen, ebenso die Foundation von C, D und E; Kundenportal, Booking, Newsletter und Notifications sind live. Die Reihenfolge orientiert sich daher jetzt an den **Restarbeiten** — höchster Hebel zuerst:
 
 1. **Gebautes produktiv schalten** — Go-Live-Config für Notifications/Mail (`EGRESS_ALLOW`, `MAILER_DSN`, `worker`/`scheduler`-Container; [docs/notifications-go-live.md](docs/notifications-go-live.md)). (Portal Invoices-/Goals-UI ✓ + Discovered-Postfach-UI ✓ + visueller Workflow-Editor ✓ + Smart-Links-oEmbed-Proxy ✓ erledigt.)
-2. **Phase C — Helpdesk komplettieren**: Google-Workspace-OAuth, Auto-Reply pro Mailbox, Collision-Detection (Mercure-Presence), Inbound-Webhook (SendGrid/Mailgun/Resend). Schließt den Support-Loop, den Portal-Tickets bereits anstoßen.
+2. **Phase C — Helpdesk komplettieren**: Google-Workspace-OAuth, Collision-Detection (Mercure-Presence), Inbound-Webhook (SendGrid/Mailgun/Resend). (Auto-Reply pro Mailbox ✓ erledigt.) Schließt den Support-Loop, den Portal-Tickets bereits anstoßen.
 3. **Phase D — KI-Ausbau** (Phase-C-Daten + Portal liefern jetzt den Kontext): Aufwands-Schätzung ✓ (Lern-Schleife offen), Mail-Klassifikation ✓ + Reply-Suggestions ✓ (Auto-Status-Update bei Close offen), danach Auto-Scheduling. Modell-Routing (Ollama/vLLM) für datenschutzsensible Workspaces parallel.
 4. **Phase E — Rest**: Document-Vault (SSE + Retention/GoBD, baut auf dem S3-Adapter auf) + Portal-Vertiefung (Signatur, Retainer-Burndown, Magic-Link/SSO, Themability-Builder).
 5. **Phase D⁺ — Rest**: per-Workspace-Toggle + Hybrid-/Vektor-Suche — erst wenn Volumen/Qualität es rechtfertigen.

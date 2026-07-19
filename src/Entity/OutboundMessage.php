@@ -119,6 +119,14 @@ class OutboundMessage
     private string $body = '';
 
     /**
+     * Optional HTML variant of {@see $body}. When set, the mail is sent
+     * as multipart/alternative (text + HTML); `body` stays the plaintext
+     * fallback. Null for plaintext-only messages.
+     */
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $bodyHtml = null;
+
+    /**
      * @var array<int, array<string, mixed>>  list of {fileIri, filename, mimeType, sizeBytes}
      */
     #[ORM\Column(type: 'json')]
@@ -192,6 +200,9 @@ class OutboundMessage
 
     public function getBody(): string { return $this->body; }
     public function setBody(string $b): self { $this->body = $b; return $this; }
+
+    public function getBodyHtml(): ?string { return $this->bodyHtml; }
+    public function setBodyHtml(?string $h): self { $this->bodyHtml = $h; return $this; }
 
     /** @return array<int, array<string, mixed>> */
     public function getAttachments(): array { return $this->attachments; }

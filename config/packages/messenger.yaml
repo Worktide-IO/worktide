@@ -56,6 +56,10 @@ framework:
             # Social post fan-out — network calls off the request thread.
             App\Message\PublishSocialPostMessage: async
 
+            # Outbound message delivery (auto-reply / reply) — quick SMTP
+            # hand-off off the ingest thread, egress-gated in the handler.
+            App\Message\SendOutboundMessage: async
+
             # Newsletter fan-out — one mail per recipient off the send request.
             App\Message\SendNewsletterMessage: async
 

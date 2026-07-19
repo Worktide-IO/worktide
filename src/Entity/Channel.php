@@ -201,6 +201,40 @@ class Channel
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $lastSyncError = null;
 
+    // ---- auto-reply (receipt acknowledgement) ----------------------
+    //
+    // Per-mailbox auto-responder. Because personal vs shared visibility
+    // is already modelled by isShared/ownerUser, the same two columns
+    // carry both cases: a personal mailbox holds its owner's message
+    // (edited by the owner), a shared mailbox holds the team message
+    // (edited by anyone with access — see ChannelAutoReplyController,
+    // which is deliberately more permissive than full channel EDIT).
+    //
+    // Loop safety is handled at send-time (AutoReplyResponder skips
+    // bulk/auto-submitted/no-reply mail via MailRelevanceClassifier and
+    // throttles per sender); the reply itself carries Auto-Submitted +
+    // Precedence: bulk so the far side won't bounce back.
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $autoReplyEnabled = false;
+
+    #[ORM\Column(length: 250, nullable: true)]
+    private ?string $autoReplySubject = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $autoReplyBodyHtml = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $autoReplyBodyText = null;
+
+    /**
+     * Minimum hours between two auto-replies to the same sender on this
+     * mailbox. Standard auto-responder de-bounce so a back-and-forth
+     * thread doesn't get a receipt on every inbound message.
+     */
+    #[ORM\Column(type: 'smallint', options: ['default' => 24])]
+    private int $autoReplyThrottleHours = 24;
+
     public function getName(): string { return $this->name; }
     public function setName(string $name): self { $this->name = $name; return $this; }
 
@@ -282,4 +316,29 @@ class Channel
 
     public function getLastSyncError(): ?string { return $this->lastSyncError; }
     public function setLastSyncError(?string $e): self { $this->lastSyncError = $e; return $this; }
+
+    public function isAutoReplyEnabled(): bool { return $this->autoReplyEnabled; }
+    public function setAutoReplyEnabled(bool $v): self { $this->autoReplyEnabled = $v; return $this; }
+
+    public function getAutoReplySubject(): ?string { return $this->autoReplySubject; }
+    public function setAutoReplySubject(?string $s): self { $this->autoReplySubject = $s; return $this; }
+
+    public function getAutoReplyBodyHtml(): ?string { return $this->autoReplyBodyHtml; }
+    public function setAutoReplyBodyHtml(?string $h): self { $this->autoReplyBodyHtml = $h; return $this; }
+
+    public function getAutoReplyBodyText(): ?string { return $this->autoReplyBodyText; }
+    public function setAutoReplyBodyText(?string $t): self { $this->autoReplyBodyText = $t; return $this; }
+
+    public function getAutoReplyThrottleHours(): int { return $this->autoReplyThrottleHours; }
+    public function setAutoReplyThrottleHours(int $h): self { $this->autoReplyThrottleHours = max(0, $h); return $this; }
+
+    /**
+     * True only when the auto-responder is fully configured — enabled and
+     * has at least one non-empty body variant to send.
+     */
+    public function hasUsableAutoReply(): bool
+    {
+        return $this->autoReplyEnabled
+            && (($this->autoReplyBodyText ?? '') !== '' || ($this->autoReplyBodyHtml ?? '') !== '');
+    }
 }

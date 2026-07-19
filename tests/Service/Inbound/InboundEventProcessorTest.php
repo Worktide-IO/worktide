@@ -14,6 +14,8 @@ use App\Repository\ChannelRepository;
 use App\Repository\ContactRepository;
 use App\Repository\ConversationRepository;
 use App\Repository\InboundEventRepository;
+use App\Repository\OutboundMessageRepository;
+use App\Service\Inbound\AutoReplyResponder;
 use App\Service\Inbound\ContactResolver;
 use App\Service\Inbound\InboundEventProcessor;
 use App\Service\Inbound\MailRelevanceClassifier;
@@ -58,6 +60,7 @@ final class InboundEventProcessorTest extends TestCase
             $this->createStub(MessageBusInterface::class),
             new AdapterRegistry([], [], [$threader], [], [], ['email_imap' => 0]),
             new RateLimiterFactory(['id' => 'ai_auto_suggest', 'policy' => 'no_limit'], new InMemoryStorage()),
+            $this->autoReplyResponder(),
         );
 
         $processor->process($event, live: false);
@@ -83,11 +86,27 @@ final class InboundEventProcessorTest extends TestCase
             $this->createStub(MessageBusInterface::class),
             new AdapterRegistry([], [], []), // no threaders registered
             new RateLimiterFactory(['id' => 'ai_auto_suggest', 'policy' => 'no_limit'], new InMemoryStorage()),
+            $this->autoReplyResponder(),
         );
 
         $processor->process($event, live: false);
 
         self::assertNull($event->getConversation());
         self::assertSame(InboundEventState::Processed, $event->getState());
+    }
+
+    /**
+     * Real responder with stubbed deps — process(live: false) never invokes it,
+     * so behaviour is covered separately in {@see AutoReplyResponderTest}.
+     */
+    private function autoReplyResponder(): AutoReplyResponder
+    {
+        return new AutoReplyResponder(
+            new MailRelevanceClassifier(),
+            $this->createStub(OutboundMessageRepository::class),
+            $this->createStub(MessageBusInterface::class),
+            $this->createStub(EntityManagerInterface::class),
+            new NullLogger(),
+        );
     }
 }
