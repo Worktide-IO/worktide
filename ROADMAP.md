@@ -120,7 +120,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 - **Auth-Verfahren pro Mailbox** wählbar:
   - **SMTP + IMAP mit Passwort** (Generic, App-Passwords für 2FA-Provider)
   - **OAuth Microsoft 365 / Exchange Online** via Microsoft Graph — sowohl delegierte (User-Account) als auch Application-Permissions (Service-Mailbox). Scopes: Mail.Read, Mail.Send, Mail.ReadWrite. Refresh-Worker erneuert Tokens vor Ablauf.
-  - **OAuth Google Workspace** via Gmail API
+  - **OAuth Google Workspace** via Gmail API — **zurückgestellt (ans Ende geschoben), aktuell kein Bedarf**; erst bei einem konkreten Kunden mit Gmail-Postfach. Gmail ist zwischenzeitlich per IMAP + App-Passwort anbindbar.
 - Tokens encrypted-at-rest (libsodium via Symfony Secrets)
 - **Mailbox-Sync-Worker** via Symfony Messenger (IMAP-IDLE / Graph-Webhooks / Polling als Fallback)
   - **Polling — erledigt** (`worktide:channel:pull`, alle 2 min, pro Channel).
@@ -365,7 +365,7 @@ Eine große Welle hat mehrere zuvor als „offen"/„geplant" geführte Blöcke 
 Die ursprüngliche Sequenz A → C → B → D → D⁺ → E ist **weitgehend abgearbeitet**: A, B und D⁺ stehen, ebenso die Foundation von C, D und E; Kundenportal, Booking, Newsletter und Notifications sind live. Die Reihenfolge orientiert sich daher jetzt an den **Restarbeiten** — höchster Hebel zuerst:
 
 1. **Gebautes produktiv schalten** — Go-Live-Config für Notifications/Mail (`EGRESS_ALLOW`, `MAILER_DSN`, `worker`/`scheduler`-Container; [docs/notifications-go-live.md](docs/notifications-go-live.md)). (Portal Invoices-/Goals-UI ✓ + Discovered-Postfach-UI ✓ + visueller Workflow-Editor ✓ + Smart-Links-oEmbed-Proxy ✓ erledigt.)
-2. **Phase C — Helpdesk komplettieren**: Google-Workspace-OAuth, Inbound-Webhook (SendGrid/Mailgun/Resend). (Auto-Reply pro Mailbox ✓ + Collision-Detection ✓ erledigt.) Schließt den Support-Loop, den Portal-Tickets bereits anstoßen.
+2. **Phase C — Helpdesk komplettieren**: Inbound-Webhook (SendGrid/Mailgun/Resend). (Auto-Reply pro Mailbox ✓ + Collision-Detection ✓ erledigt.) Schließt den Support-Loop, den Portal-Tickets bereits anstoßen. **Google-Workspace-OAuth ist ans Ende geschoben** (aktuell kein Bedarf — nur bei konkretem Kunden mit Gmail-Postfach; IMAP deckt Gmail über App-Passwörter ohnehin ab).
 3. **Phase D — KI-Ausbau** (Phase-C-Daten + Portal liefern jetzt den Kontext): Aufwands-Schätzung ✓ (Lern-Schleife offen), Mail-Klassifikation ✓ + Reply-Suggestions ✓ (Auto-Status-Update bei Close offen), danach Auto-Scheduling. Modell-Routing (Ollama/vLLM) für datenschutzsensible Workspaces parallel.
 4. **Phase E — Rest**: Document-Vault (SSE + Retention/GoBD, baut auf dem S3-Adapter auf) + Portal-Vertiefung (Signatur, Retainer-Burndown, Magic-Link/SSO, Themability-Builder).
 5. **Phase D⁺ — Rest**: per-Workspace-Toggle + Hybrid-/Vektor-Suche — erst wenn Volumen/Qualität es rechtfertigen.
