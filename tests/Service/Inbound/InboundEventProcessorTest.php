@@ -16,8 +16,10 @@ use App\Repository\ConversationRepository;
 use App\Repository\InboundEventRepository;
 use App\Repository\OutboundMessageRepository;
 use App\Service\Inbound\AutoReplyResponder;
+use App\Repository\InboundMuteRuleRepository;
 use App\Service\Inbound\ContactResolver;
 use App\Service\Inbound\InboundEventProcessor;
+use App\Service\Inbound\InboundMuteMatcher;
 use App\Service\Inbound\MailRelevanceClassifier;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -61,6 +63,7 @@ final class InboundEventProcessorTest extends TestCase
             new AdapterRegistry([], [], [$threader], [], [], ['email_imap' => 0]),
             new RateLimiterFactory(['id' => 'ai_auto_suggest', 'policy' => 'no_limit'], new InMemoryStorage()),
             $this->autoReplyResponder(),
+            $this->muteMatcher(),
         );
 
         $processor->process($event, live: false);
@@ -87,6 +90,7 @@ final class InboundEventProcessorTest extends TestCase
             new AdapterRegistry([], [], []), // no threaders registered
             new RateLimiterFactory(['id' => 'ai_auto_suggest', 'policy' => 'no_limit'], new InMemoryStorage()),
             $this->autoReplyResponder(),
+            $this->muteMatcher(),
         );
 
         $processor->process($event, live: false);
@@ -99,6 +103,14 @@ final class InboundEventProcessorTest extends TestCase
      * Real responder with stubbed deps — process(live: false) never invokes it,
      * so behaviour is covered separately in {@see AutoReplyResponderTest}.
      */
+    private function muteMatcher(): InboundMuteMatcher
+    {
+        $repo = $this->createStub(InboundMuteRuleRepository::class);
+        $repo->method('findEnabledForWorkspace')->willReturn([]);
+
+        return new InboundMuteMatcher($repo);
+    }
+
     private function autoReplyResponder(): AutoReplyResponder
     {
         return new AutoReplyResponder(

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Automation\AutomationTokenGuard;
 use App\Entity\Conversation;
 use App\Entity\ConversationNote;
 use App\Entity\Enum\ConversationStatus;
@@ -13,7 +14,6 @@ use App\Repository\TagRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
@@ -32,17 +32,19 @@ use Symfony\Component\Uid\Uuid;
  * the endpoint is disabled (404), so a fresh install can't be poked.
  *
  *   POST /v1/automation/conversations/{id}/apply
- *   { "status": "closed", "tags": ["billing"], "note": "…", "pinNote": false }
+ *   { "status": "closed", "tags": ["billing"], "note": "…", "pinNote": false, "muted": true }
  *
  * All body fields are optional; only those present are applied. Tags are
  * resolved-or-created per the conversation's workspace (scope=conversation).
+ * `muted` lets a workflow HIDE a thread as a final step after processing it
+ * (process-then-hide) — the counterpart to the ingest-time mute rules.
  */
 final class AutomationConversationActionController
 {
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly TagRepository $tags,
-        private readonly string $automationToken,
+        private readonly AutomationTokenGuard $guard,
     ) {}
 
     #[Route(
@@ -52,7 +54,7 @@ final class AutomationConversationActionController
     )]
     public function __invoke(string $id, Request $request): JsonResponse
     {
-        $this->assertToken($request);
+        $this->guard->assert($request);
 
         if (!Uuid::isValid($id)) {
             throw new BadRequestHttpException('Ungültige Conversation-ID.');
@@ -100,30 +102,26 @@ final class AutomationConversationActionController
             $applied[] = 'note';
         }
 
+        // Hide (or un-hide) the thread as a workflow step — process-then-hide.
+        if (\array_key_exists('muted', $data)) {
+            $conversation->setMutedAt(
+                filter_var($data['muted'], \FILTER_VALIDATE_BOOL) ? new \DateTimeImmutable() : null,
+            );
+            $applied[] = 'muted';
+        }
+
         $this->em->flush();
 
         return new JsonResponse([
             'id' => $conversation->getId()?->toRfc4122(),
             'status' => $conversation->getStatus()->value,
+            'muted' => $conversation->getMutedAt() !== null,
             'tags' => array_values(array_map(
                 static fn (Tag $t): string => $t->getName(),
                 $conversation->getTags()->toArray(),
             )),
             'applied' => $applied,
         ]);
-    }
-
-    private function assertToken(Request $request): void
-    {
-        $configured = trim($this->automationToken);
-        if ($configured === '') {
-            // Feature disabled — behave as if the route doesn't exist.
-            throw new NotFoundHttpException();
-        }
-        $presented = (string) $request->headers->get('X-Worktide-Automation-Token', '');
-        if ($presented === '' || !hash_equals($configured, $presented)) {
-            throw new AccessDeniedHttpException('Ungültiges Automation-Token.');
-        }
     }
 
     private function resolveOrCreateTag(string $name, Conversation $conversation): Tag

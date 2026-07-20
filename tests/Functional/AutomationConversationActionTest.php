@@ -64,6 +64,21 @@ final class AutomationConversationActionTest extends WebTestCase
         self::assertCount(2, $conversation->getTags());
     }
 
+    public function testMutedActionHidesAndUnhides(): void
+    {
+        $conversation = $this->conversation();
+        $id = $conversation->getId()?->toRfc4122();
+
+        $this->apply($id, self::TOKEN, ['muted' => true, 'note' => 'processed, then hidden']);
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        self::assertTrue($this->json()['muted']);
+        self::assertNotNull($this->reload($id)->getMutedAt());
+
+        $this->apply($id, self::TOKEN, ['muted' => false]);
+        self::assertFalse($this->json()['muted']);
+        self::assertNull($this->reload($id)->getMutedAt());
+    }
+
     public function testTagsAreIdempotent(): void
     {
         $id = $this->conversation()->getId()?->toRfc4122();
@@ -102,6 +117,16 @@ final class AutomationConversationActionTest extends WebTestCase
             'CONTENT_TYPE' => 'application/json',
         ], json_encode(['status' => 'open'], \JSON_THROW_ON_ERROR));
         self::assertSame(403, $this->client->getResponse()->getStatusCode());
+    }
+
+    /** Fresh DB read (the request cycle detaches the test's managed entity). */
+    private function reload(?string $id): Conversation
+    {
+        $this->em->clear();
+        $c = $this->em->find(Conversation::class, Uuid::fromString((string) $id));
+        self::assertInstanceOf(Conversation::class, $c);
+
+        return $c;
     }
 
     private function conversation(): Conversation
