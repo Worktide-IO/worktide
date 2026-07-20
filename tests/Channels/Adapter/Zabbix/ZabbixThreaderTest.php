@@ -92,6 +92,80 @@ final class ZabbixThreaderTest extends TestCase
         self::assertSame(ConversationStatus::Closed, $conversation->getStatus());
     }
 
+    public function testRecoveryCreatingThreadStripsBehobenPrefix(): void
+    {
+        // A recovery that arrives before its raise created the thread must not
+        // name the conversation "Behoben: …".
+        $conversations = $this->createStub(ConversationRepository::class);
+        $conversations->method('findByThreadKey')->willReturn(null);
+        $systems = $this->createStub(CustomerSystemRepository::class);
+        $systems->method('findByExternalRef')->willReturn(null);
+
+        $threader = new ZabbixThreader($conversations, $systems, $this->createStub(EntityManagerInterface::class));
+        $channel = $this->channel();
+        $event = $this->event($channel, resolved: true);
+
+        $conversation = $threader->attach($channel, $event);
+
+        self::assertSame(ConversationStatus::Closed, $conversation->getStatus());
+        self::assertSame('web1 (Prod) — CPU high', $conversation->getSubject());
+    }
+
+    public function testStaleRaiseDoesNotReopenClosedThread(): void
+    {
+        // Async retries can deliver a raise (older clock) after the recovery
+        // that superseded it. The out-of-order raise must not re-open the thread
+        // nor drag the subject back to "Behoben: …".
+        $channel = $this->channel();
+        $recoveredAt = new \DateTimeImmutable('2026-07-19 22:00:00');
+        $existing = (new Conversation())
+            ->setWorkspace($channel->getWorkspace())
+            ->setChannel($channel)
+            ->setThreadKey('zabbix:55:20')
+            ->setSubject('web1 (Prod) — CPU high')
+            ->setStatus(ConversationStatus::Closed)
+            ->setLastEventAt($recoveredAt);
+
+        $conversations = $this->createStub(ConversationRepository::class);
+        $conversations->method('findByThreadKey')->willReturn($existing);
+        $systems = $this->createStub(CustomerSystemRepository::class);
+        $systems->method('findByExternalRef')->willReturn(null);
+
+        $threader = new ZabbixThreader($conversations, $systems, $this->createStub(EntityManagerInterface::class));
+        // Raise clock is earlier than the recovery already applied.
+        $staleRaise = $this->event($channel, resolved: false, receivedAt: new \DateTimeImmutable('2026-07-19 21:48:00'));
+
+        $conversation = $threader->attach($channel, $staleRaise);
+
+        self::assertSame(ConversationStatus::Closed, $conversation->getStatus());
+        self::assertSame('web1 (Prod) — CPU high', $conversation->getSubject());
+        self::assertEquals($recoveredAt, $conversation->getLastEventAt());
+    }
+
+    public function testNewerRaiseReopensClosedThread(): void
+    {
+        $channel = $this->channel();
+        $existing = (new Conversation())
+            ->setWorkspace($channel->getWorkspace())
+            ->setChannel($channel)
+            ->setThreadKey('zabbix:55:20')
+            ->setSubject('web1 (Prod) — CPU high')
+            ->setStatus(ConversationStatus::Closed)
+            ->setLastEventAt(new \DateTimeImmutable('2026-07-19 22:00:00'));
+
+        $conversations = $this->createStub(ConversationRepository::class);
+        $conversations->method('findByThreadKey')->willReturn($existing);
+        $systems = $this->createStub(CustomerSystemRepository::class);
+        $systems->method('findByExternalRef')->willReturn(null);
+
+        $threader = new ZabbixThreader($conversations, $systems, $this->createStub(EntityManagerInterface::class));
+        $freshRaise = $this->event($channel, resolved: false, receivedAt: new \DateTimeImmutable('2026-07-19 23:15:00'));
+
+        $conversation = $threader->attach($channel, $freshRaise);
+
+        self::assertSame(ConversationStatus::Open, $conversation->getStatus());
+    }
+
     public function testAutoLinksCustomerFromCustomerSystem(): void
     {
         $channel = $this->channel();
@@ -123,13 +197,15 @@ final class ZabbixThreaderTest extends TestCase
             ->setWorkspace(new Workspace());
     }
 
-    private function event(Channel $channel, bool $resolved): InboundEvent
+    private function event(Channel $channel, bool $resolved, ?\DateTimeImmutable $receivedAt = null): InboundEvent
     {
-        return (new InboundEvent())
+        // A real recovery event carries the raise's subject prefixed with
+        // "Behoben:" (see ZabbixAdapter::buildRecoveryEvent).
+        $event = (new InboundEvent())
             ->setWorkspace($channel->getWorkspace())
             ->setChannel($channel)
             ->setExternalId($resolved ? 'resolved:100' : '100')
-            ->setSubject('CPU high')
+            ->setSubject($resolved ? 'Behoben: CPU high' : 'CPU high')
             ->setSenderRaw('web1 (Prod)')
             ->setSourceMetadata([
                 'hostid' => '55',
@@ -137,5 +213,10 @@ final class ZabbixThreaderTest extends TestCase
                 'hostVisibleName' => 'web1 (Prod)',
                 'resolved' => $resolved,
             ]);
+        if ($receivedAt !== null) {
+            $event->setReceivedAt($receivedAt);
+        }
+
+        return $event;
     }
 }

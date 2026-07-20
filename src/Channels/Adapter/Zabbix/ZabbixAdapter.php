@@ -43,14 +43,28 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *
  * When a problem recovers, `problem.get` keeps the SAME `eventid` and merely
  * populates `r_eventid`/`r_clock`. Dedup on `eventid` would therefore swallow
- * the recovery, and a plain `eventid_from` cursor would exclude an older
- * still-open problem once a newer problem advanced the cursor — so its recovery
- * would never be seen. Instead the adapter fetches the CURRENT problem set each
- * run (a bounded list) and diffs it against `inboundConfig.openEventIds`:
+ * the recovery, and a plain `eventid_from` cursor over `problem.get` would
+ * exclude an older still-open problem once a newer problem advanced the cursor —
+ * so its recovery would never be seen. Instead the adapter fetches the CURRENT
+ * problem set each run (a bounded list) and diffs it against
+ * `inboundConfig.openEventIds`:
  *   - eventid new (not yet an InboundEvent)      → emit a "problem raised" event
  *   - eventid previously open but now gone        → emit a "problem resolved" event
  * The recovered event carries a distinct externalId ("resolved:<eventid>") so it
  * dedupes independently of the raise.
+ *
+ * ## Short-lived flaps between polls
+ *
+ * A problem that both raises AND recovers inside one poll interval never appears
+ * in a `problem.get` snapshot, so the diff above would miss it silently. A
+ * supplementary monotonic cursor over trigger PROBLEM *events* (`event.get`,
+ * `value=1`, `eventid_from=<cursor>`) surfaces every problem raised since the
+ * last run — those not currently open are short-lived flaps, emitted as a
+ * raise+recovery pair. This cursor is safe (unlike the `problem.get` one above)
+ * because recovery detection does NOT depend on it: still-open problems are left
+ * to the open-set diff, so advancing the cursor past them loses nothing. On the
+ * first run the cursor is merely seeded to the newest event id (no history
+ * backfill). State lives in `inboundConfig.eventCursor`.
  */
 final class ZabbixAdapter implements InboundAdapter, Testable
 {
@@ -117,21 +131,29 @@ final class ZabbixAdapter implements InboundAdapter, Testable
         }
         $problems = $this->asList($this->call($base, $token, 'problem.get', $params));
 
-        // Resolve the host per trigger (objectid) in one trigger.get for the batch.
-        $triggerIds = $this->collectTriggerIds($problems);
+        // eventids currently in PROBLEM state — the diff basis for recoveries.
+        $currentOpen = [];
+        foreach ($problems as $p) {
+            $id = (string) ($p['eventid'] ?? '');
+            if ($id !== '') {
+                $currentOpen[] = $id;
+            }
+        }
+
+        // Short-lived flaps (opened AND recovered between two polls) via the
+        // event cursor — problems that never showed up in the snapshot above.
+        [$shortLived, $eventCursor] = $this->collectShortLivedProblems($channel, $base, $token, $groupIds, $cfg, $currentOpen);
+
+        // Resolve the host per trigger (objectid) in one trigger.get for every
+        // trigger referenced by an open OR a short-lived problem.
+        $triggerIds = $this->collectTriggerIds([...$problems, ...$shortLived]);
         $hostByTrigger = $triggerIds !== [] ? $this->resolveHosts($base, $token, $triggerIds) : [];
 
         $newEvents = [];
-        $currentOpen = [];
         foreach ($problems as $p) {
             $eventId = (string) ($p['eventid'] ?? '');
-            if ($eventId === '') {
-                continue;
-            }
-            $currentOpen[] = $eventId;
-
-            if ($this->events->findByExternalId($channel, $eventId) !== null) {
-                continue; // already ingested this raise
+            if ($eventId === '' || $this->events->findByExternalId($channel, $eventId) !== null) {
+                continue; // empty or already ingested this raise
             }
             $newEvents[] = $this->buildRaiseEvent($channel, $base, $p, $hostByTrigger);
         }
@@ -144,6 +166,17 @@ final class ZabbixAdapter implements InboundAdapter, Testable
             }
         }
 
+        // Short-lived flaps: emit the raise and its immediate recovery together
+        // so the thread ends closed (the threader orders them by timestamp).
+        foreach ($shortLived as $p) {
+            $raise = $this->buildRaiseEvent($channel, $base, $p, $hostByTrigger);
+            $newEvents[] = $raise;
+            $recovery = $this->buildRecoveryFromOrigin($channel, $raise, (string) ($p['eventid'] ?? ''));
+            if ($recovery !== null) {
+                $newEvents[] = $recovery;
+            }
+        }
+
         foreach ($newEvents as $event) {
             $this->em->persist($event);
         }
@@ -151,6 +184,7 @@ final class ZabbixAdapter implements InboundAdapter, Testable
         // Persist adapter state directly on the channel — the runner reads the
         // (mutated) inboundConfig after pull() returns and flushes it.
         $cfg['openEventIds'] = array_values($currentOpen);
+        $cfg['eventCursor'] = $eventCursor;
         $channel->setInboundConfig($cfg);
 
         return new InboundResult($newEvents, null);
@@ -242,18 +276,31 @@ final class ZabbixAdapter implements InboundAdapter, Testable
     }
 
     /**
-     * Synthesise a recovery event from the original raise event's metadata so it
-     * threads onto the same host+trigger Conversation. Returns null when the
-     * original raise was never ingested (nothing to thread onto).
+     * Synthesise a recovery event from a previously-ingested raise (looked up by
+     * eventid) so it threads onto the same host+trigger Conversation. Returns
+     * null when the original raise was never ingested (nothing to thread onto).
      */
     private function buildRecoveryEvent(Channel $channel, string $eventId): ?InboundEvent
     {
-        if ($this->events->findByExternalId($channel, self::RESOLVED_PREFIX . $eventId) !== null) {
-            return null; // recovery already emitted
-        }
         $origin = $this->events->findByExternalId($channel, $eventId);
         if ($origin === null) {
             return null; // no raise on record → can't determine host+trigger
+        }
+
+        return $this->buildRecoveryFromOrigin($channel, $origin, $eventId);
+    }
+
+    /**
+     * Build a recovery event from an in-memory raise event (its metadata carries
+     * host+trigger, so the recovery threads onto the same Conversation). Used for
+     * both the diff path (origin loaded from the DB) and short-lived flaps (the
+     * raise built moments earlier in the same batch, not yet flushed). Returns
+     * null when a recovery for this eventid already exists.
+     */
+    private function buildRecoveryFromOrigin(Channel $channel, InboundEvent $origin, string $eventId): ?InboundEvent
+    {
+        if ($eventId === '' || $this->events->findByExternalId($channel, self::RESOLVED_PREFIX . $eventId) !== null) {
+            return null; // recovery already emitted
         }
         $meta = $origin->getSourceMetadata();
         $meta['resolved'] = true;
@@ -268,6 +315,100 @@ final class ZabbixAdapter implements InboundAdapter, Testable
             ->setBody('Problem behoben (Recovery). Ursprüngliches Ereignis: ' . $eventId . '.')
             ->setSourceMetadata($meta)
             ->setTraceUrl($origin->getTraceUrl());
+    }
+
+    /**
+     * Diff the trigger PROBLEM-event stream (event.get, value=1) since the stored
+     * cursor to surface problems that opened AND recovered between two polls.
+     * Returns [shortLivedProblems, newCursor]. On the first run (no cursor) it
+     * only seeds the cursor to the newest event id and returns nothing — no
+     * history backfill. A short-lived problem is one raised since the cursor that
+     * is neither currently open (→ left to the open-set diff) nor already
+     * ingested (→ raised in an earlier poll while still open).
+     *
+     * @param list<string>|null    $groupIds
+     * @param array<string, mixed> $cfg
+     * @param list<string>         $currentOpen
+     * @return array{0: list<array<string, mixed>>, 1: string}
+     */
+    private function collectShortLivedProblems(Channel $channel, string $base, string $token, ?array $groupIds, array $cfg, array $currentOpen): array
+    {
+        $cursor = isset($cfg['eventCursor']) && \is_scalar($cfg['eventCursor']) ? (string) $cfg['eventCursor'] : '';
+
+        if ($cursor === '') {
+            // Seed: newest problem-event id, emit nothing (no historical backfill).
+            $seed = $this->asList($this->call($base, $token, 'event.get', $this->eventGetParams($groupIds, null) + [
+                'output' => ['eventid'],
+                'sortorder' => 'DESC',
+                'limit' => 1,
+            ]));
+            $newest = (string) ($seed[0]['eventid'] ?? '');
+
+            return [[], $newest !== '' ? $newest : '0'];
+        }
+
+        $events = $this->asList($this->call($base, $token, 'event.get', $this->eventGetParams($groupIds, $cursor) + [
+            'output' => 'extend',
+            'selectTags' => 'extend',
+            'sortorder' => 'ASC',
+            'limit' => 500,
+        ]));
+
+        $open = array_fill_keys($currentOpen, true);
+        $shortLived = [];
+        $maxSeen = $cursor;
+        foreach ($events as $e) {
+            $id = (string) ($e['eventid'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+            if ($this->idGreater($id, $maxSeen)) {
+                $maxSeen = $id;
+            }
+            if (isset($open[$id]) || $this->events->findByExternalId($channel, $id) !== null) {
+                continue; // still open (open-set diff owns it) or already ingested
+            }
+            $shortLived[] = $e;
+        }
+
+        return [$shortLived, $maxSeen];
+    }
+
+    /**
+     * event.get params scoped to trigger PROBLEM events, optionally narrowed to a
+     * host group and/or starting from an eventid cursor (inclusive).
+     *
+     * @param list<string>|null $groupIds
+     * @return array<string, mixed>
+     */
+    private function eventGetParams(?array $groupIds, ?string $eventIdFrom): array
+    {
+        $params = [
+            'source' => 0,          // trigger events
+            'object' => 0,          // trigger
+            'value' => 1,           // PROBLEM state (not the OK/recovery events)
+            'sortfield' => ['eventid'],
+        ];
+        if ($eventIdFrom !== null && $eventIdFrom !== '') {
+            $params['eventid_from'] = $eventIdFrom;
+        }
+        if ($groupIds !== null) {
+            $params['groupids'] = $groupIds;
+        }
+
+        return $params;
+    }
+
+    /**
+     * Numeric-string "greater than" for Zabbix eventids (bigints that can exceed
+     * PHP's int range): longer non-zero-padded decimal wins, else lexicographic.
+     */
+    private function idGreater(string $a, string $b): bool
+    {
+        $la = \strlen($a);
+        $lb = \strlen($b);
+
+        return $la !== $lb ? $la > $lb : strcmp($a, $b) > 0;
     }
 
     /**
