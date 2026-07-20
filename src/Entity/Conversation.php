@@ -73,6 +73,7 @@ use Doctrine\ORM\Mapping as ORM;
     'customer' => 'exact',
     'assignee' => 'exact',
     'tags.id' => 'exact',
+    'subject' => 'partial',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['lastEventAt', 'createdAt', 'subject'])]
 #[ApiFilter(DateFilter::class, properties: ['lastEventAt', 'createdAt'])]
