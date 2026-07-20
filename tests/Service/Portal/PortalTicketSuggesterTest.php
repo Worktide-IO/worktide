@@ -59,10 +59,10 @@ final class PortalTicketSuggesterTest extends TestCase
             public function __construct(private array $payload, private bool $configured) {}
 
             public function isConfigured(): bool { return $this->configured; }
-            public function complete(string $system, string $user, int $maxTokens = 4096): string { return ''; }
+            public function complete(string $system, string $user, int $maxTokens = 4096, ?string $model = null): string { return ''; }
 
             /** @return array<string, mixed> */
-            public function completeJson(string $system, string $user, int $maxTokens = 2048): array { return $this->payload; }
+            public function completeJson(string $system, string $user, int $maxTokens = 2048, ?string $model = null): array { return $this->payload; }
 
             public function getModel(): string { return 'test-model'; }
         };

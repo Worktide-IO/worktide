@@ -40,11 +40,12 @@ final class AnthropicLlmProvider implements LlmProviderInterface
         return $this->apiKey !== '';
     }
 
-    public function complete(string $system, string $user, int $maxTokens = 4096): string
+    public function complete(string $system, string $user, int $maxTokens = 4096, ?string $model = null): string
     {
         if (!$this->isConfigured()) {
             throw new LlmException('ANTHROPIC_API_KEY is not configured.');
         }
+        $useModel = ($model !== null && $model !== '') ? $model : $this->model;
         // Default-deny egress gate: prompt data only leaves for Anthropic when the
         // llm module is approved (EGRESS_ALLOW).
         if (!$this->egress->isAllowed(EgressModule::Llm)) {
@@ -59,7 +60,7 @@ final class AnthropicLlmProvider implements LlmProviderInterface
             $message = $client->messages->create(
                 maxTokens: $maxTokens,
                 messages: [['role' => 'user', 'content' => $user]],
-                model: $this->model,
+                model: $useModel,
                 system: $system,
             );
         } catch (\Throwable $e) {
@@ -70,7 +71,7 @@ final class AnthropicLlmProvider implements LlmProviderInterface
         // reply below still consumed tokens.
         $this->usage->record(
             'anthropic',
-            $this->model,
+            $useModel,
             (int) ($message->usage->inputTokens ?? 0),
             (int) ($message->usage->outputTokens ?? 0),
         );
@@ -95,12 +96,12 @@ final class AnthropicLlmProvider implements LlmProviderInterface
         return $text;
     }
 
-    public function completeJson(string $system, string $user, int $maxTokens = 2048): array
+    public function completeJson(string $system, string $user, int $maxTokens = 2048, ?string $model = null): array
     {
         $jsonSystem = $system . "\n\nReturn ONLY a single valid JSON object. No prose, no explanation, "
             . 'no Markdown code fences around it.';
 
-        $raw = $this->complete($jsonSystem, $user, $maxTokens);
+        $raw = $this->complete($jsonSystem, $user, $maxTokens, $model);
         $decoded = json_decode(self::stripFences($raw), true);
 
         if (!\is_array($decoded)) {

@@ -12,6 +12,7 @@ use App\Entity\WorkspaceMember;
 use App\Service\Llm\LlmBudgetGuard;
 use App\Service\Llm\LlmRouter;
 use App\Service\Llm\LlmTier;
+use App\Service\Llm\ModelCatalog;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -42,6 +43,7 @@ final class AiUsageSummaryController
         private readonly EntityManagerInterface $em,
         private readonly LlmBudgetGuard $budget,
         private readonly LlmRouter $router,
+        private readonly ModelCatalog $catalog,
     ) {}
 
     #[Route(path: '/v1/ai-usage/summary', name: 'api_ai_usage_summary', methods: ['GET'])]
@@ -136,11 +138,16 @@ final class AiUsageSummaryController
      * tier overrides the {@see \App\Service\Llm\LlmRouter} reads. Owner/Admin only.
      *
      *   PUT /v1/ai-usage/routing
-     *   { "forceLocal": true, "routing": { "reply": "cloud", "triage": "local" } }
+     *   {
+     *     "forceLocal": true,
+     *     "routing": { "reply": "cloud" },
+     *     "models":  { "triage": "anthropic:claude-haiku-4-5" }
+     *   }
      *
      * `forceLocal` forces every task-type local (data residency). `routing` maps
-     * a feature key to a {@see LlmTier} value; an unknown tier value is rejected,
-     * a null value clears that feature's override. Omitted keys are left as-is.
+     * a feature to a {@see LlmTier} value; `models` pins a feature to a specific
+     * {@see ModelCatalog} key. Unknown tier/key values are rejected; a null value
+     * clears that feature's entry. Omitted keys are left as-is.
      */
     #[Route(path: '/v1/ai-usage/routing', name: 'api_ai_usage_routing', methods: ['PUT'])]
     public function setRouting(Request $request): JsonResponse
@@ -180,6 +187,27 @@ final class AiUsageSummaryController
             $ai['routing'] = $routing;
         }
 
+        if (\array_key_exists('models', $body)) {
+            if (!\is_array($body['models'])) {
+                throw new BadRequestHttpException('"models" must be an object of feature => catalog key.');
+            }
+            $models = \is_array($ai['models'] ?? null) ? $ai['models'] : [];
+            foreach ($body['models'] as $feature => $key) {
+                if (!\is_string($feature) || $feature === '') {
+                    throw new BadRequestHttpException('Model keys must be non-empty feature names.');
+                }
+                if ($key === null) {
+                    unset($models[$feature]);
+                    continue;
+                }
+                if (!\is_string($key) || $this->catalog->get($key) === null) {
+                    throw new BadRequestHttpException(sprintf('Unknown model "%s" for feature "%s".', (string) $key, $feature));
+                }
+                $models[$feature] = $key;
+            }
+            $ai['models'] = $models;
+        }
+
         $settings['ai'] = $ai;
         $workspace->setSettings($settings);
         $this->em->flush();
@@ -192,8 +220,10 @@ final class AiUsageSummaryController
      *     forceLocal: bool,
      *     localConfigured: bool,
      *     overrides: array<string, string>,
+     *     models: array<string, string>,
      *     tiers: list<string>,
-     *     features: list<array{feature: string, defaultTier: string}>
+     *     features: list<array{feature: string, defaultTier: string}>,
+     *     catalog: list<array{key: string, provider: string, label: string, inputPer1M: float, outputPer1M: float, residency: string, staysInEu: bool, speed: string, available: bool}>
      * }
      */
     private function routingState(Workspace $workspace): array
@@ -205,15 +235,36 @@ final class AiUsageSummaryController
                 $overrides[$feature] = (string) $tier;
             }
         }
+        $models = [];
+        foreach (\is_array($ai['models'] ?? null) ? $ai['models'] : [] as $feature => $key) {
+            if (\is_string($feature) && \is_string($key) && $this->catalog->get($key) !== null) {
+                $models[$feature] = $key;
+            }
+        }
 
         return [
             'forceLocal' => ($ai['forceLocal'] ?? false) === true,
             'localConfigured' => $this->router->isLocalConfigured(),
             'overrides' => $overrides,
+            'models' => $models,
             'tiers' => array_map(static fn (LlmTier $t): string => $t->value, LlmTier::cases()),
             'features' => array_map(
                 fn (string $f): array => ['feature' => $f, 'defaultTier' => $this->router->defaultTierFor($f)->value],
                 LlmRouter::KNOWN_FEATURES,
+            ),
+            'catalog' => array_map(
+                fn ($m): array => [
+                    'key' => $m->key,
+                    'provider' => $m->provider,
+                    'label' => $m->label,
+                    'inputPer1M' => $m->inputPer1M,
+                    'outputPer1M' => $m->outputPer1M,
+                    'residency' => $m->residency->value,
+                    'staysInEu' => $m->residency->staysInEu(),
+                    'speed' => $m->speed,
+                    'available' => $this->router->isProviderConfigured($m->provider),
+                ],
+                $this->catalog->all(),
             ),
         ];
     }

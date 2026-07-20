@@ -15,12 +15,14 @@ interface LlmProviderInterface
     public function isConfigured(): bool;
 
     /**
-     * Produce a single completion for the given system + user prompt.
+     * Produce a single completion for the given system + user prompt. `$model`
+     * overrides the provider's configured default for this one call (used by the
+     * per-task-type router to pin a specific catalog model); null = default.
      *
      * @throws LlmException when not configured, on a transport/API failure, on a
      *                      model refusal, or when the response carries no text
      */
-    public function complete(string $system, string $user, int $maxTokens = 4096): string;
+    public function complete(string $system, string $user, int $maxTokens = 4096, ?string $model = null): string;
 
     /**
      * Like {@see complete()} but for structured output: instructs the model to
@@ -32,7 +34,7 @@ interface LlmProviderInterface
      * @throws LlmException when not configured, on failure/refusal, or when the
      *                      response is not valid JSON object
      */
-    public function completeJson(string $system, string $user, int $maxTokens = 2048): array;
+    public function completeJson(string $system, string $user, int $maxTokens = 2048, ?string $model = null): array;
 
     /** The model identifier this provider will use — for provenance on stored suggestions. */
     public function getModel(): string;

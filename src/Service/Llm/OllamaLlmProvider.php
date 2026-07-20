@@ -52,19 +52,19 @@ final class OllamaLlmProvider implements LlmProviderInterface
         return $this->apiBase !== '';
     }
 
-    public function complete(string $system, string $user, int $maxTokens = 4096): string
+    public function complete(string $system, string $user, int $maxTokens = 4096, ?string $model = null): string
     {
-        return $this->request($system, $user, $maxTokens, jsonMode: false);
+        return $this->request($system, $user, $maxTokens, jsonMode: false, model: $model);
     }
 
-    public function completeJson(string $system, string $user, int $maxTokens = 2048): array
+    public function completeJson(string $system, string $user, int $maxTokens = 2048, ?string $model = null): array
     {
         // Belt-and-braces: instruct via prompt AND request native JSON mode, since
         // open-weight models adhere to strict JSON less reliably than Claude.
         $jsonSystem = $system . "\n\nReturn ONLY a single valid JSON object. No prose, no explanation, "
             . 'no Markdown code fences around it.';
 
-        $raw = $this->request($jsonSystem, $user, $maxTokens, jsonMode: true);
+        $raw = $this->request($jsonSystem, $user, $maxTokens, jsonMode: true, model: $model);
         $decoded = json_decode(self::stripFences($raw), true);
 
         if (!\is_array($decoded)) {
@@ -80,16 +80,17 @@ final class OllamaLlmProvider implements LlmProviderInterface
         return $this->model;
     }
 
-    private function request(string $system, string $user, int $maxTokens, bool $jsonMode): string
+    private function request(string $system, string $user, int $maxTokens, bool $jsonMode, ?string $model = null): string
     {
         if (!$this->isConfigured()) {
             throw new LlmException('OLLAMA_API_BASE is not configured.');
         }
         // No egress gate + no budget guard here — see the class docblock: local
         // inference is on-infra (not egress) and free (not subject to the spend cap).
+        $useModel = ($model !== null && $model !== '') ? $model : $this->model;
 
         $payload = [
-            'model' => $this->model,
+            'model' => $useModel,
             'max_tokens' => $maxTokens,
             'messages' => [
                 ['role' => 'system', 'content' => $system],
@@ -120,7 +121,7 @@ final class OllamaLlmProvider implements LlmProviderInterface
         $usage = \is_array($data['usage'] ?? null) ? $data['usage'] : [];
         $this->usage->record(
             'ollama',
-            $this->model,
+            $useModel,
             (int) ($usage['prompt_tokens'] ?? 0),
             (int) ($usage['completion_tokens'] ?? 0),
         );

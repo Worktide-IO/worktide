@@ -16,14 +16,18 @@ use App\Entity\Workspace;
  *   1. Privacy lock — `settings.ai.forceLocal === true` forces {@see LlmTier::Local}
  *      for EVERY task-type (data residency). Fail-closed: if the local provider
  *      isn't configured, the call throws rather than silently going to the cloud.
- *   2. Per-workspace override — `settings.ai.routing[<feature>]` (a {@see LlmTier}
- *      value) beats the default map.
- *   3. Default map — {@see self::DEFAULT_TIERS}; unknown/unattributed features
+ *   2. Per-feature MODEL pin — `settings.ai.models[<feature>]` names a specific
+ *      {@see ModelCatalog} entry (e.g. route the mass triage call to Haiku); its
+ *      provider + model are used directly. Beats the tier map (most specific).
+ *   3. Per-workspace tier override — `settings.ai.routing[<feature>]` beats the
+ *      default map.
+ *   4. Default map — {@see self::DEFAULT_TIERS}; unknown/unattributed features
  *      fall through to {@see self::DEFAULT_TIER} (Cloud, i.e. unchanged behaviour).
  *
  * Graceful degradation for NON-privacy workspaces: a Local/LocalFallbackCloud
- * decision with no local provider configured falls back to the cloud provider,
- * so a default deployment (no OLLAMA_API_BASE) behaves exactly as before.
+ * decision (or a pin to an unconfigured provider) with no local provider
+ * configured falls back to the cloud provider, so a default deployment (no
+ * OLLAMA_API_BASE) behaves exactly as before.
  */
 class LlmRouter
 {
@@ -67,6 +71,9 @@ class LlmRouter
     public function __construct(
         private readonly OllamaLlmProvider $local,
         private readonly LlmProviderFactory $cloudFactory,
+        private readonly AnthropicLlmProvider $anthropic,
+        private readonly InfomaniakLlmProvider $infomaniak,
+        private readonly ModelCatalog $catalog,
     ) {}
 
     /** Whether at least one provider (local or cloud) can serve a call. */
@@ -79,6 +86,12 @@ class LlmRouter
     public function isLocalConfigured(): bool
     {
         return $this->local->isConfigured();
+    }
+
+    /** Whether a named catalog provider (anthropic/infomaniak/ollama) is configured. */
+    public function isProviderConfigured(string $providerName): bool
+    {
+        return $this->providerFor($providerName)->isConfigured();
     }
 
     /** The default tier for a feature, ignoring any per-workspace override. */
@@ -105,15 +118,26 @@ class LlmRouter
         return $feature !== null ? $this->defaultTierFor($feature) : self::DEFAULT_TIER;
     }
 
-    /**
-     * Resolve to the provider chain for a call: the primary provider plus an
-     * optional fallback the decorator tries on an {@see LlmException}.
-     *
-     * @return array{0: LlmProviderInterface, 1: ?LlmProviderInterface}
-     */
-    public function route(?string $feature, ?Workspace $workspace): array
+    /** The catalog key pinned for a feature in this workspace, if any. */
+    public function pinnedModelKey(?string $feature, ?Workspace $workspace): ?string
     {
-        // Privacy lock is absolute: local only, no cloud fallback, fail-closed.
+        if ($feature === null) {
+            return null;
+        }
+        $models = $workspace?->getSettings()['ai']['models'] ?? null;
+        $key = \is_array($models) ? ($models[$feature] ?? null) : null;
+
+        return \is_string($key) && $key !== '' ? $key : null;
+    }
+
+    /**
+     * Resolve the provider chain for a call: the primary provider (+ optional
+     * per-call model) plus an optional fallback the decorator tries on an
+     * {@see LlmException}.
+     */
+    public function route(?string $feature, ?Workspace $workspace): RoutedCall
+    {
+        // 1. Privacy lock is absolute: local only, no cloud fallback, fail-closed.
         if ($this->isForceLocal($workspace)) {
             if (!$this->local->isConfigured()) {
                 throw new LlmException(
@@ -121,18 +145,43 @@ class LlmRouter
                 );
             }
 
-            return [$this->local, null];
+            return new RoutedCall($this->local);
         }
 
+        // 2. Explicit per-feature model pin → that catalog entry's provider + model,
+        //    as long as the provider is configured (else fall through to the tier).
+        $pinnedKey = $this->pinnedModelKey($feature, $workspace);
+        if ($pinnedKey !== null) {
+            $entry = $this->catalog->get($pinnedKey);
+            if ($entry !== null) {
+                $provider = $this->providerFor($entry->provider);
+                if ($provider->isConfigured()) {
+                    return new RoutedCall($provider, $entry->model);
+                }
+            }
+        }
+
+        // 3./4. Tier (per-workspace override, else default map).
         $cloud = $this->cloudFactory->create();
 
         return match ($this->tierFor($feature, $workspace)) {
             // Non-privacy: prefer local, but degrade to cloud when unconfigured.
-            LlmTier::Local => [$this->local->isConfigured() ? $this->local : $cloud, null],
-            LlmTier::Cloud => [$cloud, null],
+            LlmTier::Local => new RoutedCall($this->local->isConfigured() ? $this->local : $cloud),
+            LlmTier::Cloud => new RoutedCall($cloud),
             LlmTier::LocalFallbackCloud => $this->local->isConfigured()
-                ? [$this->local, $cloud]
-                : [$cloud, null],
+                ? new RoutedCall($this->local, null, $cloud, null)
+                : new RoutedCall($cloud),
+        };
+    }
+
+    /** Map a catalog provider name to its concrete provider instance. */
+    private function providerFor(string $providerName): LlmProviderInterface
+    {
+        return match ($providerName) {
+            'anthropic' => $this->anthropic,
+            'infomaniak' => $this->infomaniak,
+            'ollama' => $this->local,
+            default => $this->cloudFactory->create(),
         };
     }
 
