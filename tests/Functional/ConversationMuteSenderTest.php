@@ -56,8 +56,11 @@ final class ConversationMuteSenderTest extends WebTestCase
 
         self::assertSame(201, $this->client->getResponse()->getStatusCode());
         $json = $this->json();
-        self::assertSame('sender_email', $json['rule']['matchType']);
-        self::assertSame('noreply@hetzner.com', $json['rule']['value']);
+        self::assertSame('and', $json['rule']['combinator']);
+        self::assertSame(
+            [['field' => 'sender_email', 'operator' => 'equals', 'value' => 'noreply@hetzner.com']],
+            $json['rule']['conditions'],
+        );
         self::assertSame(2, $json['mutedCount']); // target + other, not keep
 
         $this->em->refresh($target);
@@ -77,17 +80,18 @@ final class ConversationMuteSenderTest extends WebTestCase
     {
         [$user, $ws, $channel] = $this->fixtures();
         $conv = $this->conversation($ws, $channel, 'x@y.com', 'Weekly newsletter digest');
+        $keep = $this->conversation($ws, $channel, 'x@y.com', 'Project question');
         $this->em->flush();
+        $convId = $conv->getId()?->toRfc4122();
 
-        $this->request('POST', '/v1/conversations/' . $conv->getId()?->toRfc4122() . '/mute-sender', $this->token($user), [
-            'matchType' => 'subject_contains',
-            'value' => 'newsletter',
+        $this->request('POST', '/v1/conversations/' . $convId . '/mute-sender', $this->token($user), [
+            'conditions' => [['field' => 'subject', 'operator' => 'contains', 'value' => 'newsletter']],
         ]);
 
         self::assertSame(201, $this->client->getResponse()->getStatusCode());
-        self::assertSame(1, $this->json()['mutedCount']);
-        $this->em->refresh($conv);
-        self::assertNotNull($conv->getMutedAt());
+        self::assertSame(1, $this->json()['mutedCount']); // only the newsletter thread, not the same-sender question
+        $this->em->clear();
+        self::assertNotNull($this->em->find(Conversation::class, Uuid::fromString((string) $convId))?->getMutedAt());
     }
 
     public function testRequiresAuth(): void

@@ -47,12 +47,16 @@ final class AutomationMuteRuleApiTest extends WebTestCase
         // create
         $this->send('POST', '/v1/automation/mute-rules', self::TOKEN, [
             'workspaceId' => $wsId,
-            'matchType' => 'sender_email',
-            'value' => 'noreply@hetzner.com',
+            'combinator' => 'and',
+            'conditions' => [
+                ['field' => 'sender_email', 'operator' => 'contains', 'value' => 'hetzner'],
+                ['field' => 'subject', 'operator' => 'contains', 'value' => 'Verification Code'],
+            ],
         ]);
         self::assertSame(201, $this->client->getResponse()->getStatusCode());
         $ruleId = $this->json()['id'];
-        self::assertSame('noreply@hetzner.com', $this->json()['value']);
+        self::assertSame('and', $this->json()['combinator']);
+        self::assertCount(2, $this->json()['conditions']);
         self::assertTrue($this->json()['isEnabled']);
 
         // list
@@ -79,9 +83,19 @@ final class AutomationMuteRuleApiTest extends WebTestCase
     {
         $this->send('POST', '/v1/automation/mute-rules', self::TOKEN, [
             'workspaceId' => Uuid::v7()->toRfc4122(),
-            'value' => 'x@y.com',
+            'conditions' => [['field' => 'sender_email', 'operator' => 'equals', 'value' => 'x@y.com']],
         ]);
         self::assertSame(404, $this->client->getResponse()->getStatusCode());
+    }
+
+    public function testInvalidConditionsRejected(): void
+    {
+        $wsId = $this->workspace()->getId()?->toRfc4122();
+        $this->send('POST', '/v1/automation/mute-rules', self::TOKEN, [
+            'workspaceId' => $wsId,
+            'conditions' => [['field' => 'nope', 'operator' => 'equals', 'value' => 'x']],
+        ]);
+        self::assertSame(400, $this->client->getResponse()->getStatusCode());
     }
 
     private function workspace(): Workspace

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Entity\Conversation;
-use App\Entity\Enum\InboundMuteMatchType;
+use App\Entity\Enum\InboundRuleCombinator;
+use App\Entity\Enum\InboundRuleField;
+use App\Entity\Enum\InboundRuleOperator;
 use App\Entity\InboundMuteRule;
 use App\Service\Inbound\InboundMuteMatcher;
 use Doctrine\ORM\EntityManagerInterface;
@@ -19,18 +21,23 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * One-click "mute this kind of message": create an {@see InboundMuteRule} from a
- * conversation and immediately hide this thread plus any existing matches.
+ * One-click "mute this kind of message": create a Thunderbird-style
+ * {@see InboundMuteRule} and immediately hide matching threads.
  *
  *   POST /v1/conversations/{id}/mute-sender
- *   { "matchType": "sender_email"|"subject_contains", "value": "…" }   // both optional
+ *   { "combinator": "and", "conditions": [{ "field": "...", "operator": "...", "value": "..." }] }
  *
- * Defaults: matchType=sender_email, value=the conversation's sender address.
- * Muted threads are NOT deleted — they keep `mutedAt` set (still searchable,
- * just out of the default inbox) and drop out of automation/AI going forward.
+ * Both fields optional. Default (nothing sent) = a single condition
+ * `sender_email equals <the conversation's sender>` — but the SPA typically
+ * sends a refined set (e.g. sender AND subject contains "Verification Code") so
+ * NOT every mail from that sender is muted. Muted threads keep `mutedAt`
+ * (searchable, out of the default inbox); nothing is deleted.
  */
 final class ConversationMuteSenderController
 {
+    /** Safety bound on the back-fill scan (see roadmap: batch/index for scale). */
+    private const BACKFILL_LIMIT = 5000;
+
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly Security $security,
@@ -60,27 +67,23 @@ final class ConversationMuteSenderController
             throw new BadRequestHttpException('Ungültiger Request-Body.');
         }
 
-        $matchType = InboundMuteMatchType::tryFrom((string) ($data['matchType'] ?? InboundMuteMatchType::SenderEmail->value));
-        if ($matchType === null) {
-            throw new BadRequestHttpException('Unbekannter matchType.');
-        }
+        $combinator = InboundRuleCombinator::tryFrom((string) ($data['combinator'] ?? InboundRuleCombinator::And->value))
+            ?? InboundRuleCombinator::And;
 
-        $value = trim((string) ($data['value'] ?? ''));
-        if ($value === '' && $matchType === InboundMuteMatchType::SenderEmail) {
-            $value = (string) $this->matcher->emailFromRaw($conversation->getSenderRaw());
-        }
-        if ($value === '') {
-            throw new BadRequestHttpException('Kein Wert zum Stummschalten (matchType/value angeben).');
+        try {
+            $conditions = $this->matcher->normalizeConditions($data['conditions'] ?? $this->defaultConditions($conversation));
+        } catch (\InvalidArgumentException $e) {
+            throw new BadRequestHttpException($e->getMessage());
         }
 
         $now = new \DateTimeImmutable();
         $rule = (new InboundMuteRule())
-            ->setMatchType($matchType)
-            ->setValue($value);
+            ->setCombinator($combinator)
+            ->setConditions($conditions);
         $rule->setWorkspace($conversation->getWorkspace());
         $this->em->persist($rule);
 
-        $muted = $this->backfill($conversation, $matchType, $value, $now);
+        $muted = $this->backfill($conversation->getWorkspace(), $rule, $now);
         $rule->setMatchCount($muted);
         $rule->setLastMatchedAt($muted > 0 ? $now : null);
 
@@ -89,34 +92,56 @@ final class ConversationMuteSenderController
         return new JsonResponse([
             'rule' => [
                 'id' => $rule->getId()?->toRfc4122(),
-                'matchType' => $matchType->value,
-                'value' => $value,
+                'combinator' => $rule->getCombinator()->value,
+                'conditions' => $rule->getConditions(),
             ],
             'mutedCount' => $muted,
         ], 201);
     }
 
     /**
-     * Flag every not-yet-muted conversation in the workspace that matches the
-     * rule (incl. the one the user clicked). Returns how many were muted.
+     * Default one-click rule when the client sends none: mute the exact sender.
+     * (The SPA usually sends a refined set instead.)
+     *
+     * @return list<array{field: string, operator: string, value: string}>
      */
-    private function backfill(Conversation $origin, InboundMuteMatchType $matchType, string $value, \DateTimeImmutable $now): int
+    private function defaultConditions(Conversation $conversation): array
     {
-        $qb = $this->em->createQueryBuilder()
-            ->update(Conversation::class, 'c')
-            ->set('c.mutedAt', ':now')->setParameter('now', $now)
-            ->where('c.workspace = :ws')->setParameter('ws', $origin->getWorkspace())
-            ->andWhere('c.mutedAt IS NULL');
-
-        if ($matchType === InboundMuteMatchType::SenderEmail) {
-            // senderRaw is "Name <a@b>" or a bare address — LIKE on the address.
-            $qb->andWhere('LOWER(c.senderRaw) LIKE :needle')
-                ->setParameter('needle', '%' . mb_strtolower($value) . '%');
-        } else {
-            $qb->andWhere('LOWER(c.subject) LIKE :needle')
-                ->setParameter('needle', '%' . mb_strtolower($value) . '%');
+        $email = $this->matcher->emailFromRaw($conversation->getSenderRaw());
+        if ($email === null) {
+            throw new BadRequestHttpException('Kein Absender zum Stummschalten — conditions angeben.');
         }
 
-        return (int) $qb->getQuery()->execute();
+        return [[
+            'field' => InboundRuleField::SenderEmail->value,
+            'operator' => InboundRuleOperator::Equals->value,
+            'value' => $email,
+        ]];
+    }
+
+    /**
+     * Flag every not-yet-muted conversation in the workspace the rule matches.
+     * Evaluated in PHP against conversation fields (body conditions only apply
+     * to new messages — see matcher::fieldsFromConversation). Returns the count.
+     */
+    private function backfill(\App\Entity\Workspace $workspace, InboundMuteRule $rule, \DateTimeImmutable $now): int
+    {
+        /** @var list<Conversation> $candidates */
+        $candidates = $this->em->createQueryBuilder()
+            ->select('c')->from(Conversation::class, 'c')
+            ->where('c.workspace = :ws')->setParameter('ws', $workspace)
+            ->andWhere('c.mutedAt IS NULL')
+            ->setMaxResults(self::BACKFILL_LIMIT)
+            ->getQuery()->getResult();
+
+        $count = 0;
+        foreach ($candidates as $c) {
+            if ($this->matcher->ruleMatches($rule, $this->matcher->fieldsFromConversation($c))) {
+                $c->setMutedAt($now);
+                ++$count;
+            }
+        }
+
+        return $count;
     }
 }

@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Automation\AutomationTokenGuard;
-use App\Entity\Enum\InboundMuteMatchType;
+use App\Entity\Enum\InboundRuleCombinator;
 use App\Entity\InboundMuteRule;
 use App\Entity\Workspace;
 use App\Repository\InboundMuteRuleRepository;
+use App\Service\Inbound\InboundMuteMatcher;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -24,18 +25,18 @@ use Symfony\Component\Uid\Uuid;
  * Staff manage the same rows via the JWT-secured API-Platform resource.
  *
  *   GET    /v1/automation/mute-rules?workspaceId=<uuid>
- *   POST   /v1/automation/mute-rules   { workspaceId, matchType, value, isEnabled? }
- *   PATCH  /v1/automation/mute-rules/{id}   { value?, matchType?, isEnabled? }
+ *   POST   /v1/automation/mute-rules   { workspaceId, combinator?, conditions:[{field,operator,value}], isEnabled? }
+ *   PATCH  /v1/automation/mute-rules/{id}   { combinator?, conditions?, isEnabled? }
  *   DELETE /v1/automation/mute-rules/{id}
  *
- * Auth: X-Worktide-Automation-Token (AUTOMATION_API_TOKEN), same as the
- * conversation-action endpoint.
+ * Auth: X-Worktide-Automation-Token (AUTOMATION_API_TOKEN).
  */
 final class AutomationMuteRuleController
 {
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly InboundMuteRuleRepository $rules,
+        private readonly InboundMuteMatcher $matcher,
         private readonly AutomationTokenGuard $guard,
     ) {}
 
@@ -57,18 +58,15 @@ final class AutomationMuteRuleController
         $data = $this->body($request);
         $workspace = $this->workspace((string) ($data['workspaceId'] ?? ''));
 
-        $matchType = InboundMuteMatchType::tryFrom((string) ($data['matchType'] ?? InboundMuteMatchType::SenderEmail->value));
-        if ($matchType === null) {
-            throw new BadRequestHttpException('Unbekannter matchType.');
-        }
-        $value = trim((string) ($data['value'] ?? ''));
-        if ($value === '') {
-            throw new BadRequestHttpException('value ist erforderlich.');
+        try {
+            $conditions = $this->matcher->normalizeConditions($data['conditions'] ?? null);
+        } catch (\InvalidArgumentException $e) {
+            throw new BadRequestHttpException($e->getMessage());
         }
 
         $rule = (new InboundMuteRule())
-            ->setMatchType($matchType)
-            ->setValue($value)
+            ->setCombinator($this->combinator($data))
+            ->setConditions($conditions)
             ->setIsEnabled((bool) ($data['isEnabled'] ?? true));
         $rule->setWorkspace($workspace);
         $this->em->persist($rule);
@@ -84,19 +82,15 @@ final class AutomationMuteRuleController
         $rule = $this->rule($id);
         $data = $this->body($request);
 
-        if (\array_key_exists('matchType', $data)) {
-            $matchType = InboundMuteMatchType::tryFrom((string) $data['matchType']);
-            if ($matchType === null) {
-                throw new BadRequestHttpException('Unbekannter matchType.');
-            }
-            $rule->setMatchType($matchType);
+        if (\array_key_exists('combinator', $data)) {
+            $rule->setCombinator($this->combinator($data));
         }
-        if (\array_key_exists('value', $data)) {
-            $value = trim((string) $data['value']);
-            if ($value === '') {
-                throw new BadRequestHttpException('value darf nicht leer sein.');
+        if (\array_key_exists('conditions', $data)) {
+            try {
+                $rule->setConditions($this->matcher->normalizeConditions($data['conditions']));
+            } catch (\InvalidArgumentException $e) {
+                throw new BadRequestHttpException($e->getMessage());
             }
-            $rule->setValue($value);
         }
         if (\array_key_exists('isEnabled', $data)) {
             $rule->setIsEnabled((bool) $data['isEnabled']);
@@ -114,6 +108,17 @@ final class AutomationMuteRuleController
         $this->em->flush();
 
         return new JsonResponse(null, 204);
+    }
+
+    /** @param array<string, mixed> $data */
+    private function combinator(array $data): InboundRuleCombinator
+    {
+        $c = InboundRuleCombinator::tryFrom((string) ($data['combinator'] ?? InboundRuleCombinator::And->value));
+        if ($c === null) {
+            throw new BadRequestHttpException('Unbekannter combinator (and|or).');
+        }
+
+        return $c;
     }
 
     private function workspace(string $id): Workspace
@@ -159,8 +164,8 @@ final class AutomationMuteRuleController
         return [
             'id' => $rule->getId()?->toRfc4122(),
             'workspaceId' => $rule->getWorkspace()->getId()?->toRfc4122(),
-            'matchType' => $rule->getMatchType()->value,
-            'value' => $rule->getValue(),
+            'combinator' => $rule->getCombinator()->value,
+            'conditions' => $rule->getConditions(),
             'isEnabled' => $rule->isEnabled(),
             'matchCount' => $rule->getMatchCount(),
             'lastMatchedAt' => $rule->getLastMatchedAt()?->format(\DateTimeInterface::ATOM),
