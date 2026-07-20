@@ -34,4 +34,14 @@ final class ModelDefinition
     {
         return (int) round($inputTokens * $this->inputPer1M + $outputTokens * $this->outputPer1M);
     }
+
+    /**
+     * A single figure for ranking "cheapest" — the summed in + out list price.
+     * A coarse proxy (real cost depends on the in/out token mix), good enough to
+     * order models by price for {@see LlmTier::Cheapest}.
+     */
+    public function blendedPer1M(): float
+    {
+        return $this->inputPer1M + $this->outputPer1M;
+    }
 }

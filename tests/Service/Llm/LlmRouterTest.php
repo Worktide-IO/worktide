@@ -106,6 +106,44 @@ final class LlmRouterTest extends TestCase
         self::assertNull($call->fallbackProvider);
     }
 
+    public function testCheapestPicksTheCheapestQualifyingModel(): void
+    {
+        // triage floors at 'fast' → cheapest available (anthropic only here) = Haiku.
+        $ws = $this->workspace(['routing' => ['triage' => 'cheapest']]);
+        $call = $this->makeRouter('http://local/v1')->route('triage', $ws);
+
+        self::assertSame('claude-haiku-4-5-20251001', $call->model);
+        self::assertNull($call->fallbackProvider);
+    }
+
+    public function testCheapestRespectsTheFeatureQualityFloor(): void
+    {
+        // command floors at 'balanced' → Haiku (fast) is excluded; cheapest
+        // qualifying model is Sonnet, not Opus.
+        $ws = $this->workspace(['routing' => ['command' => 'cheapest']]);
+        $call = $this->makeRouter('http://local/v1')->route('command', $ws);
+
+        self::assertSame('claude-sonnet-5', $call->model);
+    }
+
+    public function testCheapestFallsBackToCloudWhenNoProviderConfigured(): void
+    {
+        // Nothing configured → no catalog candidate → cloud default (no pinned model).
+        $ws = $this->workspace(['routing' => ['triage' => 'cheapest']]);
+        $call = $this->makeRouter(localBase: null, cloudKey: '')->route('triage', $ws);
+
+        self::assertNull($call->model);
+    }
+
+    public function testForceLocalIgnoresCheapest(): void
+    {
+        $ws = $this->workspace(['forceLocal' => true, 'routing' => ['triage' => 'cheapest']]);
+        $call = $this->makeRouter('http://local/v1')->route('triage', $ws);
+
+        self::assertSame('local-model', $call->provider->getModel());
+        self::assertNull($call->model);
+    }
+
     public function testPerFeatureModelPinResolvesToCatalogProviderAndModel(): void
     {
         // Route the mass triage call to a specific cloud model — the cost lever.

@@ -68,6 +68,20 @@ class LlmRouter
         'command',
     ];
 
+    /**
+     * Minimum capability class the {@see LlmTier::Cheapest} strategy must respect
+     * per feature, so auto-cheapest never drops an agentic / drafting task onto a
+     * tiny model. Keyed by feature; unset features floor at 'fast' (no constraint —
+     * genuinely cheapest). Ranks: fast < balanced < frontier ({@see self::classRank()}).
+     *
+     * @var array<string, string>
+     */
+    private const MIN_CLASS = [
+        'schedule' => 'balanced',
+        'absence_intake' => 'balanced',
+        'command' => 'balanced',
+    ];
+
     public function __construct(
         private readonly OllamaLlmProvider $local,
         private readonly LlmProviderFactory $cloudFactory,
@@ -171,6 +185,50 @@ class LlmRouter
             LlmTier::LocalFallbackCloud => $this->local->isConfigured()
                 ? new RoutedCall($this->local, null, $cloud, null)
                 : new RoutedCall($cloud),
+            // Cheapest available catalog model meeting the feature's quality floor;
+            // if none is available (no configured provider), fall back to cloud.
+            LlmTier::Cheapest => $this->cheapestFor($feature) ?? new RoutedCall($cloud),
+        };
+    }
+
+    /**
+     * The cheapest *available* catalog model whose capability class meets the
+     * feature's floor (agentic tasks stay at least "balanced" so Cheapest never
+     * drops them onto a tiny model). Ranked by {@see ModelDefinition::blendedPer1M()};
+     * ties keep catalog order. Null when no configured provider offers a qualifying
+     * model. Local (Ollama) is intentionally out of scope — it's addressed via the
+     * Local tier / forceLocal, not as a priced catalog candidate.
+     */
+    private function cheapestFor(?string $feature): ?RoutedCall
+    {
+        $floor = $this->minClassRank($feature);
+        $best = null;
+        foreach ($this->catalog->all() as $model) {
+            if (!$this->isProviderConfigured($model->provider)) {
+                continue;
+            }
+            if ($this->classRank($model->speed) < $floor) {
+                continue;
+            }
+            if ($best === null || $model->blendedPer1M() < $best->blendedPer1M()) {
+                $best = $model;
+            }
+        }
+
+        return $best === null ? null : new RoutedCall($this->providerFor($best->provider), $best->model);
+    }
+
+    private function minClassRank(?string $feature): int
+    {
+        return $this->classRank($feature !== null ? (self::MIN_CLASS[$feature] ?? 'fast') : 'fast');
+    }
+
+    private function classRank(string $speed): int
+    {
+        return match ($speed) {
+            'frontier' => 3,
+            'balanced' => 2,
+            default => 1, // 'fast'
         };
     }
 
