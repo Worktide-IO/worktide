@@ -141,6 +141,20 @@ services:
     App\Service\Inbound\InboundEventProcessor:
         arguments:
             $aiAutoSuggestLimiter: '@limiter.ai_auto_suggest'
+            $automationWebhookUrl: '%env(string:N8N_WEBHOOK_URL)%'
+
+    # Delivers processed inbound events to the external automation engine (n8n).
+    # Trusted, operator-configured endpoint — no SSRF guard (see handler docblock).
+    App\MessageHandler\DispatchAutomationEventHandler:
+        arguments:
+            $webhookUrl: '%env(string:N8N_WEBHOOK_URL)%'
+            $webhookSecret: '%env(string:N8N_WEBHOOK_SECRET)%'
+
+    # Inbound "action back" endpoint the automation engine (n8n) calls to act on
+    # a conversation. Token IS the credential (empty = endpoint disabled/404).
+    App\Controller\Api\AutomationConversationActionController:
+        arguments:
+            $automationToken: '%env(string:AUTOMATION_API_TOKEN)%'
 
     # Auto-link inbound mail → Contact/Customer. Shared / contact-form sender
     # addresses that send on behalf of the real person must never match a

@@ -74,6 +74,7 @@ security:
         - { path: ^/v1/newsletter/unsubscribe/, roles: PUBLIC_ACCESS }   # signed token IS the credential
         - { path: ^/v1/newsletter/confirm/, roles: PUBLIC_ACCESS }       # double-opt-in confirm; signed token IS the credential
         - { path: ^/v1/inbound/entity-webhooks/, roles: PUBLIC_ACCESS }   # per-channel token IS the credential (entity-sync)
+        - { path: ^/v1/automation/,  roles: PUBLIC_ACCESS }   # AUTOMATION_API_TOKEN header IS the credential (n8n → Worktide actions)
         - { path: ^/v1/forms/,       roles: PUBLIC_ACCESS }   # public form schema + submission; slug IS the credential
         - { path: ^/v1/book/,        roles: PUBLIC_ACCESS }   # public appointment booking; slug / cancel-token IS the credential
         - { path: ^/v1/social/media/, roles: PUBLIC_ACCESS }   # signed short-lived media token IS the credential (Instagram fetch)

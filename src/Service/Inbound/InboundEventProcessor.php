@@ -7,6 +7,7 @@ namespace App\Service\Inbound;
 use App\Channels\AdapterRegistry;
 use App\Entity\Enum\InboundEventState;
 use App\Entity\InboundEvent;
+use App\Message\DispatchAutomationEventMessage;
 use App\Message\SuggestConversationTicketMessage;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -49,6 +50,10 @@ final class InboundEventProcessor
         private readonly AdapterRegistry $registry,
         private readonly RateLimiterFactory $aiAutoSuggestLimiter,
         private readonly AutoReplyResponder $autoReplyResponder,
+        // Externalized rule engine (seam 3): when an automation webhook is
+        // configured, notify it about each processed event. Empty = feature off,
+        // so we don't even enqueue a message.
+        private readonly string $automationWebhookUrl = '',
     ) {}
 
     public function process(InboundEvent $event, bool $live = true): void
@@ -75,6 +80,15 @@ final class InboundEventProcessor
         }
 
         $this->maybeSuggestTicket($event, $live);
+
+        // Rule engine (seam 3), externalized to n8n: hand the processed event to
+        // the automation engine so a workflow can route/tag/escalate it. LIVE
+        // only (a backfill must not replay old events into automations), and only
+        // when wired — the actual POST + egress gate live in the async handler.
+        $eventId = $event->getId();
+        if ($live && $this->automationWebhookUrl !== '' && $eventId !== null) {
+            $this->bus->dispatch(new DispatchAutomationEventMessage($eventId));
+        }
 
         $this->logger->info('Inbound event processed.', [
             'inboundEventId' => $event->getId()?->toRfc4122(),
