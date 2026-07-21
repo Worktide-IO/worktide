@@ -25,6 +25,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+use Symfony\Component\Mercure\HubInterface;
+use Symfony\Component\Mercure\Update;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
 
@@ -55,6 +57,7 @@ final class PortalFilesController
         private readonly FileStorage $storage,
         private readonly EntityManagerInterface $em,
         private readonly Security $security,
+        private readonly HubInterface $hub,
     ) {}
 
     #[Route(path: '/v1/portal/files', name: 'api_portal_files_list', methods: ['GET'])]
@@ -173,6 +176,15 @@ final class PortalFilesController
         $version->setSize($info['size'])->setChecksum($info['checksum'])->setStoragePath($info['path']);
         $file->setCurrentVersion($version);
         $this->em->flush();
+
+        $wsId = $customer->getWorkspace()?->getId()?->toRfc4122();
+        if ($wsId !== null) {
+            $this->hub->publish(new Update(
+                topics: [$wsId . '/portal/files'],
+                data: json_encode(['action' => 'created', 'fileId' => $file->getId()?->toRfc4122()]) ?: '{}',
+                private: true,
+            ));
+        }
 
         return new JsonResponse($this->fileDto($file), 201);
     }
