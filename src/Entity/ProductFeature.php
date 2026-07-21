@@ -13,6 +13,7 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
+use App\Entity\Enum\ProductFeatureKind;
 use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\TranslatableTrait;
@@ -47,6 +48,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'version' => 'exact',
     'version.product' => 'exact',
     'workspace' => 'exact',
+    'kind' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['position', 'name'])]
 class ProductFeature implements TranslatableInterface
@@ -74,6 +76,9 @@ class ProductFeature implements TranslatableInterface
     #[ORM\Column(length: 40, nullable: true)]
     private ?string $icon = null;
 
+    #[ORM\Column(length: 12, enumType: ProductFeatureKind::class, nullable: true, options: ['default' => 'new'])]
+    private ?ProductFeatureKind $kind = ProductFeatureKind::New;
+
     public function getVersion(): ProductVersion { return $this->version; }
     public function setVersion(ProductVersion $v): self
     {
@@ -93,6 +98,9 @@ class ProductFeature implements TranslatableInterface
 
     public function getIcon(): ?string { return $this->icon; }
     public function setIcon(?string $i): self { $this->icon = $i; return $this; }
+
+    public function getKind(): ?ProductFeatureKind { return $this->kind; }
+    public function setKind(?ProductFeatureKind $k): self { $this->kind = $k; return $this; }
 
     /** @return list<string> */
     public static function translatableFields(): array
