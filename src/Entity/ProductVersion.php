@@ -19,6 +19,8 @@ use App\Entity\Trait\EntityIdTrait;
 use App\Entity\Trait\TimestampableTrait;
 use App\Entity\Trait\WorkspaceScopedTrait;
 use App\Repository\ProductVersionRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -83,6 +85,16 @@ class ProductVersion
     #[ORM\Column(options: ['default' => false])]
     private bool $isLatest = false;
 
+    /** @var Collection<int, ProductFeature> */
+    #[ORM\OneToMany(mappedBy: 'version', targetEntity: ProductFeature::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['position' => 'ASC', 'name' => 'ASC'])]
+    private Collection $features;
+
+    public function __construct()
+    {
+        $this->features = new ArrayCollection();
+    }
+
     public function getProduct(): Product { return $this->product; }
     public function setProduct(Product $p): self
     {
@@ -105,4 +117,22 @@ class ProductVersion
 
     public function isLatest(): bool { return $this->isLatest; }
     public function setIsLatest(bool $v): self { $this->isLatest = $v; return $this; }
+
+    /** @return Collection<int, ProductFeature> */
+    public function getFeatures(): Collection { return $this->features; }
+
+    public function addFeature(ProductFeature $f): self
+    {
+        if (!$this->features->contains($f)) {
+            $this->features->add($f);
+            $f->setVersion($this);
+        }
+        return $this;
+    }
+
+    public function removeFeature(ProductFeature $f): self
+    {
+        $this->features->removeElement($f);
+        return $this;
+    }
 }
