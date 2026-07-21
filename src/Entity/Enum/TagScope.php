@@ -30,6 +30,7 @@ enum TagScope: string
     case Newsletter = 'newsletter';
     case NewsletterIssue = 'newsletter_issue';
     case ResearchMission = 'research_mission';
+    case CustomerBookmark = 'customer_bookmark';
 
     case Any = 'any';
 }

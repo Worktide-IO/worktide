@@ -269,6 +269,10 @@ services:
             $appSecret: '%env(APP_SECRET)%'
             $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
 
+    App\EventSubscriber\BookmarkCredentialsCipherListener:
+        arguments:
+            $appSecret: '%env(APP_SECRET)%'
+
     # White-label branding, resolved from BRAND_* env. Source of truth for the
     # public /v1/branding endpoint (SPAs) and the `brand` Twig global (emails).
     # string: keeps empty values as '' (BrandingConfig applies the fall-backs).
