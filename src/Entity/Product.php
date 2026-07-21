@@ -58,6 +58,7 @@ use App\Entity\Trait\TranslatableTrait;
         new Patch(security: "is_granted('EDIT', object.getWorkspace())"),
         new Delete(security: "is_granted('EDIT', object.getWorkspace())"),
     ],
+    mercure: true,
 )]
 #[ApiFilter(UuidExactFilter::class, properties: ['id'])]
 #[ApiFilter(SearchFilter::class, properties: [
