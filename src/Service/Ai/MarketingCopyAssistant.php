@@ -113,6 +113,25 @@ final class MarketingCopyAssistant
             if ($notes !== null && trim($notes) !== '') {
                 $parts[] = 'Release notes: ' . $notes;
             }
+            $features = $latest->getFeatures();
+            if ($features->count() > 0) {
+                $featureLines = [];
+                foreach ($features as $f) {
+                    $line = '';
+                    if ($f->getIcon() !== null && trim($f->getIcon()) !== '') {
+                        $line .= $f->getIcon() . ' ';
+                    }
+                    $line .= $f->getName();
+                    if ($f->getKind() !== null) {
+                        $line .= ' [' . $f->getKind()->value . ']';
+                    }
+                    if ($f->getDescription() !== null && trim($f->getDescription()) !== '') {
+                        $line .= ': ' . $f->getDescription();
+                    }
+                    $featureLines[] = $line;
+                }
+                $parts[] = "Features in this version:\n" . implode("\n", $featureLines);
+            }
         }
 
         return $this->cap(implode("\n", $parts));
