@@ -68,10 +68,10 @@ use App\Entity\Trait\TranslatableTrait;
     'status' => 'exact',
     'name' => 'partial',
     'tags.id' => 'exact',
+    'parent' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'position', 'createdAt'])]
 #[ApiFilter(ExistsFilter::class, properties: ['parent'])]
-#[ApiFilter(SearchFilter::class, properties: ['parent' => 'exact'])]
 class Product implements TranslatableInterface, TaggableInterface
 {
     use TranslatableTrait;
@@ -106,16 +106,19 @@ class Product implements TranslatableInterface, TaggableInterface
     private ?string $category = null;
 
     /** Parent node for tree-like categorisation. */
+    #[ApiProperty]
     #[ORM\ManyToOne(targetEntity: self::class, inversedBy: 'children')]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Product $parent = null;
 
     /** @var Collection<int, Product> */
+    #[ApiProperty]
     #[ORM\OneToMany(mappedBy: 'parent', targetEntity: self::class)]
     #[ORM\OrderBy(['position' => 'ASC', 'name' => 'ASC'])]
     private Collection $children;
 
     /** Sort order among siblings. */
+    #[ApiProperty]
     #[ORM\Column(type: 'integer', options: ['default' => 0])]
     private int $position = 0;
 
