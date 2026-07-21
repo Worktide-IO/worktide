@@ -10,8 +10,10 @@ Datenbank. DDEV stellt SSL-Zertifikate und saubere Domains bereit.
 | SPA | `https://worktide-web.ddev.site` | 5173 |
 | Portal | `https://worktide-portal.ddev.site` | 5174 |
 
-Vite startet automatisch via `web_extra_daemons`. Die API wird vom
-Hauptprojekt `worktide` bereitgestellt (muss ebenfalls laufen).
+Beide Frontends sind **mit und ohne Port** erreichbar — nginx proxy
+leitet Port 80 an Vite weiter. Vite startet automatisch via
+`web_extra_daemons`. Die API wird vom Hauptprojekt `worktide`
+bereitgestellt (muss ebenfalls laufen).
 
 ## Voraussetzung
 
@@ -37,8 +39,8 @@ ddev start worktide-portal
 ```
 
 Danach erreichbar:
-- SPA:    `https://worktide-web.ddev.site` oder `:5173`
-- Portal: `https://worktide-portal.ddev.site:5174`
+- SPA:    `https://worktide-web.ddev.site` (auch `:5173`)
+- Portal: `https://worktide-portal.ddev.site` (auch `:5174`)
 - API:    `https://api.worktide.ddev.site`
 
 ## Konfiguration
@@ -63,7 +65,7 @@ web_extra_exposed_ports:
 
 web_extra_daemons:
   - name: "vite"
-    command: bash -c 'corepack use pnpm@latest 2>/dev/null; pnpm install --frozen-lockfile --silent 2>/dev/null; pnpm dev'
+    command: bash -c 'CI=true corepack use pnpm@latest 2>/dev/null; CI=true pnpm install --frozen-lockfile --silent 2>/dev/null; CI=true pnpm dev'
     directory: /var/www/html
 ```
 
