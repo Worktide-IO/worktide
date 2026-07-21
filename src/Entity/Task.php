@@ -31,6 +31,7 @@ use App\Repository\TaskRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: TaskRepository::class)]
 #[ORM\Table(name: 'tasks')]
@@ -96,6 +97,7 @@ class Task
     private ?Conversation $sourceConversation = null;
 
     #[ORM\Column(length: 24)]
+    #[Assert\NotBlank]
     private string $identifier;
 
     #[ORM\Column(length: 200)]
