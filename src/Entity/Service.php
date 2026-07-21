@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
@@ -45,6 +46,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Table(name: 'services')]
 #[ORM\Index(name: 'service_workspace_idx', columns: ['workspace_id'])]
 #[ORM\Index(name: 'service_name_idx', columns: ['workspace_id', 'name'])]
+#[ORM\Index(name: 'service_parent_idx', columns: ['parent_id'])]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     shortName: 'Service',
@@ -64,7 +66,9 @@ use Symfony\Component\Validator\Constraints as Assert;
     'active' => 'exact',
     'name' => 'partial',
 ])]
-#[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt'])]
+#[ApiFilter(OrderFilter::class, properties: ['name', 'position', 'createdAt'])]
+#[ApiFilter(ExistsFilter::class, properties: ['parent'])]
+#[ApiFilter(SearchFilter::class, properties: ['parent' => 'exact'])]
 class Service
 {
     use EntityIdTrait;
@@ -84,6 +88,20 @@ class Service
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $category = null;
 
+    /** Parent node for tree-like categorisation. */
+    #[ORM\ManyToOne(targetEntity: self::class, inversedBy: 'children')]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Service $parent = null;
+
+    /** @var Collection<int, Service> */
+    #[ORM\OneToMany(mappedBy: 'parent', targetEntity: self::class)]
+    #[ORM\OrderBy(['position' => 'ASC', 'name' => 'ASC'])]
+    private Collection $children;
+
+    /** Sort order among siblings. */
+    #[ORM\Column(type: 'integer', options: ['default' => 0])]
+    private int $position = 0;
+
     #[ORM\Column(options: ['default' => true])]
     private bool $active = true;
 
@@ -101,6 +119,7 @@ class Service
     public function __construct()
     {
         $this->versions = new ArrayCollection();
+        $this->children = new ArrayCollection();
     }
 
     public function getName(): string { return $this->name; }
@@ -129,4 +148,15 @@ class Service
         }
         return $this;
     }
+
+    public function getParent(): ?self { return $this->parent; }
+    public function setParent(?self $p): self { $this->parent = $p; return $this; }
+
+    /** @return Collection<int, Service> */
+    public function getChildren(): Collection { return $this->children; }
+
+    public function getPosition(): int { return $this->position; }
+    public function setPosition(int $p): self { $this->position = $p; return $this; }
+
+    public function isRoot(): bool { return $this->parent === null; }
 }
