@@ -65,9 +65,13 @@ final class PortalMercureTokenController
         $userId = $user->getId()?->toRfc4122();
         $wsId = $contact->getCustomer()->getWorkspace()?->getId()?->toRfc4122();
         $notifTopic = '/v1/users/' . $userId . '/notifications';
-        $fileTopic = $wsId !== null ? $wsId . '/portal/files' : null;
+        $topics = [$notifTopic];
+        if ($wsId !== null) {
+            $topics[] = $wsId . '/portal/files';
+            $topics[] = $wsId . '/portal/tickets';
+        }
 
-        $subscribe = $fileTopic !== null ? [$notifTopic, $fileTopic] : [$notifTopic];
+        $subscribe = $topics;
 
         $expiresAt = new \DateTimeImmutable('+30 minutes');
         $jwt = $factory->create(
@@ -83,7 +87,8 @@ final class PortalMercureTokenController
             'token' => $jwt,
             'expiresAt' => $expiresAt->format(\DateTimeInterface::ATOM),
             'topic' => $notifTopic,
-            'fileTopic' => $fileTopic,
+            'fileTopic' => ($wsId !== null ? $wsId . '/portal/files' : null),
+            'ticketTopic' => ($wsId !== null ? $wsId . '/portal/tickets' : null),
         ]);
     }
 }
