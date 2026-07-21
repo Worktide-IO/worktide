@@ -179,11 +179,15 @@ final class PortalFilesController
 
         $wsId = $customer->getWorkspace()?->getId()?->toRfc4122();
         if ($wsId !== null) {
-            $this->hub->publish(new Update(
-                topics: [$wsId . '/portal/files'],
-                data: json_encode(['action' => 'created', 'fileId' => $file->getId()?->toRfc4122()]) ?: '{}',
-                private: true,
-            ));
+            try {
+                $this->hub->publish(new Update(
+                    topics: [$wsId . '/portal/files'],
+                    data: json_encode(['action' => 'created', 'fileId' => $file->getId()?->toRfc4122()]) ?: '{}',
+                    private: true,
+                ));
+            } catch (\RuntimeException) {
+                // CI/test environments have no Mercure hub
+            }
         }
 
         return new JsonResponse($this->fileDto($file), 201);

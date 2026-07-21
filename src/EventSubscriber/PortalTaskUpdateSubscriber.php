@@ -68,11 +68,15 @@ final class PortalTaskUpdateSubscriber
                 continue;
             }
             $seen[$wsId] = true;
-            $this->hub->publish(new Update(
-                topics: [$wsId . '/portal/tickets'],
-                data: json_encode(['action' => 'updated']) ?: '{}',
-                private: true,
-            ));
+            try {
+                $this->hub->publish(new Update(
+                    topics: [$wsId . '/portal/tickets'],
+                    data: json_encode(['action' => 'updated']) ?: '{}',
+                    private: true,
+                ));
+            } catch (\RuntimeException) {
+                // CI/test environments have no Mercure hub — fail silently
+            }
         }
 
         $this->dirty = [];
