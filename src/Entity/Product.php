@@ -99,9 +99,11 @@ class Product implements TranslatableInterface, TaggableInterface
     #[ORM\Column(length: 12, enumType: ProductStatus::class, options: ['default' => 'active'])]
     private ProductStatus $status = ProductStatus::Active;
 
+    #[ApiProperty]
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
+    #[ApiProperty]
     #[ORM\Column(length: 80, nullable: true)]
     private ?string $category = null;
 
