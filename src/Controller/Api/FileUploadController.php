@@ -119,7 +119,8 @@ final class FileUploadController
             ->setName($displayName)
             ->setDescription(\is_string($description) ? $description : null)
             ->setMimeType($uploaded->getClientMimeType())
-            ->setUploadedBy($user);
+            ->setUploadedBy($user)
+            ->setIsHiddenForConnectUsers($targetEnum !== FileTarget::Customer);
         $this->em->persist($file);
         $this->em->flush(); // gives File its UUID
 
