@@ -60,7 +60,7 @@ final class MarketingCopyAssistant
             'variants' => $this->matchVariants($raw['variants'] ?? null, $adapters),
         ];
 
-        return ['suggestion' => $suggestion, 'reasoning' => $this->cleanReasoning($raw['reasoning'] ?? null)];
+        return ['suggestion' => $suggestion, 'reasoning' => $this->cleanReasoning($raw['reasoning'] ?? null), 'reasoningDe' => $this->cleanReasoning($raw['reasoningDe'] ?? null)];
     }
 
     /**
@@ -167,7 +167,8 @@ final class MarketingCopyAssistant
             - "adapterCode": exactly one of the adapterCodes listed above.
             - "body": the post text, within that network's character limit, following its conventions
               (natural hashtags/mentions where they fit; concise and engaging).
-        - "reasoning": one short sentence explaining the chosen angle.
+        - "reasoning": one short sentence in English explaining the chosen angle.
+        - "reasoningDe": the same reasoning sentence, translated to German.
         PROMPT;
     }
 

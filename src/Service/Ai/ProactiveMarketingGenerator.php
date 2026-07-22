@@ -87,6 +87,7 @@ final class ProactiveMarketingGenerator
                 ->setStatus(RecommendationStatus::Pending)
                 ->setSuggestion($result['suggestion'])
                 ->setReasoning($result['reasoning'])
+                ->setReasoningDe($result['reasoningDe'])
                 ->setModel($model);
             $this->em->persist($reco);
             ++$created;

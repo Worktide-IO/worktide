@@ -66,7 +66,8 @@ final class ProductOpportunityAssistant
           {
             "title": "Short product name or concept (≤ 80 chars)",
             "description": "What the product would do, based on the conversation evidence (2-3 sentences)",
-            "rationale": "Why this is worth building — cite specific conversation themes or industry gaps",
+            "rationale": "Why this is worth building — cite specific conversation themes or industry gaps, in English",
+            "rationaleDe": "Same rationale, translated to German",
             "targetIndustry": "Industry name or null if cross-industry",
             "wouldServeExistingCustomers": true/false
           }
@@ -94,6 +95,7 @@ final class ProductOpportunityAssistant
                 'title' => mb_substr($title, 0, 80),
                 'description' => \is_string($item['description'] ?? null) ? trim($item['description']) : '',
                 'rationale' => \is_string($item['rationale'] ?? null) ? trim($item['rationale']) : '',
+                'rationaleDe' => \is_string($item['rationaleDe'] ?? null) ? trim($item['rationaleDe']) : '',
                 'targetIndustry' => \is_string($item['targetIndustry'] ?? null) ? trim($item['targetIndustry']) : null,
                 'wouldServeExistingCustomers' => (bool) ($item['wouldServeExistingCustomers'] ?? false),
             ];

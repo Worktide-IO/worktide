@@ -85,6 +85,10 @@ class AIRecommendation
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $reasoning = null;
 
+    /** German translation of the reasoning. */
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $reasoningDe = null;
+
     /** The LLM model identifier that produced this. */
     #[ORM\Column(length: 80, nullable: true)]
     private ?string $model = null;
@@ -115,6 +119,9 @@ class AIRecommendation
 
     public function getReasoning(): ?string { return $this->reasoning; }
     public function setReasoning(?string $reasoning): self { $this->reasoning = $reasoning; return $this; }
+
+    public function getReasoningDe(): ?string { return $this->reasoningDe; }
+    public function setReasoningDe(?string $reasoningDe): self { $this->reasoningDe = $reasoningDe; return $this; }
 
     public function getModel(): ?string { return $this->model; }
     public function setModel(?string $model): self { $this->model = $model; return $this; }

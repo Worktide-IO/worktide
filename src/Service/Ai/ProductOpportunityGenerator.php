@@ -73,6 +73,7 @@ final class ProductOpportunityGenerator
                     'wouldServeExistingCustomers' => $opp['wouldServeExistingCustomers'],
                 ])
                 ->setReasoning($opp['rationale'])
+                ->setReasoningDe($opp['rationaleDe'])
                 ->setModel($model);
             $this->em->persist($reco);
         }
