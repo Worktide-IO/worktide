@@ -34,6 +34,8 @@ final class ProductShareService
         $copy->setParent(null);
         $copy->setTranslations($original->getTranslations());
         $copy->setWorkspace($target);
+        $copy->setSourceWorkspace($share->getSourceWorkspace());
+        $copy->setSourceProduct($original);
 
         // Copy tags
         foreach ($original->getTags() as $tag) {
