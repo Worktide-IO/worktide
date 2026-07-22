@@ -93,12 +93,11 @@ final class ProductShareController extends AbstractController
             throw new BadRequestHttpException('Only proposed shares can be accepted.');
         }
 
-        $copy = $this->shareService->accept($share);
+        $product = $this->shareService->accept($share);
 
         return $this->json([
             '@id' => '/v1/product_shares/' . $share->getId()?->toRfc4122(),
             'status' => $share->getStatus()->value,
-            'sharedCopy' => $copy->getId()?->toRfc4122(),
         ]);
     }
 

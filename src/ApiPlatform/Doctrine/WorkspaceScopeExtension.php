@@ -9,6 +9,7 @@ use ApiPlatform\Doctrine\Orm\Extension\QueryItemExtensionInterface;
 use ApiPlatform\Doctrine\Orm\Util\QueryNameGeneratorInterface;
 use ApiPlatform\Metadata\Operation;
 use App\Entity\DomainEventLog;
+use App\Entity\ProductShare;
 use App\Entity\Project;
 use App\Entity\ProjectMember;
 use App\Entity\ProjectShare;
@@ -278,7 +279,43 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         // visible to members of a workspace the owning project is shared INTO
         // (an accepted ProjectShare), in addition to the host-workspace members.
         $shareProjectExpr = $isWorkspaceItself ? null : $this->shareProjectExpr($resourceClass, $rootAlias);
-        if ($shareProjectExpr !== null) {
+        // Cross-workspace product sharing: Product entities are visible to
+        // workspaces they are shared INTO via an accepted ProductShare.
+        $shareProductExpr = $isWorkspaceItself ? null : $this->shareProductExpr($resourceClass, $rootAlias);
+
+        if ($shareProjectExpr !== null && $shareProductExpr !== null) {
+            $psAlias = $queryNameGenerator->generateJoinAlias('psscope');
+            $wmShareAlias = $queryNameGenerator->generateJoinAlias('wmshare');
+            $ppsAlias = $queryNameGenerator->generateJoinAlias('ppscope');
+            $wmShareProdAlias = $queryNameGenerator->generateJoinAlias('wmpshare');
+            $psStatusParam = $queryNameGenerator->generateParameterName('psStatus');
+
+            $shareDql = sprintf(
+                'SELECT 1 FROM %s %s, %s %s WHERE %s.project = %s AND %s.sharedWithWorkspace = %s.workspace AND %s.user = :%s AND %s.isActive = true',
+                ProjectShare::class, $psAlias,
+                WorkspaceMember::class, $wmShareAlias,
+                $psAlias, $shareProjectExpr,
+                $psAlias, $wmShareAlias,
+                $wmShareAlias, $userParam,
+                $wmShareAlias,
+            );
+            $productShareDql = sprintf(
+                'SELECT 1 FROM %s %s, %s %s WHERE %s.product = %s AND %s.targetWorkspace = %s.workspace AND %s.status = :%s AND %s.user = :%s AND %s.isActive = true',
+                ProductShare::class, $ppsAlias,
+                WorkspaceMember::class, $wmShareProdAlias,
+                $ppsAlias, $shareProductExpr,
+                $ppsAlias, $wmShareProdAlias,
+                $wmShareProdAlias,
+                $psStatusParam,
+                $userParam,
+                $wmShareProdAlias,
+            );
+            $queryBuilder->andWhere(sprintf(
+                '(EXISTS (%s) OR EXISTS (%s) OR EXISTS (%s))',
+                $memberDql, $shareDql, $productShareDql,
+            ));
+            $queryBuilder->setParameter($psStatusParam, 'accepted');
+        } elseif ($shareProjectExpr !== null) {
             $psAlias = $queryNameGenerator->generateJoinAlias('psscope');
             $wmShareAlias = $queryNameGenerator->generateJoinAlias('wmshare');
             $shareDql = sprintf(
@@ -291,6 +328,23 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
                 $wmShareAlias,
             );
             $queryBuilder->andWhere(sprintf('(EXISTS (%s) OR EXISTS (%s))', $memberDql, $shareDql));
+        } elseif ($shareProductExpr !== null) {
+            $ppsAlias = $queryNameGenerator->generateJoinAlias('ppscope');
+            $wmShareProdAlias = $queryNameGenerator->generateJoinAlias('wmpshare');
+            $psStatusParam = $queryNameGenerator->generateParameterName('psStatus');
+            $productShareDql = sprintf(
+                'SELECT 1 FROM %s %s, %s %s WHERE %s.product = %s AND %s.targetWorkspace = %s.workspace AND %s.status = :%s AND %s.user = :%s AND %s.isActive = true',
+                ProductShare::class, $ppsAlias,
+                WorkspaceMember::class, $wmShareProdAlias,
+                $ppsAlias, $shareProductExpr,
+                $ppsAlias, $wmShareProdAlias,
+                $wmShareProdAlias,
+                $psStatusParam,
+                $userParam,
+                $wmShareProdAlias,
+            );
+            $queryBuilder->andWhere(sprintf('(EXISTS (%s) OR EXISTS (%s))', $memberDql, $productShareDql));
+            $queryBuilder->setParameter($psStatusParam, 'accepted');
         } else {
             $queryBuilder->andWhere(sprintf('EXISTS (%s)', $memberDql));
         }
@@ -314,10 +368,19 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         }
 
         $wsParam = $queryNameGenerator->generateParameterName('scopeWsId');
-        if ($shareProjectExpr !== null) {
-            // The narrowed workspace may be the host workspace OR one the project
-            // is shared into — otherwise a B-member with X-Workspace-Id=B would
-            // never see the shared (workspace-A) rows.
+        if ($shareProjectExpr !== null && $shareProductExpr !== null) {
+            $psNarrow = $queryNameGenerator->generateJoinAlias('psnarrow');
+            $ppsNarrow = $queryNameGenerator->generateJoinAlias('ppsnarrow');
+            $psNarrowStatusParam = $queryNameGenerator->generateParameterName('psNarrowStatus');
+            $queryBuilder->andWhere(sprintf(
+                '(%s.workspace = :%s OR EXISTS (SELECT 1 FROM %s %s WHERE %s.project = %s AND %s.sharedWithWorkspace = :%s) OR EXISTS (SELECT 1 FROM %s %s WHERE %s.product = %s AND %s.targetWorkspace = :%s AND %s.status = :%s))',
+                $rootAlias, $wsParam,
+                ProjectShare::class, $psNarrow, $psNarrow, $shareProjectExpr, $psNarrow, $wsParam,
+                ProductShare::class, $ppsNarrow, $ppsNarrow, $shareProductExpr, $ppsNarrow, $wsParam,
+                $ppsNarrow, $psNarrowStatusParam,
+            ));
+            $queryBuilder->setParameter($psNarrowStatusParam, 'accepted');
+        } elseif ($shareProjectExpr !== null) {
             $psNarrow = $queryNameGenerator->generateJoinAlias('psnarrow');
             $queryBuilder->andWhere(sprintf(
                 '(%s.workspace = :%s OR EXISTS (SELECT 1 FROM %s %s WHERE %s.project = %s AND %s.sharedWithWorkspace = :%s))',
@@ -326,6 +389,18 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
                 $psNarrow, $shareProjectExpr,
                 $psNarrow, $wsParam,
             ));
+        } elseif ($shareProductExpr !== null) {
+            $ppsNarrow = $queryNameGenerator->generateJoinAlias('ppsnarrow');
+            $psNarrowStatusParam = $queryNameGenerator->generateParameterName('psNarrowStatus');
+            $queryBuilder->andWhere(sprintf(
+                '(%s.workspace = :%s OR EXISTS (SELECT 1 FROM %s %s WHERE %s.product = %s AND %s.targetWorkspace = :%s AND %s.status = :%s))',
+                $rootAlias, $wsParam,
+                ProductShare::class, $ppsNarrow,
+                $ppsNarrow, $shareProductExpr,
+                $ppsNarrow, $wsParam,
+                $ppsNarrow, $psNarrowStatusParam,
+            ));
+            $queryBuilder->setParameter($psNarrowStatusParam, 'accepted');
         } else {
             $queryBuilder->andWhere(sprintf('%s.workspace = :%s', $rootAlias, $wsParam));
         }
@@ -345,6 +420,14 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
         return match ($resourceClass) {
             Project::class => $rootAlias,
             \App\Entity\Task::class, \App\Entity\TimeEntry::class => sprintf('%s.project', $rootAlias),
+            default => null,
+        };
+    }
+
+    private function shareProductExpr(string $resourceClass, string $rootAlias): ?string
+    {
+        return match ($resourceClass) {
+            \App\Entity\Product::class => $rootAlias,
             default => null,
         };
     }

@@ -124,18 +124,6 @@ class Product implements TranslatableInterface, TaggableInterface
     #[ORM\Column(type: 'integer', options: ['default' => 0])]
     private int $position = 0;
 
-    /** When this product was shared from another workspace, points to the source. */
-    #[ApiProperty]
-    #[ORM\ManyToOne(targetEntity: Workspace::class)]
-    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
-    private ?Workspace $sourceWorkspace = null;
-
-    /** The original product in the source workspace (if shared). */
-    #[ApiProperty]
-    #[ORM\ManyToOne(targetEntity: self::class)]
-    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
-    private ?Product $sourceProduct = null;
-
     /** The newest released version — maintained by ProductCatalogService. */
     #[ApiProperty(writable: false)]
     #[ORM\ManyToOne(targetEntity: ProductVersion::class)]
@@ -206,12 +194,4 @@ class Product implements TranslatableInterface, TaggableInterface
     public function setPosition(int $p): self { $this->position = $p; return $this; }
 
     public function isRoot(): bool { return $this->parent === null; }
-
-    public function getSourceWorkspace(): ?Workspace { return $this->sourceWorkspace; }
-    public function setSourceWorkspace(?Workspace $ws): self { $this->sourceWorkspace = $ws; return $this; }
-
-    public function getSourceProduct(): ?self { return $this->sourceProduct; }
-    public function setSourceProduct(?self $p): self { $this->sourceProduct = $p; return $this; }
-
-    public function isShared(): bool { return $this->sourceWorkspace !== null; }
 }

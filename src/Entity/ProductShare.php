@@ -71,11 +71,6 @@ class ProductShare
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $message = null;
 
-    /** The product copy in the target workspace after acceptance. */
-    #[ORM\ManyToOne(targetEntity: Product::class)]
-    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
-    private ?Product $sharedCopy = null;
-
     public function getSourceWorkspace(): Workspace { return $this->sourceWorkspace; }
     public function setSourceWorkspace(Workspace $ws): self { $this->sourceWorkspace = $ws; return $this; }
 
@@ -90,7 +85,4 @@ class ProductShare
 
     public function getMessage(): ?string { return $this->message; }
     public function setMessage(?string $m): self { $this->message = $m; return $this; }
-
-    public function getSharedCopy(): ?Product { return $this->sharedCopy; }
-    public function setSharedCopy(?Product $p): self { $this->sharedCopy = $p; return $this; }
 }
