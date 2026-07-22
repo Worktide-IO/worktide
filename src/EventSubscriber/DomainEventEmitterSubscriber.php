@@ -25,6 +25,7 @@ use App\Entity\ProjectMember;
 use App\Entity\ProjectMilestone;
 use App\Entity\ProjectStatus;
 use App\Entity\ProjectStatusUpdate;
+use App\Entity\ProductShare;
 use App\Entity\SavedReply;
 use App\Entity\PersonalAccessToken;
 use App\Entity\ProjectTemplate;
@@ -148,6 +149,7 @@ final class DomainEventEmitterSubscriber
         ServiceVersion::class => 'ServiceVersion',
         ServiceAssignment::class => 'ServiceAssignment',
         CustomerProduct::class => 'CustomerProduct',
+        ProductShare::class => 'ProductShare',
         SystemIncident::class => 'SystemIncident',
         AIRecommendation::class => 'AIRecommendation',
         // Emits `publicformsubmission.created` on every accepted form submission

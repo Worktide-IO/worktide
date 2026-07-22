@@ -124,6 +124,16 @@ class Product implements TranslatableInterface, TaggableInterface
     #[ORM\Column(type: 'integer', options: ['default' => 0])]
     private int $position = 0;
 
+    /** Multi-language marketing copy: {"de": "...", "en": "..."} */
+    #[ApiProperty]
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $marketingText = null;
+
+    /** Media attachments: [{"url": "...", "type": "image|video", "caption": "..."}] */
+    #[ApiProperty]
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $mediaRefs = null;
+
     /** The newest released version — maintained by ProductCatalogService. */
     #[ApiProperty(writable: false)]
     #[ORM\ManyToOne(targetEntity: ProductVersion::class)]
@@ -194,4 +204,14 @@ class Product implements TranslatableInterface, TaggableInterface
     public function setPosition(int $p): self { $this->position = $p; return $this; }
 
     public function isRoot(): bool { return $this->parent === null; }
+
+    /** @return array<string, string>|null */
+    public function getMarketingText(): ?array { return $this->marketingText; }
+    /** @param array<string, string>|null $text */
+    public function setMarketingText(?array $text): self { $this->marketingText = $text; return $this; }
+
+    /** @return list<array{url: string, type: string, caption?: string}>|null */
+    public function getMediaRefs(): ?array { return $this->mediaRefs; }
+    /** @param list<array{url: string, type: string, caption?: string}>|null $refs */
+    public function setMediaRefs(?array $refs): self { $this->mediaRefs = $refs; return $this; }
 }

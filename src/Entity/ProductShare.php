@@ -85,4 +85,6 @@ class ProductShare
 
     public function getMessage(): ?string { return $this->message; }
     public function setMessage(?string $m): self { $this->message = $m; return $this; }
+
+    public function getWorkspace(): Workspace { return $this->targetWorkspace; }
 }
