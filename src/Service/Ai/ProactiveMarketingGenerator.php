@@ -13,6 +13,7 @@ use App\Entity\Enum\RecommendationTarget;
 use App\Entity\Product;
 use App\Entity\ProductFeature;
 use App\Entity\Workspace;
+use App\Entity\Enum\ProductStatus;
 use App\Repository\AIRecommendationRepository;
 use App\Repository\ProductRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -133,6 +134,12 @@ final class ProactiveMarketingGenerator
      */
     private function marketingScore(Product $product): int
     {
+        // Don't market deprecated or end-of-life products.
+        $status = $product->getStatus();
+        if ($status === ProductStatus::Deprecated || $status === ProductStatus::Eol) {
+            return 0;
+        }
+
         $score = 0;
 
         // Has a description? Base line.
