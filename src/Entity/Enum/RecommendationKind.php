@@ -18,4 +18,5 @@ enum RecommendationKind: string
     case CustomerUpgradeOutreach = 'customer_upgrade_outreach';
     case ResearchSuggestion = 'research_suggestion';
     case AgentAction = 'agent_action';
+    case ProductSuggestion = 'product_suggestion';
 }

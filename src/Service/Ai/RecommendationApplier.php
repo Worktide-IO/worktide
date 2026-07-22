@@ -87,6 +87,8 @@ final class RecommendationApplier
         if ($recommendation->getTarget() === RecommendationTarget::Workspace) {
             if ($recommendation->getKind() === RecommendationKind::AgentAction) {
                 $this->applyAgentAction($recommendation, $reviewer);
+            } elseif ($recommendation->getKind() === RecommendationKind::ProductSuggestion) {
+                $this->applyProductSuggestion($recommendation, $reviewer);
             } else {
                 $this->applyResearchSuggestion($recommendation);
             }
@@ -471,5 +473,20 @@ final class RecommendationApplier
         }
 
         return null;
+    }
+
+    private function applyProductSuggestion(AIRecommendation $recommendation, User $reviewer): void
+    {
+        $suggestion = $recommendation->getSuggestion();
+        $title = \is_string($suggestion['title'] ?? null) ? trim($suggestion['title']) : 'New Product Idea';
+        $description = \is_string($suggestion['description'] ?? null) ? trim($suggestion['description']) : '';
+
+        $idea = new \App\Entity\Idea();
+        $idea->setWorkspace($recommendation->getWorkspace());
+        $idea->setTitle($title);
+        $idea->setDescription($description);
+        $idea->setOrigin(\App\Entity\Enum\IdeaOrigin::Ai);
+
+        $this->em->persist($idea);
     }
 }
