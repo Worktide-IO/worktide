@@ -113,7 +113,7 @@ final class ProactiveMarketingGenerator
      */
     private function findMarketingCandidates(Workspace $workspace): array
     {
-        $all = $this->products->findBy(['workspace' => $workspace, 'type' => 'product'], ['name' => 'ASC']);
+        $all = $this->products->findBy(['workspace' => $workspace], ['name' => 'ASC']);
 
         $candidates = [];
         foreach ($all as $product) {
