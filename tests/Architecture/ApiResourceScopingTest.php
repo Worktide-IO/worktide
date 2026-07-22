@@ -58,6 +58,7 @@ final class ApiResourceScopingTest extends TestCase
         \App\Entity\AutomationAction::class => 'BESPOKE: scoped via parent Automation.workspace.',
         \App\Entity\DocumentContributor::class => 'BESPOKE: scoped via parent Document.workspace.',
         \App\Entity\TaskListEntry::class => 'BESPOKE: scoped via parent TaskList.workspace.',
+        \App\Entity\ProductShare::class => 'BESPOKE: scoped via getWorkspace() → targetWorkspace (cross-workspace sharing). Product queries are additionally scoped via WorkspaceScopeExtension ProductShare EXISTS subquery.',
     ];
 
     public function testEveryApiResourceIsWorkspaceScopedOrExplicitlyExempt(): void
