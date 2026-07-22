@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
@@ -46,6 +47,7 @@ use App\Entity\Trait\TranslatableTrait;
 #[ORM\UniqueConstraint(name: 'product_ws_slug_uniq', columns: ['workspace_id', 'slug'])]
 #[ORM\Index(name: 'product_workspace_idx', columns: ['workspace_id'])]
 #[ORM\Index(name: 'product_type_idx', columns: ['type'])]
+#[ORM\Index(name: 'product_parent_idx', columns: ['parent_id'])]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     shortName: 'Product',
@@ -56,6 +58,7 @@ use App\Entity\Trait\TranslatableTrait;
         new Patch(security: "is_granted('EDIT', object.getWorkspace())"),
         new Delete(security: "is_granted('EDIT', object.getWorkspace())"),
     ],
+    mercure: true,
 )]
 #[ApiFilter(UuidExactFilter::class, properties: ['id'])]
 #[ApiFilter(SearchFilter::class, properties: [
@@ -65,8 +68,10 @@ use App\Entity\Trait\TranslatableTrait;
     'status' => 'exact',
     'name' => 'partial',
     'tags.id' => 'exact',
+    'parent' => 'exact',
 ])]
-#[ApiFilter(OrderFilter::class, properties: ['name', 'createdAt'])]
+#[ApiFilter(OrderFilter::class, properties: ['name', 'position', 'createdAt'])]
+#[ApiFilter(ExistsFilter::class, properties: ['parent'])]
 class Product implements TranslatableInterface, TaggableInterface
 {
     use TranslatableTrait;
@@ -94,11 +99,30 @@ class Product implements TranslatableInterface, TaggableInterface
     #[ORM\Column(length: 12, enumType: ProductStatus::class, options: ['default' => 'active'])]
     private ProductStatus $status = ProductStatus::Active;
 
+    #[ApiProperty]
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
+    #[ApiProperty]
     #[ORM\Column(length: 80, nullable: true)]
     private ?string $category = null;
+
+    /** Parent node for tree-like categorisation. */
+    #[ApiProperty]
+    #[ORM\ManyToOne(targetEntity: self::class, inversedBy: 'children')]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Product $parent = null;
+
+    /** @var Collection<int, Product> */
+    #[ApiProperty]
+    #[ORM\OneToMany(mappedBy: 'parent', targetEntity: self::class)]
+    #[ORM\OrderBy(['position' => 'ASC', 'name' => 'ASC'])]
+    private Collection $children;
+
+    /** Sort order among siblings. */
+    #[ApiProperty]
+    #[ORM\Column(type: 'integer', options: ['default' => 0])]
+    private int $position = 0;
 
     /** The newest released version — maintained by ProductCatalogService. */
     #[ApiProperty(writable: false)]
@@ -115,6 +139,7 @@ class Product implements TranslatableInterface, TaggableInterface
     {
         $this->versions = new ArrayCollection();
         $this->tags = new ArrayCollection();
+        $this->children = new ArrayCollection();
     }
 
     public function getName(): string { return $this->name; }
@@ -158,5 +183,16 @@ class Product implements TranslatableInterface, TaggableInterface
     {
         return ['name', 'description'];
     }
+
+    public function getParent(): ?self { return $this->parent; }
+    public function setParent(?self $p): self { $this->parent = $p; return $this; }
+
+    /** @return Collection<int, Product> */
+    public function getChildren(): Collection { return $this->children; }
+
+    public function getPosition(): int { return $this->position; }
+    public function setPosition(int $p): self { $this->position = $p; return $this; }
+
+    public function isRoot(): bool { return $this->parent === null; }
 
 }

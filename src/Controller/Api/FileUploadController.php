@@ -27,6 +27,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Mercure\HubInterface;
+use Symfony\Component\Mercure\Update;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Requirement\Requirement;
 use Symfony\Component\Uid\Uuid;
@@ -66,6 +68,7 @@ final class FileUploadController
         private readonly CommentRepository $comments,
         private readonly CustomerRepository $customers,
         private readonly FolderRepository $folders,
+        private readonly HubInterface $hub,
     ) {}
 
     #[Route(
@@ -116,13 +119,16 @@ final class FileUploadController
             ->setName($displayName)
             ->setDescription(\is_string($description) ? $description : null)
             ->setMimeType($uploaded->getClientMimeType())
-            ->setUploadedBy($user);
+            ->setUploadedBy($user)
+            ->setIsHiddenForConnectUsers($targetEnum !== FileTarget::Customer);
         $this->em->persist($file);
         $this->em->flush(); // gives File its UUID
 
         $version = $this->createVersion($file, 1, $uploaded, $originalName, $user, $request->request->get('note'));
         $file->setCurrentVersion($version);
         $this->em->flush();
+
+        $this->publishPortalFileUpdate($file);
 
         return new JsonResponse($this->summarise($file), JsonResponse::HTTP_CREATED);
     }
@@ -289,5 +295,21 @@ final class FileUploadController
             ] : null,
             'downloadUrl' => sprintf('/v1/files/%s/content', $file->getId()?->toRfc4122() ?? ''),
         ];
+    }
+
+    private function publishPortalFileUpdate(File $file): void
+    {
+        if ($file->getTarget() !== FileTarget::Customer) {
+            return;
+        }
+        $wsId = $file->getWorkspace()?->getId()?->toRfc4122();
+        if ($wsId === null) {
+            return;
+        }
+        $this->hub->publish(new Update(
+            topics: [$wsId . '/portal/files'],
+            data: json_encode(['action' => 'created', 'fileId' => $file->getId()?->toRfc4122()]) ?: '{}',
+            private: true,
+        ));
     }
 }

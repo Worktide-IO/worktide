@@ -141,6 +141,20 @@ services:
     App\Service\Inbound\InboundEventProcessor:
         arguments:
             $aiAutoSuggestLimiter: '@limiter.ai_auto_suggest'
+            $automationWebhookUrl: '%env(string:N8N_WEBHOOK_URL)%'
+
+    # Delivers processed inbound events to the external automation engine (n8n).
+    # Trusted, operator-configured endpoint — no SSRF guard (see handler docblock).
+    App\MessageHandler\DispatchAutomationEventHandler:
+        arguments:
+            $webhookUrl: '%env(string:N8N_WEBHOOK_URL)%'
+            $webhookSecret: '%env(string:N8N_WEBHOOK_SECRET)%'
+
+    # Shared token guard for the n8n → Worktide automation endpoints (conversation
+    # actions + mute-rule CRUD). Token IS the credential (empty = disabled / 404).
+    App\Automation\AutomationTokenGuard:
+        arguments:
+            $token: '%env(string:AUTOMATION_API_TOKEN)%'
 
     # Auto-link inbound mail → Contact/Customer. Shared / contact-form sender
     # addresses that send on behalf of the real person must never match a
@@ -254,6 +268,10 @@ services:
         arguments:
             $appSecret: '%env(APP_SECRET)%'
             $portalBaseUrl: '%env(PORTAL_BASE_URL)%'
+
+    App\EventSubscriber\BookmarkCredentialsCipherListener:
+        arguments:
+            $appSecret: '%env(APP_SECRET)%'
 
     # White-label branding, resolved from BRAND_* env. Source of truth for the
     # public /v1/branding endpoint (SPAs) and the `brand` Twig global (emails).

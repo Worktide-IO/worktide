@@ -54,6 +54,14 @@
 # real availability. Every 10 minutes (behind the calendar_sync egress gate).
 */10 * * * * cd /app && php bin/console app:booking:sync-calendars
 
+# Proactive AI agents — scan workspace data and generate human-in-the-loop
+# suggestions that surface in the /ki-agenten inbox. Daily at 08:00.
+0 8 * * * cd /app && php bin/console worktide:research:suggest
+0 8 * * * cd /app && php bin/console worktide:marketing:suggest
+# Weekly product-opportunity scan (Monday 08:05): analyse channel conversations
+# against the product catalogue to identify unmet needs worth developing.
+5 8 * * 1 cd /app && php bin/console worktide:opportunity:suggest
+
 # --- Disabled by default: need per-workspace setup / --apply ---------------
 # lexoffice syncs default to dry-run and require an API key on the channel:
 #*/30 * * * * cd /app && php bin/console app:lexoffice:sync-invoices --apply

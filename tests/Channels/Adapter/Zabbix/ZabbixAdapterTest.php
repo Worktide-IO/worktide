@@ -28,6 +28,7 @@ final class ZabbixAdapterTest extends TestCase
             $this->http([
                 'problem.get' => [$this->problem('100', '20', 'CPU high', '4', '1784000000')],
                 'trigger.get' => [$this->trigger('20', '55', 'web1', 'web1 (Prod)')],
+                'event.get' => [],
             ]),
             $this->createStub(EntityManagerInterface::class),
             $this->eventsRepo(),
@@ -60,6 +61,7 @@ final class ZabbixAdapterTest extends TestCase
             $this->http([
                 'problem.get' => [$this->problem('100', '20', 'CPU high', '4', '1784000000')],
                 'trigger.get' => [$this->trigger('20', '55', 'web1', 'web1 (Prod)')],
+                'event.get' => [],
             ]),
             $this->createStub(EntityManagerInterface::class),
             $events,
@@ -87,7 +89,7 @@ final class ZabbixAdapterTest extends TestCase
 
         // No current problems → the previously-open 500 recovered.
         $adapter = new ZabbixAdapter(
-            $this->http(['problem.get' => []]),
+            $this->http(['problem.get' => [], 'event.get' => []]),
             $this->createStub(EntityManagerInterface::class),
             $events,
         );
@@ -110,12 +112,88 @@ final class ZabbixAdapterTest extends TestCase
         $http = $this->http([
             'hostgroup.get' => [['groupid' => '17']],
             'problem.get' => [],
+            'event.get' => [],
         ], $captured);
         $adapter = new ZabbixAdapter($http, $this->createStub(EntityManagerInterface::class), $this->eventsRepo());
 
         $adapter->pull($this->channel(hostGroup: 'WapplerSystems'));
 
         self::assertSame(['17'], $captured['problem.get']['params']['groupids'] ?? null);
+        // The event-cursor query is narrowed to the same host group.
+        self::assertSame(['17'], $captured['event.get']['params']['groupids'] ?? null);
+    }
+
+    public function testSeedsEventCursorWithoutBackfillOnFirstRun(): void
+    {
+        // First run: no eventCursor yet → event.get seeds it to the newest id and
+        // must NOT ingest historical problems as short-lived flaps.
+        $adapter = new ZabbixAdapter(
+            $this->http([
+                'problem.get' => [],
+                'event.get' => [$this->problem('9001', '20', 'old flap', '2', '1784000000')],
+            ]),
+            $this->createStub(EntityManagerInterface::class),
+            $this->eventsRepo(),
+        );
+        $channel = $this->channel();
+
+        $result = $adapter->pull($channel);
+
+        self::assertCount(0, $result->events);
+        self::assertSame('9001', $channel->getInboundConfig()['eventCursor']);
+    }
+
+    public function testShortLivedFlapEmitsRaiseAndRecovery(): void
+    {
+        // A cursor already exists → event.get returns a problem (200) that opened
+        // since the cursor but is NOT in the current open set → it flapped within
+        // the interval. Expect a raise AND its recovery, and the cursor advances.
+        $adapter = new ZabbixAdapter(
+            $this->http([
+                'problem.get' => [],
+                'event.get' => [$this->problem('200', '20', 'CPU high', '4', '1784000500')],
+                'trigger.get' => [$this->trigger('20', '55', 'web1', 'web1 (Prod)')],
+            ]),
+            $this->createStub(EntityManagerInterface::class),
+            $this->eventsRepo(),
+        );
+        $channel = $this->channel(eventCursor: '150');
+
+        $result = $adapter->pull($channel);
+
+        self::assertCount(2, $result->events);
+        [$raise, $recovery] = $result->events;
+        self::assertSame('200', $raise->getExternalId());
+        self::assertFalse($raise->getSourceMetadata()['resolved']);
+        self::assertSame('resolved:200', $recovery->getExternalId());
+        self::assertTrue($recovery->getSourceMetadata()['resolved']);
+        self::assertSame('55', $recovery->getSourceMetadata()['hostid']);
+        // Recovery clock is after the raise so the threader ends the thread closed.
+        self::assertGreaterThanOrEqual($raise->getReceivedAt(), $recovery->getReceivedAt());
+        self::assertSame('200', $channel->getInboundConfig()['eventCursor']);
+        self::assertSame([], $channel->getInboundConfig()['openEventIds']);
+    }
+
+    public function testCurrentlyOpenEventFromCursorIsNotDoubleEmitted(): void
+    {
+        // event.get surfaces eventid 100, which is ALSO currently open (problem.get)
+        // → the open-set path owns it; the cursor path must not emit a recovery.
+        $adapter = new ZabbixAdapter(
+            $this->http([
+                'problem.get' => [$this->problem('100', '20', 'CPU high', '4', '1784000000')],
+                'event.get' => [$this->problem('100', '20', 'CPU high', '4', '1784000000')],
+                'trigger.get' => [$this->trigger('20', '55', 'web1', 'web1 (Prod)')],
+            ]),
+            $this->createStub(EntityManagerInterface::class),
+            $this->eventsRepo(),
+        );
+        $channel = $this->channel(eventCursor: '50');
+
+        $result = $adapter->pull($channel);
+
+        self::assertCount(1, $result->events); // one raise, no phantom recovery
+        self::assertSame('100', $result->events[0]->getExternalId());
+        self::assertFalse($result->events[0]->getSourceMetadata()['resolved']);
     }
 
     public function testSelfTestOkWhenReachableAndAuthorized(): void
@@ -200,7 +278,7 @@ final class ZabbixAdapterTest extends TestCase
     }
 
     /** @param list<string> $openEventIds */
-    private function channel(?string $hostGroup = null, array $openEventIds = []): Channel
+    private function channel(?string $hostGroup = null, array $openEventIds = [], ?string $eventCursor = null): Channel
     {
         $cfg = ['baseUrl' => 'https://monitoring1.example.test'];
         if ($hostGroup !== null) {
@@ -208,6 +286,9 @@ final class ZabbixAdapterTest extends TestCase
         }
         if ($openEventIds !== []) {
             $cfg['openEventIds'] = $openEventIds;
+        }
+        if ($eventCursor !== null) {
+            $cfg['eventCursor'] = $eventCursor;
         }
 
         return (new Channel())

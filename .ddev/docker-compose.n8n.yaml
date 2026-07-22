@@ -1,0 +1,48 @@
+# Local n8n automation engine (external flow engine, orchestrated behind
+# Worktide's API — see docs + memory "n8n automation engine"). The web
+# container reaches it internally at http://n8n:5678; the editor is exposed
+# through the DDEV router at https://${DDEV_HOSTNAME}:5679.
+#
+# Dev-only settings: fixed encryption key so saved credentials survive a
+# restart, user-management left on (create the owner account on first visit),
+# secure cookie off because the router terminates TLS and forwards http.
+# A real deployment (Coolify/cloud2) sets N8N_ENCRYPTION_KEY + owner creds and
+# proper host/protocol out of band.
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.30.8
+    container_name: ddev-${DDEV_SITENAME}-n8n
+    restart: "no"
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: ${DDEV_APPROOT}
+    expose:
+      - "5678"
+    environment:
+      - N8N_HOST=${DDEV_HOSTNAME}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - N8N_PROXY_HOPS=1
+      - N8N_SECURE_COOKIE=false
+      - WEBHOOK_URL=https://${DDEV_HOSTNAME}:5679/
+      - N8N_EDITOR_BASE_URL=https://${DDEV_HOSTNAME}:5679/
+      - N8N_ENCRYPTION_KEY=worktide-dev-n8n-key
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_HIRING_BANNER_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+      - GENERIC_TIMEZONE=Europe/Berlin
+      - TZ=Europe/Berlin
+      - VIRTUAL_HOST=${DDEV_HOSTNAME}
+      - HTTP_EXPOSE=5678:5678
+      - HTTPS_EXPOSE=5679:5678
+    volumes:
+      - n8n-data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  n8n-data:

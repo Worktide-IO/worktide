@@ -10,6 +10,7 @@ use App\Entity\DomainEventLog;
 use App\Entity\PasswordResetToken;
 use App\Entity\RefreshToken;
 use App\Entity\User;
+use App\Entity\Workspace;
 use App\Repository\PasswordResetTokenRepository;
 use App\Repository\UserRepository;
 use App\Service\I18n\RecipientLocaleResolver;
@@ -122,7 +123,7 @@ final class PasswordResetService
      * `/set-password?token=` page posts back to the shared
      * `POST /v1/auth/reset-password`.
      */
-    public function sendPortalSetPasswordLink(User $user, ?string $welcomeText = null): void
+    public function sendPortalSetPasswordLink(User $user, ?string $welcomeText = null, ?Workspace $workspace = null): void
     {
         // Only ever one live token per user.
         $this->tokens->deleteForUser($user);
@@ -138,7 +139,7 @@ final class PasswordResetService
 
         // Rendered async (Messenger), so the locale travels in the context and
         // templates apply it via the trans filter.
-        $locale = $this->localeResolver->forUser($user);
+        $locale = $this->localeResolver->forUser($user, $workspace);
 
         $mail = (new TemplatedEmail())
             ->from($this->fromAddress())

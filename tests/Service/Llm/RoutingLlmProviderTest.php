@@ -8,32 +8,44 @@ use App\Service\Llm\AiUsageContext;
 use App\Service\Llm\LlmException;
 use App\Service\Llm\LlmProviderInterface;
 use App\Service\Llm\LlmRouter;
+use App\Service\Llm\RoutedCall;
 use App\Service\Llm\RoutingLlmProvider;
 use App\Tests\Support\RecordingLlmProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The decorator that turns a router decision into a delegated call: it must use
- * the primary provider, fall back to the secondary on an {@see LlmException},
- * and re-throw when there is no fallback.
+ * The decorator that turns a router decision ({@see RoutedCall}) into a delegated
+ * call: it must use the primary provider (with the pinned per-call model), fall
+ * back to the secondary on an {@see LlmException}, and re-throw when there is no
+ * fallback.
  */
 final class RoutingLlmProviderTest extends TestCase
 {
-    public function testDelegatesToPrimary(): void
+    public function testDelegatesToPrimaryWithPinnedModel(): void
     {
         $primary = new RecordingLlmProvider(json: ['ok' => true], text: 'primary-text', model: 'primary');
-        $decorator = $this->decorator([$primary, null]);
+        $decorator = $this->decorator(new RoutedCall($primary, 'claude-haiku-4-5-20251001'));
 
         self::assertSame('primary-text', $decorator->complete('sys', 'usr'));
         self::assertSame(['ok' => true], $decorator->completeJson('sys', 'usr'));
-        self::assertSame('primary', $decorator->getModel());
-        self::assertTrue($primary->called());
+        // getModel reflects the pinned model, not the provider default.
+        self::assertSame('claude-haiku-4-5-20251001', $decorator->getModel());
+        // The pinned model was threaded through to the provider call.
+        self::assertSame('claude-haiku-4-5-20251001', $primary->calls[0]['model']);
+    }
+
+    public function testGetModelFallsBackToProviderDefaultWhenNoPin(): void
+    {
+        $primary = new RecordingLlmProvider(model: 'provider-default');
+        $decorator = $this->decorator(new RoutedCall($primary));
+
+        self::assertSame('provider-default', $decorator->getModel());
     }
 
     public function testFallsBackToSecondaryWhenPrimaryThrows(): void
     {
         $fallback = new RecordingLlmProvider(json: ['from' => 'fallback'], text: 'fallback-text', model: 'fallback');
-        $decorator = $this->decorator([$this->throwing(), $fallback]);
+        $decorator = $this->decorator(new RoutedCall($this->throwing(), null, $fallback));
 
         self::assertSame('fallback-text', $decorator->complete('sys', 'usr'));
         self::assertSame(['from' => 'fallback'], $decorator->completeJson('sys', 'usr'));
@@ -42,7 +54,7 @@ final class RoutingLlmProviderTest extends TestCase
 
     public function testReThrowsWhenPrimaryThrowsAndNoFallback(): void
     {
-        $decorator = $this->decorator([$this->throwing(), null]);
+        $decorator = $this->decorator(new RoutedCall($this->throwing()));
 
         $this->expectException(LlmException::class);
         $decorator->complete('sys', 'usr');
@@ -56,13 +68,10 @@ final class RoutingLlmProviderTest extends TestCase
         self::assertFalse((new RoutingLlmProvider($router, new AiUsageContext()))->isConfigured());
     }
 
-    /**
-     * @param array{0: LlmProviderInterface, 1: ?LlmProviderInterface} $chain
-     */
-    private function decorator(array $chain): RoutingLlmProvider
+    private function decorator(RoutedCall $call): RoutingLlmProvider
     {
         $router = $this->createStub(LlmRouter::class);
-        $router->method('route')->willReturn($chain);
+        $router->method('route')->willReturn($call);
 
         return new RoutingLlmProvider($router, new AiUsageContext());
     }
@@ -75,12 +84,12 @@ final class RoutingLlmProviderTest extends TestCase
                 return true;
             }
 
-            public function complete(string $system, string $user, int $maxTokens = 4096): string
+            public function complete(string $system, string $user, int $maxTokens = 4096, ?string $model = null): string
             {
                 throw new LlmException('local model unavailable');
             }
 
-            public function completeJson(string $system, string $user, int $maxTokens = 2048): array
+            public function completeJson(string $system, string $user, int $maxTokens = 2048, ?string $model = null): array
             {
                 throw new LlmException('local model unavailable');
             }

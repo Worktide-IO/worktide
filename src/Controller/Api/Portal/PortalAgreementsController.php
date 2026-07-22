@@ -136,6 +136,46 @@ final class PortalAgreementsController
         return new JsonResponse($this->agreementDto($head));
     }
 
+    #[Route(
+        path: '/v1/portal/agreements/{id}/terminate',
+        name: 'api_portal_agreements_terminate',
+        requirements: ['id' => '[0-9a-fA-F-]{36}'],
+        methods: ['POST'],
+    )]
+    public function terminate(string $id, Request $request): JsonResponse
+    {
+        $this->portal->assertFeatureEnabled('agreements');
+        $customer = $this->portal->customer();
+        $contact = $this->portal->contact();
+
+        $head = $this->agreements->find(Uuid::fromString($id));
+        if (
+            !$head instanceof CustomerAgreement
+            || $head->getDeletedAt() !== null
+            || $head->getCustomer()->getId()?->toRfc4122() !== $customer->getId()?->toRfc4122()
+        ) {
+            throw new NotFoundHttpException('Agreement not found.');
+        }
+        if (!$head->getIsSigned()) {
+            throw new ConflictHttpException('Only signed agreements can be terminated.');
+        }
+
+        $reason = \is_string($this->body($request)['reason'] ?? null) ? trim($this->body($request)['reason']) : '';
+
+        $this->agreementService->set(
+            customer: $customer,
+            typeSlug: $head->getTypeSlug(),
+            status: AgreementStatus::Terminated,
+            actor: null,
+            notes: 'Gekündigt durch Kunde' . ($reason !== '' ? ': ' . $reason : ''),
+        );
+
+        // Reload the head after the service created a new revision
+        $this->em->refresh($head);
+
+        return new JsonResponse($this->agreementDto($head));
+    }
+
     private function isSignable(CustomerAgreement $head): bool
     {
         return !$head->getIsSigned()

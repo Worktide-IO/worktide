@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
+use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
@@ -72,9 +73,14 @@ use Doctrine\ORM\Mapping as ORM;
     'customer' => 'exact',
     'assignee' => 'exact',
     'tags.id' => 'exact',
+    'subject' => 'partial',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['lastEventAt', 'createdAt', 'subject'])]
 #[ApiFilter(DateFilter::class, properties: ['lastEventAt', 'createdAt'])]
+// Muted conversations (auto-suppressed noise like 2FA codes) stay fully stored
+// and searchable; the SPA excludes them from the default inbox with
+// `exists[mutedAt]=false` and surfaces them in the "Ignoriert" view with `true`.
+#[ApiFilter(ExistsFilter::class, properties: ['mutedAt'])]
 class Conversation implements TaggableInterface
 {
     use EntityIdTrait;
@@ -126,6 +132,15 @@ class Conversation implements TaggableInterface
     #[ORM\Column(type: 'json')]
     private array $participantIris = [];
 
+    /**
+     * Set when an {@see \App\Entity\InboundMuteRule} suppressed this thread
+     * (e.g. 2FA/verification noise). The row stays fully stored + searchable —
+     * this only hides it from the default inbox and skips automation/AI. Null =
+     * a normal, visible conversation. Reversible (clear to un-mute).
+     */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $mutedAt = null;
+
     public function __construct()
     {
         $this->lastEventAt = new \DateTimeImmutable();
@@ -155,6 +170,9 @@ class Conversation implements TaggableInterface
 
     public function getLastEventAt(): \DateTimeImmutable { return $this->lastEventAt; }
     public function setLastEventAt(\DateTimeImmutable $t): self { $this->lastEventAt = $t; return $this; }
+
+    public function getMutedAt(): ?\DateTimeImmutable { return $this->mutedAt; }
+    public function setMutedAt(?\DateTimeImmutable $t): self { $this->mutedAt = $t; return $this; }
 
     /** @return array<int, mixed> */
     public function getParticipantIris(): array { return $this->participantIris; }

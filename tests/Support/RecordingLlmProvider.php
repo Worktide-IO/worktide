@@ -21,7 +21,7 @@ use App\Service\Llm\LlmProviderInterface;
  */
 final class RecordingLlmProvider implements LlmProviderInterface
 {
-    /** @var list<array{kind: string, system: string, user: string, maxTokens: int}> */
+    /** @var list<array{kind: string, system: string, user: string, maxTokens: int, model: ?string}> */
     public array $calls = [];
 
     /** @param array<string, mixed> $json response returned by completeJson() */
@@ -37,17 +37,17 @@ final class RecordingLlmProvider implements LlmProviderInterface
         return $this->configured;
     }
 
-    public function complete(string $system, string $user, int $maxTokens = 4096): string
+    public function complete(string $system, string $user, int $maxTokens = 4096, ?string $model = null): string
     {
-        $this->calls[] = ['kind' => 'complete', 'system' => $system, 'user' => $user, 'maxTokens' => $maxTokens];
+        $this->calls[] = ['kind' => 'complete', 'system' => $system, 'user' => $user, 'maxTokens' => $maxTokens, 'model' => $model];
 
         return $this->text;
     }
 
     /** @return array<string, mixed> */
-    public function completeJson(string $system, string $user, int $maxTokens = 2048): array
+    public function completeJson(string $system, string $user, int $maxTokens = 2048, ?string $model = null): array
     {
-        $this->calls[] = ['kind' => 'completeJson', 'system' => $system, 'user' => $user, 'maxTokens' => $maxTokens];
+        $this->calls[] = ['kind' => 'completeJson', 'system' => $system, 'user' => $user, 'maxTokens' => $maxTokens, 'model' => $model];
 
         return $this->json;
     }

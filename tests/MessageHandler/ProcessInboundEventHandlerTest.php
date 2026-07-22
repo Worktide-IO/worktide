@@ -6,16 +6,19 @@ namespace App\Tests\MessageHandler;
 
 use App\Channels\AdapterRegistry;
 use App\Entity\Channel;
+use App\Entity\Workspace;
 use App\Entity\Enum\InboundEventState;
 use App\Entity\InboundEvent;
 use App\Message\ProcessInboundEventMessage;
 use App\MessageHandler\ProcessInboundEventHandler;
 use App\Repository\ChannelRepository;
 use App\Repository\ContactRepository;
+use App\Repository\InboundMuteRuleRepository;
 use App\Repository\OutboundMessageRepository;
 use App\Service\Inbound\AutoReplyResponder;
 use App\Service\Inbound\ContactResolver;
 use App\Service\Inbound\InboundEventProcessor;
+use App\Service\Inbound\InboundMuteMatcher;
 use App\Service\Inbound\MailRelevanceClassifier;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -80,6 +83,9 @@ final class ProcessInboundEventHandlerTest extends TestCase
         $contacts = $this->createStub(ContactRepository::class);
         $contacts->method('findOneByWorkspaceAndEmail')->willReturn(null);
 
+        $muteRepo = $this->createStub(InboundMuteRuleRepository::class);
+        $muteRepo->method('findEnabledForWorkspace')->willReturn([]);
+
         return new ProcessInboundEventHandler(
             $em,
             new InboundEventProcessor(
@@ -98,6 +104,7 @@ final class ProcessInboundEventHandlerTest extends TestCase
                     $em,
                     new NullLogger(),
                 ),
+                new InboundMuteMatcher($muteRepo),
             ),
             new NullLogger(),
         );
@@ -106,7 +113,7 @@ final class ProcessInboundEventHandlerTest extends TestCase
     private function event(InboundEventState $state): InboundEvent
     {
         return (new InboundEvent())
-            ->setChannel((new Channel())->setAdapterCode('email_imap'))
+            ->setChannel((new Channel())->setAdapterCode('email_imap')->setWorkspace(new Workspace()))
             ->setState($state);
     }
 }

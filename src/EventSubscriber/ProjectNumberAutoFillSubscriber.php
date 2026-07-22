@@ -36,6 +36,9 @@ final class ProjectNumberAutoFillSubscriber
         if ($entity->getNumber() !== null && $entity->getNumber() !== '') {
             return;
         }
+        if ($entity->getWorkspace() === null) {
+            return; // workspace is validated separately; skip if not set yet
+        }
 
         $generated = $this->generator->generate(
             $entity->getWorkspace(),

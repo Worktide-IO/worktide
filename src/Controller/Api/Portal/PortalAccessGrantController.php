@@ -118,8 +118,9 @@ final class PortalAccessGrantController
             throw new ConflictHttpException('Portal is not enabled for this customer — enable it before sending the invitation.');
         }
 
-        $welcomeText = PortalAccessResolver::welcomeText($contact->getCustomer()->getWorkspace());
-        $this->resets->sendPortalSetPasswordLink($user, $welcomeText);
+        $workspace = $contact->getCustomer()->getWorkspace();
+        $welcomeText = PortalAccessResolver::welcomeText($workspace);
+        $this->resets->sendPortalSetPasswordLink($user, $welcomeText, $workspace);
 
         $contact->markPortalInvited();
         $this->em->flush();

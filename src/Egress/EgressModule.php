@@ -29,4 +29,5 @@ enum EgressModule: string
     case NewsletterSend = 'newsletter_send'; // bulk newsletter issues to opted-in contacts (separate from transactional email_outbound)
     case ChatOutbound = 'chat_outbound'; // per-user notification delivery to Slack/Mattermost/Teams incoming webhooks
     case LinkPreview = 'link_preview'; // smart-link cards: oEmbed/OpenGraph fetch of a user-pasted external URL
+    case Automation = 'automation'; // dispatch inbound events to the external automation engine (self-hosted n8n) via its webhook trigger
 }

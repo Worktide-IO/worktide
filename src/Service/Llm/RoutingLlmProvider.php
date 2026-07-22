@@ -30,49 +30,46 @@ final class RoutingLlmProvider implements LlmProviderInterface
         return $this->router->isAnyConfigured();
     }
 
-    public function complete(string $system, string $user, int $maxTokens = 4096): string
+    public function complete(string $system, string $user, int $maxTokens = 4096, ?string $model = null): string
     {
-        [$primary, $fallback] = $this->resolve();
+        $call = $this->resolve();
 
         try {
-            return $primary->complete($system, $user, $maxTokens);
+            return $call->provider->complete($system, $user, $maxTokens, $model ?? $call->model);
         } catch (LlmException $e) {
-            if ($fallback === null) {
+            if ($call->fallbackProvider === null) {
                 throw $e;
             }
 
-            return $fallback->complete($system, $user, $maxTokens);
+            return $call->fallbackProvider->complete($system, $user, $maxTokens, $model ?? $call->fallbackModel);
         }
     }
 
-    public function completeJson(string $system, string $user, int $maxTokens = 2048): array
+    public function completeJson(string $system, string $user, int $maxTokens = 2048, ?string $model = null): array
     {
-        [$primary, $fallback] = $this->resolve();
+        $call = $this->resolve();
 
         try {
-            return $primary->completeJson($system, $user, $maxTokens);
+            return $call->provider->completeJson($system, $user, $maxTokens, $model ?? $call->model);
         } catch (LlmException $e) {
-            if ($fallback === null) {
+            if ($call->fallbackProvider === null) {
                 throw $e;
             }
 
-            return $fallback->completeJson($system, $user, $maxTokens);
+            return $call->fallbackProvider->completeJson($system, $user, $maxTokens, $model ?? $call->fallbackModel);
         }
     }
 
     public function getModel(): string
     {
-        // Provenance for a just-produced suggestion: the primary the current
-        // context routes to (a fallback would be the rare exception).
-        [$primary] = $this->resolve();
+        // Provenance for a just-produced suggestion: the model the current context
+        // routes to (its explicit pin, else the primary provider's default).
+        $call = $this->resolve();
 
-        return $primary->getModel();
+        return $call->model ?? $call->provider->getModel();
     }
 
-    /**
-     * @return array{0: LlmProviderInterface, 1: ?LlmProviderInterface}
-     */
-    private function resolve(): array
+    private function resolve(): RoutedCall
     {
         return $this->router->route($this->usageContext->getFeature(), $this->usageContext->getWorkspace());
     }

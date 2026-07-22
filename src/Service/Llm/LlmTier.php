@@ -26,6 +26,13 @@ enum LlmTier: string
     /** Try local first; on any {@see LlmException} fall back to the cloud model. */
     case LocalFallbackCloud = 'local_fallback_cloud';
 
+    /**
+     * Auto-pick the cheapest available catalog model that meets the task's
+     * quality floor (so agentic tasks aren't dropped onto a tiny model).
+     * Resolved by {@see LlmRouter}; forceLocal + an explicit model pin still win.
+     */
+    case Cheapest = 'cheapest';
+
     /** Parse a stored/API value, tolerating unknown strings by returning null. */
     public static function tryFromLoose(mixed $value): ?self
     {

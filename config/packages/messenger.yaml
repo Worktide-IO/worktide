@@ -52,6 +52,9 @@ framework:
             # Inbound event processing — off the ingest request thread so a
             # slow pipeline (rules, AI) doesn't hold up the webhook 2xx / pull.
             App\Message\ProcessInboundEventMessage: async
+            # Notify the external automation engine (n8n) about a processed
+            # inbound event — async so a slow/absent n8n never blocks processing.
+            App\Message\DispatchAutomationEventMessage: async
 
             # Social post fan-out — network calls off the request thread.
             App\Message\PublishSocialPostMessage: async
