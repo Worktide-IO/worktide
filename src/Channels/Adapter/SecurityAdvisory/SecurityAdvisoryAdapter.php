@@ -19,9 +19,11 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * GitHub Advisory Database, filters by configured product/technology keywords,
  * and ingests matching advisories as inbound events for staff review.
  *
- * Supports two sources, configured via channel.inboundConfig:
- *   - "nvd":            https://services.nvd.nist.gov/rest/json/cves/2.0
- *   - "github":         https://api.github.com/advisories
+ * Supports three sources, configured via channel.inboundConfig.sources:
+ *   - "nvd":       NVD CVE API 2.0 (global CVE database)
+ *   - "github":    GitHub Advisory Database (GHSA)
+ *   - "packagist": Packagist security advisories (PHP/Composer ecosystem,
+ *                  covers TYPO3, WordPress, Drupal, Symfony, etc.)
  *
  * Channel.address contains a comma-separated list of product/technology
  * keywords (e.g. "typo3,php,apache,symfony"). Only advisories matching
@@ -37,6 +39,7 @@ final class SecurityAdvisoryAdapter implements InboundAdapter
 
     private const NVD_URL = 'https://services.nvd.nist.gov/rest/json/cves/2.0';
     private const GITHUB_URL = 'https://api.github.com/advisories';
+    private const PACKAGIST_URL = 'https://packagist.org/api/security-advisories/';
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
@@ -73,7 +76,6 @@ final class SecurityAdvisoryAdapter implements InboundAdapter
         $lastPull = $config['lastPull'] ?? null;
 
         $events = [];
-        $newestDate = $lastPull;
 
         if (\in_array('nvd', $sources, true)) {
             $nvdEvents = $this->pullNvd($channel, $keywords, $lastPull, $apiKey);
@@ -83,6 +85,11 @@ final class SecurityAdvisoryAdapter implements InboundAdapter
         if (\in_array('github', $sources, true)) {
             $ghEvents = $this->pullGitHub($channel, $keywords, $lastPull);
             $events = array_merge($events, $ghEvents);
+        }
+
+        if (\in_array('packagist', $sources, true)) {
+            $pkgEvents = $this->pullPackagist($channel, $keywords);
+            $events = array_merge($events, $pkgEvents);
         }
 
         $updatedConfig = $channel->getInboundConfig() ?? [];
@@ -316,5 +323,84 @@ final class SecurityAdvisoryAdapter implements InboundAdapter
             return null;
         }
         return mb_strlen($s) > $max ? mb_substr($s, 0, $max - 1) . "\u{2026}" : $s;
+    }
+
+    /** @return list<InboundEvent> */
+    private function pullPackagist(Channel $channel, array $keywords): array
+    {
+        $packages = [];
+        foreach ($keywords as $kw) {
+            if (str_contains($kw, '/')) {
+                $packages[] = $kw;
+            }
+        }
+        if ($packages === []) {
+            return [];
+        }
+
+        $query = http_build_query(['packages' => $packages]);
+        $url = self::PACKAGIST_URL . '?' . $query;
+
+        try {
+            $response = $this->httpClient->request('GET', $url, ['timeout' => 30]);
+            $data = json_decode($response->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        if (!\is_array($data) || !isset($data['advisories'])) {
+            return [];
+        }
+
+        $events = [];
+        foreach ($data['advisories'] as $packageName => $advisories) {
+            foreach ($advisories as $adv) {
+                $advId = $adv['advisoryId'] ?? null;
+                if (!\is_string($advId)) {
+                    continue;
+                }
+
+                $externalId = 'packagist-' . $advId;
+                if ($this->events->findByExternalId($channel, $externalId) !== null) {
+                    continue;
+                }
+
+                $title = $adv['title'] ?? $advId;
+                $cve = $adv['cve'] ?? null;
+                $link = $adv['link'] ?? null;
+                $reportedAt = $adv['reportedAt'] ?? 'now';
+                $affectedVersions = $adv['affectedVersions'] ?? '';
+
+                $subject = sprintf('[%s] %s', $packageName, $title);
+                if ($cve !== null) {
+                    $subject .= ' (' . $cve . ')';
+                }
+
+                $sections = [];
+                if ($affectedVersions !== '') {
+                    $sections[] = sprintf('Affected: %s', $affectedVersions);
+                }
+                if ($link !== null) {
+                    $sections[] = sprintf('Details: %s', $link);
+                }
+
+                $body = implode("\n\n", $sections);
+
+                $event = (new InboundEvent())
+                    ->setWorkspace($channel->getWorkspace())
+                    ->setChannel($channel)
+                    ->setExternalId($externalId)
+                    ->setSenderRaw('Packagist Security Advisories')
+                    ->setSubject($this->trim($subject, 250))
+                    ->setBody($body)
+                    ->setReceivedAt(new \DateTimeImmutable($reportedAt))
+                    ->setSourceMetadata($adv);
+
+                $this->em->persist($event);
+                $events[] = $event;
+            }
+        }
+
+        return $events;
     }
 }
