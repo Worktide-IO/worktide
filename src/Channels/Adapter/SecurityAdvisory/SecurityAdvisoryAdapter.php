@@ -10,6 +10,7 @@ use App\Channels\WebhookNotSupportedException;
 use App\Entity\Channel;
 use App\Entity\InboundEvent;
 use App\Repository\InboundEventRepository;
+use Symfony\Component\HttpFoundation\Request;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -53,24 +54,9 @@ final class SecurityAdvisoryAdapter implements InboundAdapter
         return 'Security Advisories (CVE / GitHub)';
     }
 
-    public function supportsInbound(): bool
+    public function consumeWebhook(Channel $channel, Request $request): InboundResult
     {
-        return true;
-    }
-
-    public function supportsOutbound(): bool
-    {
-        return false;
-    }
-
-    public function supportsWebhook(): bool
-    {
-        return false;
-    }
-
-    public function processWebhook(Channel $channel, string $payload, array $headers = []): void
-    {
-        throw WebhookNotSupportedException::forAdapter($this);
+        return InboundResult::noop();
     }
 
     public function pull(Channel $channel): InboundResult
