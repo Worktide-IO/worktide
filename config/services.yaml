@@ -308,16 +308,18 @@ services:
             # follows the alphabetical service-id sort that
             # tagged_iterator uses by default:
             #   0 = App\Channels\Adapter\Email\MailThreader
-            #   1 = App\Channels\Adapter\Zabbix\ZabbixThreader
-            # "Email" < "Zabbix" so adding ZabbixThreader keeps the mail
-            # entries at index 0. Verify after any new threader with:
+            #   1 = App\Channels\Adapter\Flarum\FlarumThreader
+            #   2 = App\Channels\Adapter\Zabbix\ZabbixThreader
+            # "Email" < "Flarum" < "Zabbix" so adding FlarumThreader
+            # shifts Zabbix from 1 to 2. Verify after any new threader with:
             #   bin/console debug:container --tag=worktide.channel.threader
             $threaderCodeMap:
                 email_imap: 0
                 email_graph: 0
                 email_gmail: 0
                 email_webhook: 0
-                zabbix: 1
+                flarum: 1
+                zabbix: 2
 
     # Build/version identity for GET /v1/version. Values from build-time env
     # (APP_VERSION = release tag, APP_COMMIT = git SHA) + a BUILD_TIME file

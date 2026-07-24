@@ -30,4 +30,5 @@ enum EgressModule: string
     case ChatOutbound = 'chat_outbound'; // per-user notification delivery to Slack/Mattermost/Teams incoming webhooks
     case LinkPreview = 'link_preview'; // smart-link cards: oEmbed/OpenGraph fetch of a user-pasted external URL
     case Automation = 'automation'; // dispatch inbound events to the external automation engine (self-hosted n8n) via its webhook trigger
+    case ForumMonitor = 'forum_monitor'; // flarum adapter: poll third-party public forums for tagged/keyword discussions
 }
