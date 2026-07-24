@@ -12,7 +12,21 @@ database:
     version: "8.0"
 use_dns_when_possible: true
 composer_version: "2"
-web_environment: []
+web_environment:
+    # Point the Symfony cache.app pool (config/packages/cache.yaml, when@dev) at
+    # the local Valkey service (.ddev/docker-compose.valkey.yaml). Overrides the
+    # .env default for local dev only — the container env wins over Dotenv, and
+    # prod keeps the filesystem cache default.
+    #
+    - REDIS_URL=redis://valkey:6379
+    # Messenger on Valkey for local dev — one redis stream per transport
+    # (queue_name is doctrine-only). Prod keeps the .env doctrine DSNs until a
+    # prod Valkey exists. The failed transport stays doctrine (survives flush).
+    - MESSENGER_TRANSPORT_DSN=redis://valkey:6379/messages_async
+    - MESSENGER_AI_TRANSPORT_DSN=redis://valkey:6379/messages_ai
+    - MESSENGER_SEARCH_TRANSPORT_DSN=redis://valkey:6379/messages_search
+    # Exercise the Symfony reverse-proxy HTTP cache locally (off in prod .env).
+    - HTTP_CACHE=1
 corepack_enable: false
 
 # Key features of DDEV's config.yaml:

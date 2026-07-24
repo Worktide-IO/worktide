@@ -56,7 +56,15 @@ final class PublicBookingController
     {
         $type = $this->requireType($slug);
 
-        return new JsonResponse($this->typeDto($type));
+        // Public, non-user-specific booking-type info — safe for the shared
+        // reverse-proxy cache (see App\CacheKernel). Short s-maxage keeps it
+        // fresh while absorbing bursts on a widely-shared booking link.
+        $response = new JsonResponse($this->typeDto($type));
+        $response->setPublic();
+        $response->setMaxAge(30);
+        $response->setSharedMaxAge(60);
+
+        return $response;
     }
 
     #[Route(path: '/v1/book/{slug}/slots', name: 'api_public_booking_slots', requirements: ['slug' => '[a-z0-9-]{1,60}'], methods: ['GET'])]

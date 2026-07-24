@@ -13,10 +13,13 @@ framework:
             # research). Separate transport so a 30s Claude call can't starve
             # the fast async queue (webhooks/mercure/mail). Consumed by a
             # dedicated low-concurrency worker: messenger:consume ai_agents.
+            #
+            # Its own env DSN (not options.queue_name) so it works on BOTH
+            # backends: doctrine carries queue_name in the DSN query (prod
+            # default), redis gets its own stream (dev, via DDEV web_environment).
+            # options.queue_name is doctrine-only and the redis transport rejects it.
             ai_agents:
-                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
-                options:
-                    queue_name: ai_agents
+                dsn: '%env(MESSENGER_AI_TRANSPORT_DSN)%'
                 retry_strategy:
                     max_retries: 5
                     multiplier: 3
@@ -25,9 +28,7 @@ framework:
             # Its own queue so a slow/unreachable search engine never delays the
             # fast async queue. Idle entirely when SEARCH_PROVIDER=mysql.
             search:
-                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
-                options:
-                    queue_name: search
+                dsn: '%env(MESSENGER_SEARCH_TRANSPORT_DSN)%'
                 retry_strategy:
                     max_retries: 5
                     multiplier: 3

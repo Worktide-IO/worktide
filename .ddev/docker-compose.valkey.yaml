@@ -1,0 +1,28 @@
+# Local Valkey (Redis-compatible, BSD-licensed) for the Symfony cache.app pool
+# and the Messenger transport. Reachable from the web container at valkey:6379
+# (REDIS_URL / MESSENGER_TRANSPORT_DSN are wired in .ddev/config.yaml
+# web_environment). Internal only — no HTTP(S)_EXPOSE, not reachable from host.
+#
+# Prod is unaffected: .env keeps the doctrine Messenger transport and the
+# filesystem cache.app default; only APP_ENV=dev + this DDEV env opt into Valkey.
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: ddev-${DDEV_SITENAME}-valkey
+    restart: "no"
+    command: ["valkey-server", "--save", "60", "1", "--appendonly", "no"]
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: ${DDEV_APPROOT}
+    expose:
+      - "6379"
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  valkey-data:
