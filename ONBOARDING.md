@@ -51,14 +51,14 @@ Top MCP Servers:
    ddev exec php bin/console doctrine:migrations:migrate --no-interaction
    ddev exec php bin/console doctrine:fixtures:load --no-interaction
    ```
-3. **Bring up the SPA:**
-   ```bash
-   cd ../worktide-web
-   ddev start        # serves https://worktide-web.ddev.site
-   ```
+3. **The SPA is already up.** The staff SPA (`../web`) and customer portal
+   (`../portal`) now run as dedicated containers *inside this same DDEV project*
+   (see `.ddev/docker-compose.frontend-web.yaml` / `-portal.yaml`), so the single
+   `ddev start` above already serves them at `https://worktide-web.ddev.site` and
+   `https://worktide-portal.ddev.site`. Tail Vite with
+   `ddev logs -f -s frontend-web` (or `-s frontend-portal`).
 4. **Log in.** Reset a demo password and sign in at `https://worktide-web.ddev.site`:
    ```bash
-   cd ../worktide
    ddev exec php bin/console app:user:reset-password admin@example.com demo
    ```
 5. **Poke the API** to confirm everything's wired up — open `https://api.worktide.ddev.site/v1/docs`, or:
