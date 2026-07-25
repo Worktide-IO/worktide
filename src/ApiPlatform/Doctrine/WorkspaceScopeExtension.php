@@ -305,9 +305,8 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
                 WorkspaceMember::class, $wmShareProdAlias,
                 $ppsAlias, $shareProductExpr,
                 $ppsAlias, $wmShareProdAlias,
-                $wmShareProdAlias,
-                $psStatusParam,
-                $userParam,
+                $ppsAlias, $psStatusParam,
+                $wmShareProdAlias, $userParam,
                 $wmShareProdAlias,
             );
             $queryBuilder->andWhere(sprintf(
@@ -338,9 +337,8 @@ final class WorkspaceScopeExtension implements QueryCollectionExtensionInterface
                 WorkspaceMember::class, $wmShareProdAlias,
                 $ppsAlias, $shareProductExpr,
                 $ppsAlias, $wmShareProdAlias,
-                $wmShareProdAlias,
-                $psStatusParam,
-                $userParam,
+                $ppsAlias, $psStatusParam,
+                $wmShareProdAlias, $userParam,
                 $wmShareProdAlias,
             );
             $queryBuilder->andWhere(sprintf('(EXISTS (%s) OR EXISTS (%s))', $memberDql, $productShareDql));
