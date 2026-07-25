@@ -37,6 +37,15 @@ final class ProductFacetsController
     /** Cap on distinct values returned per facet. */
     private const int VALUES_PER_FACET = 100;
 
+    // Cardinality guard — drops "junk" attribute facets that don't group products
+    // (e.g. Matchcode, weights: near-unique identifiers, not useful filters).
+    /** A facet needs at least this many distinct values to be worth showing. */
+    private const int MIN_FACET_VALUES = 2;
+    /** …and at most this many (a huge option list is unusable). */
+    private const int MAX_FACET_VALUES = 40;
+    /** Drop when distinct/with-key exceeds this (mostly-unique = an identifier). */
+    private const float MAX_UNIQUE_RATIO = 0.5;
+
     /** Allowed attribute-key shape (also used as JSON path guard). */
     private const string KEY_RE = '/^[\p{L}\p{N} _\-.]{1,64}$/u';
 
@@ -113,6 +122,24 @@ final class ProductFacetsController
                 continue;
             }
             $path = '$."' . str_replace('"', '', $key) . '"';
+
+            // Cardinality guard: skip keys that behave like identifiers rather
+            // than filters (too many distinct values, or mostly-unique).
+            $card = $conn->executeQuery(
+                "SELECT COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(attributes, :p))) AS distinct_vals, COUNT(*) AS with_key FROM products WHERE {$where} AND JSON_EXTRACT(attributes, :p) IS NOT NULL",
+                $params + ['p' => $path],
+                $types + ['p' => ParameterType::STRING],
+            )->fetchAssociative() ?: ['distinct_vals' => 0, 'with_key' => 0];
+            $distinct = (int) $card['distinct_vals'];
+            $withKey = (int) $card['with_key'];
+            if (
+                $distinct < self::MIN_FACET_VALUES
+                || $distinct > self::MAX_FACET_VALUES
+                || ($withKey > 0 && $distinct / $withKey > self::MAX_UNIQUE_RATIO)
+            ) {
+                continue;
+            }
+
             $rows = $conn->executeQuery(
                 "SELECT JSON_UNQUOTE(JSON_EXTRACT(attributes, :p)) AS value, COUNT(*) AS c FROM products WHERE {$where} AND JSON_EXTRACT(attributes, :p) IS NOT NULL GROUP BY value ORDER BY c DESC, value ASC LIMIT " . self::VALUES_PER_FACET,
                 $params + ['p' => $path],
