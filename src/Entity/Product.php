@@ -6,6 +6,7 @@ namespace App\Entity;
 
 use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Doctrine\Orm\Filter\RangeFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Metadata\ApiProperty;
@@ -15,6 +16,7 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
+use App\ApiPlatform\Filter\JsonAttributeFilter;
 use App\ApiPlatform\Filter\UuidExactFilter;
 use App\Entity\Enum\ProductStatus;
 use App\Entity\Enum\ProductType;
@@ -48,6 +50,7 @@ use App\Entity\Trait\TranslatableTrait;
 #[ORM\Index(name: 'product_workspace_idx', columns: ['workspace_id'])]
 #[ORM\Index(name: 'product_type_idx', columns: ['type'])]
 #[ORM\Index(name: 'product_parent_idx', columns: ['parent_id'])]
+#[ORM\Index(name: 'product_sku_idx', columns: ['sku'])]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     shortName: 'Product',
@@ -67,11 +70,16 @@ use App\Entity\Trait\TranslatableTrait;
     'type' => 'exact',
     'status' => 'exact',
     'name' => 'partial',
+    'sku' => 'partial',
+    'category' => 'exact',
     'tags.id' => 'exact',
     'parent' => 'exact',
 ])]
-#[ApiFilter(OrderFilter::class, properties: ['name', 'position', 'createdAt'])]
+#[ApiFilter(OrderFilter::class, properties: ['name', 'position', 'createdAt', 'sku', 'priceCents', 'stockQty', 'syncedAt'])]
+#[ApiFilter(RangeFilter::class, properties: ['priceCents', 'stockQty'])]
 #[ApiFilter(ExistsFilter::class, properties: ['parent'])]
+// Facet by arbitrary attribute keys: ?attr[Hersteller]=X&attr[Steuer][]=19% …
+#[ApiFilter(JsonAttributeFilter::class)]
 class Product implements TranslatableInterface, TaggableInterface
 {
     use TranslatableTrait;
@@ -133,6 +141,61 @@ class Product implements TranslatableInterface, TaggableInterface
     #[ApiProperty]
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $mediaRefs = null;
+
+    /** Article / matching key for cross-system reconciliation (e.g. ERP article number). */
+    #[ApiProperty]
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $sku = null;
+
+    /** Net sales price in minor units (cents) — app-wide money convention (see ServiceVersion). */
+    #[ApiProperty]
+    #[ORM\Column(type: 'integer', nullable: true)]
+    private ?int $priceCents = null;
+
+    /** ISO-4217 currency (lowercase) accompanying {@see self::$priceCents}. */
+    #[ApiProperty]
+    #[ORM\Column(length: 3, nullable: true)]
+    private ?string $currency = null;
+
+    /** Current available stock quantity — volatile; kept as a column so it stays sort/filterable. */
+    #[ApiProperty]
+    #[ORM\Column(type: 'float', nullable: true)]
+    private ?float $stockQty = null;
+
+    /**
+     * External identifiers keyed by source system, for reconciliation with several
+     * systems at once: {"myfactory": "12345", "shopware": "SW-9"}.
+     *
+     * @var array<string, string>|null
+     */
+    #[ApiProperty]
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $externalIds = null;
+
+    /** Timestamp of the last external reconciliation/sync. */
+    #[ApiProperty]
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $syncedAt = null;
+
+    /**
+     * Free-text merge of the remaining source attributes that have no dedicated
+     * column (manufacturer, weight + unit, tax class, customs tariff, matchcode, …).
+     */
+    #[ApiProperty]
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $attributesText = null;
+
+    /**
+     * Structured, facetable attributes as a source-agnostic key→value map,
+     * e.g. {"Hersteller": "INTEWA", "Steuer": "19%", "Gewicht": "12.5 kg"}.
+     * Powers the product facets (GET /v1/products/facets) and the ?attr[…] filter.
+     * Keys are arbitrary — the facet UI discovers whatever is present.
+     *
+     * @var array<string, string>|null
+     */
+    #[ApiProperty]
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $attributes = null;
 
     /** The newest released version — maintained by ProductCatalogService. */
     #[ApiProperty(writable: false)]
@@ -214,4 +277,48 @@ class Product implements TranslatableInterface, TaggableInterface
     public function getMediaRefs(): ?array { return $this->mediaRefs; }
     /** @param list<array{url: string, type: string, caption?: string}>|null $refs */
     public function setMediaRefs(?array $refs): self { $this->mediaRefs = $refs; return $this; }
+
+    public function getSku(): ?string { return $this->sku; }
+    public function setSku(?string $sku): self { $this->sku = $sku; return $this; }
+
+    public function getPriceCents(): ?int { return $this->priceCents; }
+    public function setPriceCents(?int $cents): self { $this->priceCents = $cents; return $this; }
+
+    public function getCurrency(): ?string { return $this->currency; }
+    public function setCurrency(?string $c): self { $this->currency = $c !== null ? strtolower($c) : null; return $this; }
+
+    public function getStockQty(): ?float { return $this->stockQty; }
+    public function setStockQty(?float $q): self { $this->stockQty = $q; return $this; }
+
+    /** @return array<string, string>|null */
+    public function getExternalIds(): ?array { return $this->externalIds; }
+    /** @param array<string, string>|null $ids */
+    public function setExternalIds(?array $ids): self { $this->externalIds = $ids ?: null; return $this; }
+
+    /** Read a single system's external id, e.g. getExternalId('myfactory'). */
+    public function getExternalId(string $system): ?string { return $this->externalIds[$system] ?? null; }
+
+    /** Set/remove one system's external id, keeping the others intact. */
+    public function setExternalId(string $system, ?string $id): self
+    {
+        $ids = $this->externalIds ?? [];
+        if ($id === null || $id === '') {
+            unset($ids[$system]);
+        } else {
+            $ids[$system] = $id;
+        }
+        $this->externalIds = $ids === [] ? null : $ids;
+        return $this;
+    }
+
+    public function getSyncedAt(): ?\DateTimeImmutable { return $this->syncedAt; }
+    public function setSyncedAt(?\DateTimeImmutable $t): self { $this->syncedAt = $t; return $this; }
+
+    public function getAttributesText(): ?string { return $this->attributesText; }
+    public function setAttributesText(?string $t): self { $this->attributesText = $t; return $this; }
+
+    /** @return array<string, string>|null */
+    public function getAttributes(): ?array { return $this->attributes; }
+    /** @param array<string, string>|null $a */
+    public function setAttributes(?array $a): self { $this->attributes = $a ?: null; return $this; }
 }
