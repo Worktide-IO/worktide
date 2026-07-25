@@ -21,6 +21,7 @@ final readonly class BrandingConfig
         private string $legalName,
         private string $logoUrl,
         private string $logoUrlDark,
+        private string $faviconUrl,
         private string $primaryColor,
         private string $accentColor,
         private string $imprintUrl,
@@ -76,6 +77,15 @@ final readonly class BrandingConfig
         return $this->logoUrlDark;
     }
 
+    /**
+     * Favicon URL, applied at runtime by the SPAs (swappable via BRAND_FAVICON_URL
+     * — no rebuild). Empty string means "keep the SPA's bundled favicon".
+     */
+    public function faviconUrl(): string
+    {
+        return $this->faviconUrl;
+    }
+
     public function primaryColor(): string
     {
         return $this->primaryColor !== '' ? $this->primaryColor : '#0F8C72';
@@ -122,6 +132,7 @@ final readonly class BrandingConfig
             'legalName' => $this->legalName(),
             'logoUrl' => $this->logoUrl(),
             'logoUrlDark' => $this->logoUrlDark(),
+            'faviconUrl' => $this->faviconUrl(),
             'primaryColor' => $this->primaryColor(),
             'accentColor' => $this->accentColor(),
             'imprintUrl' => $this->imprintUrl(),

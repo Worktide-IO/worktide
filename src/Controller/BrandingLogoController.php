@@ -5,35 +5,46 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * Serves the instance logo used as the default when BRAND_LOGO_URL is unset.
+ * Serves the instance's branding images (logo, dark-mode logo, favicon) as a
+ * drop-in: files placed under var/branding/ override the built-in defaults with
+ * no rebuild — var/ is a persistent, per-instance volume in the self-hosted
+ * stack (and gitignored, so it never lands in the shared product repo).
  *
- * Resolution order:
- *   1. a file mounted at var/branding/logo.{svg,png,…} (drop-in, no rebuild —
- *      var/ is a persistent volume in the self-hosted stack), otherwise
- *   2. the bundled Worktide logo shipped in the repo.
+ * For each asset the first matching basename under var/branding/ is served:
+ *   logo       → logo.{svg,png,webp,jpg,jpeg}
+ *   logo-dark  → logo-dark.{svg,png,webp,jpg,jpeg}
+ *   favicon    → favicon.{svg,png,ico,webp}
+ * When none is present the route 404s; the SPAs then fall back to their bundled
+ * asset (see BrandLogo's FALLBACK_LOGO / the bundled favicon), so an unbranded
+ * instance still renders.
  *
- * Public (route is outside /v1, so not covered by the API firewall's ROLE_USER
- * default) — a logo is not sensitive and must load on unauthenticated pages and
- * in emails.
+ * Public (routes are outside /v1, so not covered by the API firewall's
+ * ROLE_USER default) — branding images are not sensitive and must load on
+ * unauthenticated pages and in emails.
+ *
+ * NB: the body is returned as a plain Response, not a BinaryFileResponse.
+ * Symfony's HttpCache store cannot capture a BinaryFileResponse body (its
+ * getContent() is false), so behind the app's HttpCache the file streamed as an
+ * empty, then-cached 200 — a normal Response is stored and replayed correctly.
  */
 final class BrandingLogoController
 {
     /**
-     * Basenames probed under var/branding/, in order, mapped to their MIME type.
+     * MIME type per file extension, in probe order for each asset.
      *
      * @var array<string, string>
      */
-    private const array CANDIDATES = [
-        'logo.svg' => 'image/svg+xml',
-        'logo.png' => 'image/png',
-        'logo.webp' => 'image/webp',
-        'logo.jpg' => 'image/jpeg',
-        'logo.jpeg' => 'image/jpeg',
+    private const array MIME = [
+        'svg' => 'image/svg+xml',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'ico' => 'image/x-icon',
     ];
 
     public function __construct(
@@ -42,30 +53,48 @@ final class BrandingLogoController
     ) {}
 
     #[Route(path: '/branding/logo', name: 'branding_logo', methods: ['GET'])]
-    public function __invoke(): Response
+    public function logo(): Response
     {
-        [$path, $mime] = $this->resolveLogo();
-
-        $response = new BinaryFileResponse($path);
-        $response->headers->set('Content-Type', $mime);
-        $response->setPublic();
-        $response->setMaxAge(3600);
-
-        return $response;
+        return $this->serve('logo', ['svg', 'png', 'webp', 'jpg', 'jpeg']);
     }
 
-    /** @return array{0: string, 1: string} [absolutePath, mimeType] */
-    private function resolveLogo(): array
+    #[Route(path: '/branding/logo-dark', name: 'branding_logo_dark', methods: ['GET'])]
+    public function logoDark(): Response
     {
-        $mountDir = $this->projectDir . '/var/branding/';
-        foreach (self::CANDIDATES as $basename => $mime) {
-            $candidate = $mountDir . $basename;
+        return $this->serve('logo-dark', ['svg', 'png', 'webp', 'jpg', 'jpeg']);
+    }
+
+    #[Route(path: '/branding/favicon', name: 'branding_favicon', methods: ['GET'])]
+    public function favicon(): Response
+    {
+        return $this->serve('favicon', ['svg', 'png', 'ico', 'webp']);
+    }
+
+    /**
+     * @param list<string> $extensions extensions to probe for $basename, in order
+     */
+    private function serve(string $basename, array $extensions): Response
+    {
+        $dir = $this->projectDir . '/var/branding/';
+        foreach ($extensions as $ext) {
+            $candidate = $dir . $basename . '.' . $ext;
             if (is_file($candidate)) {
-                return [$candidate, $mime];
+                $body = file_get_contents($candidate);
+                if ($body === false) {
+                    break;
+                }
+
+                $response = new Response($body, Response::HTTP_OK, [
+                    'Content-Type' => self::MIME[$ext],
+                ]);
+                $response->setPublic();
+                $response->setMaxAge(3600);
+
+                return $response;
             }
         }
 
-        // Bundled fallback shipped with the repo.
-        return [$this->projectDir . '/logo.svg', 'image/svg+xml'];
+        // No drop-in file → let the SPA use its bundled fallback.
+        return new Response('', Response::HTTP_NOT_FOUND);
     }
 }

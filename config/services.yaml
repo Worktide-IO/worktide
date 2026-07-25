@@ -282,6 +282,7 @@ services:
             $legalName: '%env(string:BRAND_LEGAL_NAME)%'
             $logoUrl: '%env(string:BRAND_LOGO_URL)%'
             $logoUrlDark: '%env(string:BRAND_LOGO_URL_DARK)%'
+            $faviconUrl: '%env(string:BRAND_FAVICON_URL)%'
             $primaryColor: '%env(string:BRAND_PRIMARY_COLOR)%'
             $accentColor: '%env(string:BRAND_ACCENT_COLOR)%'
             $imprintUrl: '%env(string:BRAND_IMPRINT_URL)%'
