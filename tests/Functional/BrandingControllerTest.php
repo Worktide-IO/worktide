@@ -57,10 +57,32 @@ final class BrandingControllerTest extends WebTestCase
 
     public function testLogoRouteServesAnImage(): void
     {
+        // The route serves a drop-in file under var/branding/ and 404s otherwise
+        // (the SPA then falls back to its bundled asset). Drop one in for the test.
+        $dir = \dirname(__DIR__, 2) . '/var/branding';
+        @mkdir($dir, 0o775, true);
+        $logo = $dir . '/logo.svg';
+        file_put_contents($logo, '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
+
+        try {
+            $this->client->request('GET', '/branding/logo', [], [], ['HTTP_HOST' => self::HOST]);
+
+            self::assertSame(200, $this->client->getResponse()->getStatusCode());
+            self::assertStringStartsWith('image/', (string) $this->client->getResponse()->headers->get('Content-Type'));
+        } finally {
+            @unlink($logo);
+        }
+    }
+
+    public function testLogoRoute404sWithoutADropInFile(): void
+    {
+        // No var/branding/logo.* present → 404 so the SPA uses its bundled logo.
+        $logo = \dirname(__DIR__, 2) . '/var/branding/logo.svg';
+        @unlink($logo);
+
         $this->client->request('GET', '/branding/logo', [], [], ['HTTP_HOST' => self::HOST]);
 
-        self::assertSame(200, $this->client->getResponse()->getStatusCode());
-        self::assertStringStartsWith('image/', (string) $this->client->getResponse()->headers->get('Content-Type'));
+        self::assertSame(404, $this->client->getResponse()->getStatusCode());
     }
 
     /** @return array<string, mixed> */

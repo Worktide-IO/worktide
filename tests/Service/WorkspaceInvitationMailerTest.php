@@ -96,6 +96,7 @@ final class WorkspaceInvitationMailerTest extends TestCase
             legalName: '',
             logoUrl: '',
             logoUrlDark: '',
+            faviconUrl: '',
             primaryColor: '#0F8C72',
             accentColor: '#E0623A',
             imprintUrl: '',
