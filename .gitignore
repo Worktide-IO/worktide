@@ -51,3 +51,6 @@ Bildschirmfoto_*.png
 
 # Private one-off scripts (customer-specific backfills etc.) — never commit
 /src/Command/OneOff/
+
+# Claude Code throwaway git worktrees (never commit)
+.claude/worktrees/
