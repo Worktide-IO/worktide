@@ -80,6 +80,10 @@ framework:
             App\Message\GenerateUpgradeOutreachMessage: ai_agents
             App\Message\RunResearchMissionMessage: ai_agents
             App\Message\PlanDistributionMessage: ai_agents
+            # On-demand channel sync (Lexoffice/Awork import, Redmine entity
+            # pull) — minutes-long, network-bound; its own slow lane so it never
+            # starves the fast async queue.
+            App\Message\RunChannelSyncMessage: ai_agents
             App\Message\SyncSearchIndexMessage: search
 
             # Mercure live-update publishing — off the request thread so a slow
