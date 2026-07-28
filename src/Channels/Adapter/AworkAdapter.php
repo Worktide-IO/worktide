@@ -391,6 +391,12 @@ final class AworkAdapter implements InboundAdapter, Testable
         $raw = $this->fetchFromApi('/projectstatuses', $apiKey);
         $repo = $this->em->getRepository(ProjectStatus::class);
         $map = [];
+        // awork keeps a separate status set per project-type, so the same status
+        // NAME (e.g. "Geblockt") recurs under many ids. ProjectStatus is unique
+        // per (workspace, name) — a DB findOneBy alone misses a sibling created
+        // earlier in THIS run but not yet flushed, and inserting a second one
+        // then trips the unique constraint. Cache by name within the run.
+        $byName = [];
 
         foreach ($raw as $r) {
             $awid = $r['id'] ?? null;
@@ -400,7 +406,8 @@ final class AworkAdapter implements InboundAdapter, Testable
                 continue;
             }
 
-            $status = $repo->findOneBy(['workspace' => $workspace, 'name' => $name]);
+            $status = $byName[$name]
+                ?? $repo->findOneBy(['workspace' => $workspace, 'name' => $name]);
             if ($status === null) {
                 $status = (new ProjectStatus())
                     ->setWorkspace($workspace)
@@ -411,6 +418,7 @@ final class AworkAdapter implements InboundAdapter, Testable
                 $status->setExternalSource(self::EXTERNAL_SOURCE)->setExternalId(self::ref($awid));
                 $this->em->persist($status);
             }
+            $byName[$name] = $status;
             $map[$awid] = $status;
         }
 
