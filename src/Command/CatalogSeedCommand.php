@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Entity\Enum\BillingCycle;
 use App\Entity\Enum\ProductType;
 use App\Entity\Enum\ProductStatus;
 use App\Entity\Product;
+use App\Entity\Service;
+use App\Entity\ServiceVersion;
 use App\Entity\Workspace;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -139,21 +142,38 @@ final class CatalogSeedCommand extends Command
             ],
         ];
 
+        // Services live in the Service entity (post-migration catalogue the SPA
+        // /services page reads), NOT Product(type=service). Each gets a v1
+        // ServiceVersion; agency services are priced on request → 0 ct, one-off.
+        $repo = $this->em->getRepository(Service::class);
+        $position = 0;
         foreach ($services as $s) {
-            $existing = $this->em->getRepository(Product::class)->findOneBy(['workspace' => $workspace, 'slug' => $s['slug']]);
+            $existing = $repo->findOneBy(['workspace' => $workspace, 'name' => $s['name']]);
             if ($existing) {
                 $output->writeln("  ⏭  {$s['name']} (exists)");
+                ++$position;
                 continue;
             }
-            $product = new Product();
-            $product->setName($s['name']);
-            $product->setSlug($s['slug']);
-            $product->setType(ProductType::Service);
-            $product->setStatus(ProductStatus::Active);
-            $product->setDescription($s['description']);
-            $product->setCategory($s['category']);
-            $product->setWorkspace($workspace);
-            $this->em->persist($product);
+            $service = new Service();
+            $service->setName($s['name']);
+            $service->setDescription($s['description']);
+            $service->setCategory($s['category']);
+            $service->setActive(true);
+            $service->setPosition($position++);
+            $service->setWorkspace($workspace);
+
+            $version = new ServiceVersion();
+            $version->setService($service);
+            $version->setVersionNo(1);
+            $version->setNetPriceCents(0);
+            $version->setCurrency('EUR');
+            $version->setBillingCycle(BillingCycle::Once);
+            $version->setIsCurrent(true);
+
+            $service->addVersion($version);
+            $service->setCurrentVersion($version);
+            $this->em->persist($service);
+            $this->em->persist($version);
             $output->writeln("  ✓  {$s['name']}");
         }
     }
