@@ -67,6 +67,25 @@ final class ChannelSyncRunner
             $this->logger->error('Channel sync failed', ['channel' => (string) $channel->getId(), 'adapter' => $code, 'error' => $e->getMessage()]);
 
             throw $e;
+        } finally {
+            $this->clearSyncMarker($channel);
+        }
+    }
+
+    /**
+     * Clear the in-progress marker so the SPA's "läuft…" state ends. Guarded: a
+     * DB error may have closed the EM — then the stale window expires the marker.
+     */
+    private function clearSyncMarker(Channel $channel): void
+    {
+        if (!$this->em->isOpen()) {
+            return;
+        }
+        try {
+            $channel->setSyncStartedAt(null);
+            $this->em->flush();
+        } catch (\Throwable $e) {
+            $this->logger->warning('Could not clear channel sync marker', ['error' => $e->getMessage()]);
         }
     }
 

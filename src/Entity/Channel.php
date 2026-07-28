@@ -201,6 +201,17 @@ class Channel
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $lastSyncError = null;
 
+    /**
+     * When set (and recent), a sync for this channel is currently running — set
+     * at pull start, cleared on completion/failure. Drives the SPA's "läuft…"
+     * state and a concurrency guard: a second trigger is refused and the
+     * scheduler skips the channel while it's in progress. A stale marker (older
+     * than the {@see self::SYNC_STALE_MINUTES} window, e.g. a crashed run that
+     * never cleared) is ignored so a channel can never wedge permanently.
+     */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $syncStartedAt = null;
+
     // ---- auto-reply (receipt acknowledgement) ----------------------
     //
     // Per-mailbox auto-responder. Because personal vs shared visibility
@@ -316,6 +327,19 @@ class Channel
 
     public function getLastSyncError(): ?string { return $this->lastSyncError; }
     public function setLastSyncError(?string $e): self { $this->lastSyncError = $e; return $this; }
+
+    /** Minutes after which a set syncStartedAt is treated as stale (crashed run). */
+    public const SYNC_STALE_MINUTES = 15;
+
+    public function getSyncStartedAt(): ?\DateTimeImmutable { return $this->syncStartedAt; }
+    public function setSyncStartedAt(?\DateTimeImmutable $t): self { $this->syncStartedAt = $t; return $this; }
+
+    /** True while a sync is in progress (started within the stale window). */
+    public function isSyncing(): bool
+    {
+        return $this->syncStartedAt !== null
+            && $this->syncStartedAt > new \DateTimeImmutable('-' . self::SYNC_STALE_MINUTES . ' minutes');
+    }
 
     public function isAutoReplyEnabled(): bool { return $this->autoReplyEnabled; }
     public function setAutoReplyEnabled(bool $v): self { $this->autoReplyEnabled = $v; return $this; }

@@ -12,6 +12,7 @@ use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
@@ -61,6 +62,14 @@ final class ChannelSyncController
         if (!$channel->isEnabled()) {
             throw new BadRequestHttpException('Channel is disabled — enable it before syncing.');
         }
+        if ($channel->isSyncing()) {
+            throw new ConflictHttpException('Ein Sync für diesen Channel läuft bereits.');
+        }
+
+        // Mark it running now so the SPA shows "läuft…" immediately (before the
+        // worker picks up the async message); the runner clears it when done.
+        $channel->setSyncStartedAt(new \DateTimeImmutable());
+        $this->em->flush();
 
         $this->bus->dispatch(new RunChannelSyncMessage($channel->getId()));
 

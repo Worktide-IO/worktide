@@ -135,6 +135,15 @@ final class ChannelPullCommand extends Command
             return -1;
         }
 
+        // Skip if a sync (manual trigger or an overlapping scheduler run) is
+        // already in progress — prevents two concurrent pulls colliding.
+        if ($channel->isSyncing()) {
+            $io->writeln(' (sync already running; skipping)');
+            return 0;
+        }
+        $channel->setSyncStartedAt(new \DateTimeImmutable());
+        $this->em->flush();
+
         $pulledEvents = [];
         try {
             $result = $adapter->pull($channel);
@@ -148,15 +157,23 @@ final class ChannelPullCommand extends Command
             }
             $channel->setLastSyncedAt(new \DateTimeImmutable());
             $channel->setLastSyncError(null);
+            $channel->setSyncStartedAt(null);
         } catch (PullNotSupportedException) {
             $io->writeln(' (push-only adapter; skipping)');
+            $channel->setSyncStartedAt(null);
+            $this->em->flush();
             return 0;
         } catch (\Throwable $e) {
             // Include origin file:line — for PHP warnings promoted to ErrorException
             // the message alone ("Array to string conversion") is not actionable.
             $channel->setLastSyncError(sprintf('%s: %s (%s:%d)', $e::class, $e->getMessage(), $e->getFile(), $e->getLine()));
             $io->error(sprintf('Pull failed: %s (%s:%d)', $e->getMessage(), $e->getFile(), $e->getLine()));
-            $this->em->flush();
+            // A DB error may have closed the EM; if so, the stale window expires
+            // the marker instead of a failing flush here.
+            if ($this->em->isOpen()) {
+                $channel->setSyncStartedAt(null);
+                $this->em->flush();
+            }
             return -1;
         }
 
