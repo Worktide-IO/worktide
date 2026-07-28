@@ -206,15 +206,7 @@ final class LexofficeAdapter implements InboundAdapter, Testable
         $all = [];
         $page = 0;
         do {
-            $resp = $this->httpClient->request('GET', self::BASE_URL . '/contacts', [
-                'headers' => ['Authorization' => 'Bearer ' . $apiKey, 'Accept' => 'application/json'],
-                'query' => ['page' => $page, 'size' => 250],
-                'timeout' => 30,
-            ]);
-            if ($resp->getStatusCode() >= 400) {
-                throw new \RuntimeException('HTTP ' . $resp->getStatusCode());
-            }
-            $data = $resp->toArray(false);
+            $data = $this->fetchContactsPage($apiKey, $page);
             foreach (($data['content'] ?? []) as $c) {
                 $all[] = $c;
             }
@@ -223,6 +215,36 @@ final class LexofficeAdapter implements InboundAdapter, Testable
         } while (!$last && $page < 1000);
 
         return $all;
+    }
+
+    /**
+     * One contacts page, throttled and 429-resilient — lexoffice caps at ~2
+     * req/s, and a large contact set spans many pages. Mirrors
+     * {@see self::fetchVoucherlistPage()}: a sub-2-req/s pace plus exponential
+     * backoff on 429 (2,4,8,16,32s) so a re-sync doesn't die with "HTTP 429".
+     *
+     * @return array<string, mixed>
+     */
+    private function fetchContactsPage(string $apiKey, int $page): array
+    {
+        for ($attempt = 0; ; ++$attempt) {
+            usleep(600_000);
+            $resp = $this->httpClient->request('GET', self::BASE_URL . '/contacts', [
+                'headers' => ['Authorization' => 'Bearer ' . $apiKey, 'Accept' => 'application/json'],
+                'query' => ['page' => $page, 'size' => 250],
+                'timeout' => 30,
+            ]);
+            $code = $resp->getStatusCode();
+            if ($code === 429 && $attempt < 5) {
+                sleep(2 << $attempt);
+                continue;
+            }
+            if ($code >= 400) {
+                throw new \RuntimeException('HTTP ' . $code . ' — ' . substr($resp->getContent(false), 0, 200));
+            }
+
+            return $resp->toArray(false);
+        }
     }
 
     /**
