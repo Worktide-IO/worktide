@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Service\Inbound;
 
 use App\Channels\SyncReentryGuard;
+use App\Entity\Customer;
 use App\Entity\DiscoveredExternalRecord;
 use App\Entity\Enum\ChannelCapability;
+use App\Entity\Enum\CustomerStatus;
 use App\Entity\Enum\DiscoveredRecordState;
 use App\Entity\Enum\SyncMode;
 use App\Entity\Enum\TaskCreatedVia;
@@ -16,6 +18,7 @@ use App\Entity\Project;
 use App\Entity\Task;
 use App\Entity\TaskStatus;
 use App\Repository\TaskStatusRepository;
+use Symfony\Component\Uid\Uuid;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -88,6 +91,108 @@ final class DiscoveredRecordImporter
         $this->assertPending($record);
         $record->setState(DiscoveredRecordState::Dismissed);
         $this->em->flush();
+    }
+
+    /**
+     * Conflict resolution — LINK: bind the discovered external record to an
+     * operator-chosen existing local entity (one of its `candidates`, or any
+     * entity of the record's entityType). Writes the missing EntitySync mapping;
+     * from then on normal sync keeps the pair in step. Works for customer /
+     * project / task alike.
+     */
+    public function resolveLink(DiscoveredExternalRecord $record, Uuid $localId): EntitySync
+    {
+        $this->assertPending($record);
+        $class = $this->classFor($record->getEntityType());
+        $entity = $this->em->find($class, $localId);
+        if ($entity === null) {
+            throw new \DomainException('Target entity not found.');
+        }
+        if (method_exists($entity, 'getWorkspace') && $entity->getWorkspace() !== $record->getWorkspace()) {
+            throw new \DomainException('Target belongs to a different workspace.');
+        }
+
+        return $this->guard->run(function () use ($record, $localId): EntitySync {
+            $mapping = $this->mapping($record, $localId);
+            $this->em->persist($mapping);
+            $record
+                ->setState(DiscoveredRecordState::Linked)
+                ->setImportedEntityId($localId)
+                ->setCandidates([]);
+            $this->em->flush();
+
+            return $mapping;
+        });
+    }
+
+    /**
+     * Conflict resolution — CREATE NEW: the operator rejected every candidate,
+     * so materialise a fresh local entity from the record's `fields` and map it.
+     * Supported for `customer` (the Lexoffice/awork master-data case); a `task`
+     * still goes through {@see import()} because it needs a Project context.
+     */
+    public function resolveCreate(DiscoveredExternalRecord $record): Customer
+    {
+        $this->assertPending($record);
+        if ($record->getEntityType() !== 'customer') {
+            throw new \DomainException(sprintf('"Neu anlegen" is not supported for %s records.', $record->getEntityType()));
+        }
+
+        return $this->guard->run(function () use ($record): Customer {
+            $customer = $this->buildCustomer($record);
+            $this->em->persist($customer);
+            $this->em->flush(); // assign id
+
+            $this->em->persist($this->mapping($record, $customer->getId()));
+            $record
+                ->setState(DiscoveredRecordState::Imported)
+                ->setImportedEntityId($customer->getId())
+                ->setCandidates([]);
+            $this->em->flush();
+
+            return $customer;
+        });
+    }
+
+    /** @return class-string */
+    private function classFor(string $entityType): string
+    {
+        return match ($entityType) {
+            'customer' => Customer::class,
+            'project' => Project::class,
+            'task' => Task::class,
+            default => throw new \DomainException(sprintf('Unsupported entity type "%s".', $entityType)),
+        };
+    }
+
+    private function buildCustomer(DiscoveredExternalRecord $record): Customer
+    {
+        $f = $record->getFields();
+        $name = (string) ($f['name'] ?? $record->getTitle());
+        $isCompany = (bool) ($f['isCompany'] ?? true);
+
+        $customer = (new Customer())
+            ->setWorkspace($record->getWorkspace())
+            ->setIsCompany($isCompany)
+            ->setStatus(CustomerStatus::Active)
+            ->setName($name)
+            ->setExternalSource($record->getChannel()->getAdapterCode())
+            ->setExternalId($record->getExternalId());
+
+        if ($isCompany) {
+            $customer->setLegalName((string) ($f['legalName'] ?? $name));
+        } else {
+            $customer->setFirstName((string) ($f['firstName'] ?? ''))
+                ->setLastName((string) ($f['lastName'] ?? ''));
+        }
+        foreach (['email' => 'setEmail', 'vatId' => 'setVatId', 'phone' => 'setPhone', 'website' => 'setWebsite'] as $key => $setter) {
+            $value = $f[$key] ?? null;
+            if (is_string($value) && $value !== '') {
+                $customer->{$setter}($value);
+            }
+        }
+
+        return $customer;
     }
 
     private function buildTask(DiscoveredExternalRecord $record, Project $project): Task

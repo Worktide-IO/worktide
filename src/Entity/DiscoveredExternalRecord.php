@@ -98,6 +98,19 @@ class DiscoveredExternalRecord
     #[ORM\Column(type: 'json')]
     private array $participants = [];
 
+    /**
+     * Ambiguous local match candidates for a CONFLICT record (entityType
+     * customer/project): the external record matched more than one existing
+     * Worktide entity, so the sync deferred instead of guessing. Each entry is
+     * `{id: <uuid>, label: <name>}`. Empty for plain discovered records and for
+     * conflicts the operator has resolved. Non-empty ⇒ the SPA renders a
+     * "choose one / create new" conflict card instead of import/link.
+     *
+     * @var list<array{id: string, label: string}>
+     */
+    #[ORM\Column(type: 'json')]
+    private array $candidates = [];
+
     #[ORM\Column(length: 12, enumType: DiscoveredRecordState::class, options: ['default' => 'pending'])]
     private DiscoveredRecordState $state = DiscoveredRecordState::Pending;
 
@@ -131,6 +144,15 @@ class DiscoveredExternalRecord
 
     /** @param list<array<string, mixed>> $participants */
     public function setParticipants(array $participants): self { $this->participants = $participants; return $this; }
+
+    /** @return list<array{id: string, label: string}> */
+    public function getCandidates(): array { return $this->candidates; }
+
+    /** @param list<array{id: string, label: string}> $candidates */
+    public function setCandidates(array $candidates): self { $this->candidates = $candidates; return $this; }
+
+    /** True when this record is an unresolved match conflict (operator must choose). */
+    public function isConflict(): bool { return $this->candidates !== []; }
 
     public function getState(): DiscoveredRecordState { return $this->state; }
     public function setState(DiscoveredRecordState $state): self { $this->state = $state; return $this; }
