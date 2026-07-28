@@ -36,6 +36,47 @@ final class DiscoveredRecordCollector
         private readonly DiscoveredExternalRecordRepository $records,
     ) {}
 
+    /**
+     * Park an AMBIGUOUS master-data match as a conflict record for operator
+     * resolution — the Lexoffice/awork adapters call this when an external
+     * customer matched more than one local Customer, so the sync must not guess.
+     * Unlike {@see capture()} there is no participant-relevance gate (every
+     * ambiguous match is actionable). Idempotent per (channel, externalId);
+     * never resurrects a settled record. Persists without flushing — the
+     * adapter owns the transaction.
+     *
+     * @param array<string, mixed>                    $fields     normalized create-from payload
+     * @param list<array{id: string, label: string}>  $candidates the local matches to choose between
+     */
+    public function captureConflict(
+        Channel $channel,
+        string $entityType,
+        string $externalId,
+        string $title,
+        ?string $externalUrl,
+        array $fields,
+        array $candidates,
+    ): void {
+        $record = $this->records->findOneByChannelExternal($channel, $externalId);
+        if ($record !== null && $record->getState() !== \App\Entity\Enum\DiscoveredRecordState::Pending) {
+            return; // already imported/linked/dismissed — leave it settled
+        }
+        $record ??= (new DiscoveredExternalRecord())
+            ->setChannel($channel)
+            ->setWorkspace($channel->getWorkspace())
+            ->setEntityType($entityType)
+            ->setExternalId($externalId);
+
+        $record
+            ->setEntityType($entityType)
+            ->setTitle(mb_substr($title !== '' ? $title : $externalId, 0, self::TITLE_MAX))
+            ->setExternalUrl($externalUrl)
+            ->setFields($fields)
+            ->setCandidates($candidates);
+
+        $this->em->persist($record);
+    }
+
     public function capture(Channel $channel, EntitySnapshot $snapshot): void
     {
         if (!$this->filter->isRelevant($channel, $snapshot->participants)) {

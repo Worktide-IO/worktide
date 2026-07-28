@@ -91,6 +91,52 @@ final class DiscoveredExternalRecordActionsController
     }
 
     #[Route(
+        path: '/v1/discovered_external_records/{id}/resolve-link',
+        name: 'api_discovered_record_resolve_link',
+        requirements: ['id' => Requirement::UUID_V7],
+        methods: ['POST'],
+    )]
+    public function resolveLink(string $id, Request $request): JsonResponse
+    {
+        $record = $this->record($id);
+        $target = Uuid::fromString($this->ref($request, 'target'));
+
+        try {
+            $mapping = $this->importer->resolveLink($record, $target);
+        } catch (\DomainException $e) {
+            throw new ConflictHttpException($e->getMessage());
+        }
+
+        return new JsonResponse([
+            'state' => $record->getState()->value,
+            'linkedEntityId' => $target->toRfc4122(),
+            'mappingId' => $mapping->getId()?->toRfc4122(),
+        ]);
+    }
+
+    #[Route(
+        path: '/v1/discovered_external_records/{id}/resolve-create',
+        name: 'api_discovered_record_resolve_create',
+        requirements: ['id' => Requirement::UUID_V7],
+        methods: ['POST'],
+    )]
+    public function resolveCreate(string $id): JsonResponse
+    {
+        $record = $this->record($id);
+
+        try {
+            $customer = $this->importer->resolveCreate($record);
+        } catch (\DomainException $e) {
+            throw new ConflictHttpException($e->getMessage());
+        }
+
+        return new JsonResponse([
+            'state' => $record->getState()->value,
+            'customerId' => $customer->getId()?->toRfc4122(),
+        ], Response::HTTP_CREATED);
+    }
+
+    #[Route(
         path: '/v1/discovered_external_records/{id}/dismiss',
         name: 'api_discovered_record_dismiss',
         requirements: ['id' => Requirement::UUID_V7],

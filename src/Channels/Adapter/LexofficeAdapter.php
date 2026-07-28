@@ -22,6 +22,7 @@ use App\Entity\Workspace;
 use App\Repository\CustomerRepository;
 use App\Repository\EntitySyncRepository;
 use App\Repository\InvoiceRepository;
+use App\Service\Inbound\DiscoveredRecordCollector;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -47,6 +48,7 @@ final class LexofficeAdapter implements InboundAdapter, Testable
         private readonly EntitySyncRepository $syncs,
         private readonly InvoiceRepository $invoices,
         private readonly SyncReentryGuard $guard,
+        private readonly DiscoveredRecordCollector $conflicts,
     ) {}
 
     public function getCode(): string
@@ -129,7 +131,7 @@ final class LexofficeAdapter implements InboundAdapter, Testable
     private function runContactSync(Channel $channel, string $apiKey, Workspace $workspace): void
     {
         $contacts = $this->fetchContacts($apiKey);
-        [$byEmail, $byVat, $byName] = $this->indexCustomers($workspace);
+        $all = $this->activeCustomers($workspace);
 
         /** @var list<array{0: Customer, 1: string}> $pairs */
         $pairs = [];
@@ -154,7 +156,23 @@ final class LexofficeAdapter implements InboundAdapter, Testable
                 continue;
             }
 
-            $match = $this->match($emails, $vat, $name, $isCompany, $byEmail, $byVat, $byName);
+            $candidates = $this->candidatesFor($all, $vat, $name, $isCompany);
+            if (\count($candidates) > 1) {
+                // Ambiguous — more than one local customer matches. Defer to the
+                // operator via the conflict review inbox instead of guessing.
+                $this->conflicts->captureConflict(
+                    $channel,
+                    'customer',
+                    $lxId,
+                    $name,
+                    'https://app.lexoffice.de/contacts/#/' . $lxId,
+                    $this->customerFields($lx, $isCompany, $name, $emails, $vat),
+                    array_map(static fn (Customer $c): array => ['id' => (string) $c->getId(), 'label' => $c->getName()], $candidates),
+                );
+
+                continue;
+            }
+            $match = $candidates[0] ?? null;
             if ($match !== null) {
                 $this->fillEmpty($match, $lx, $emails, $vat);
                 $this->applyRoles($match, $lx);
@@ -208,29 +226,74 @@ final class LexofficeAdapter implements InboundAdapter, Testable
     }
 
     /**
-     * @return array{0: array<string,Customer>, 1: array<string,Customer>, 2: array<string,Customer>}
+     * All non-deleted customers of the workspace — the pool the ambiguity check
+     * scans (small master-data set, one query per sync).
+     *
+     * @return list<Customer>
      */
-    private function indexCustomers(Workspace $workspace): array
+    private function activeCustomers(Workspace $workspace): array
     {
-        $byEmail = $byVat = $byName = [];
-        foreach ($this->customers->findBy(['workspace' => $workspace]) as $c) {
-            if ($c->isDeleted()) {
+        return array_values(array_filter(
+            $this->customers->findBy(['workspace' => $workspace]),
+            static fn (Customer $c): bool => !$c->isDeleted(),
+        ));
+    }
+
+    /**
+     * Every local customer a lexoffice record matches, by the same conservative,
+     * type-aware rules as before (USt-ID → exact/normalized name; NOT email).
+     * Returns ALL hits so the caller can detect ambiguity (>1) and defer to the
+     * conflict inbox instead of guessing.
+     *
+     * @param list<Customer> $all
+     *
+     * @return list<Customer>
+     */
+    private function candidatesFor(array $all, ?string $vat, string $name, bool $wantCompany): array
+    {
+        $vatKey = ($vat !== null && $vat !== '') ? mb_strtolower(preg_replace('/\s+/', '', $vat) ?? '') : null;
+        $nameExact = mb_strtolower(trim($name));
+        $nameNorm = $this->normalizeName($name);
+
+        $hits = [];
+        foreach ($all as $c) {
+            if ($c->isCompany() !== $wantCompany) {
                 continue;
             }
-            if ($c->getEmail() !== null && $c->getEmail() !== '') {
-                $byEmail[mb_strtolower($c->getEmail())] ??= $c;
+            $cVat = $c->getVatId();
+            if ($vatKey !== null && $cVat !== null && $cVat !== '' && mb_strtolower(preg_replace('/\s+/', '', $cVat) ?? '') === $vatKey) {
+                $hits[(string) $c->getId()] = $c;
+                continue;
             }
-            if ($c->getVatId() !== null && $c->getVatId() !== '') {
-                $byVat[mb_strtolower(preg_replace('/\s+/', '', $c->getVatId()) ?? '')] ??= $c;
-            }
-            $byName[mb_strtolower(trim($c->getName()))] ??= $c;
-            $norm = $this->normalizeName($c->getName());
-            if ($norm !== '') {
-                $byName[$norm] ??= $c;
+            $cName = mb_strtolower(trim($c->getName()));
+            if ($cName === $nameExact || ($nameNorm !== '' && $this->normalizeName($c->getName()) === $nameNorm)) {
+                $hits[(string) $c->getId()] = $c;
             }
         }
 
-        return [$byEmail, $byVat, $byName];
+        return array_values($hits);
+    }
+
+    /**
+     * Normalized create-from payload stored on a conflict record so the operator
+     * can "create new" without a re-fetch. Keys match DiscoveredRecordImporter::buildCustomer().
+     *
+     * @param array<string, mixed> $lx
+     * @param list<string>         $emails
+     *
+     * @return array<string, mixed>
+     */
+    private function customerFields(array $lx, bool $isCompany, string $name, array $emails, ?string $vat): array
+    {
+        return [
+            'name' => $name,
+            'legalName' => $isCompany ? $name : null,
+            'isCompany' => $isCompany,
+            'firstName' => $isCompany ? null : trim((string) ($lx['person']['firstName'] ?? '')),
+            'lastName' => $isCompany ? null : trim((string) ($lx['person']['lastName'] ?? '')),
+            'email' => $emails[0] ?? null,
+            'vatId' => $vat,
+        ];
     }
 
     private function normalizeName(string $name): string
@@ -247,28 +310,6 @@ final class LexofficeAdapter implements InboundAdapter, Testable
         }
 
         return implode(' ', $parts);
-    }
-
-    /**
-     * @param list<string>              $emails
-     * @param array<string, Customer>   $byEmail
-     * @param array<string, Customer>   $byVat
-     * @param array<string, Customer>   $byName
-     */
-    private function match(array $emails, ?string $vat, string $name, bool $wantCompany, array $byEmail, array $byVat, array $byName): ?Customer
-    {
-        $ok = static fn (?Customer $c): ?Customer => ($c !== null && $c->isCompany() === $wantCompany) ? $c : null;
-
-        if ($vat !== null && $vat !== '') {
-            $key = mb_strtolower(preg_replace('/\s+/', '', $vat) ?? '');
-            $hit = $ok($byVat[$key] ?? null);
-            if ($hit !== null) {
-                return $hit;
-            }
-        }
-
-        return $ok($byName[mb_strtolower(trim($name))] ?? null)
-            ?? $ok($byName[$this->normalizeName($name)] ?? null);
     }
 
     /** @param array<string, mixed> $lx */
