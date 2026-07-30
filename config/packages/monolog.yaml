@@ -47,6 +47,7 @@ when@prod:
             console:
                 type: console
                 process_psr_3_messages: false
+                level: warning # worker/scheduler containers were logging every INFO-level messenger event unbounded, filling cloud2's disk
                 channels: ["!event", "!doctrine"]
             deprecation:
                 type: stream
