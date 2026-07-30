@@ -19,6 +19,16 @@ x-app: &app
       APP_COMMIT: "${SOURCE_COMMIT:-}"
       APP_VERSION: "${APP_VERSION:-}"
   restart: unless-stopped
+  # Cap per-container log growth. Docker's json-file driver does NOT rotate
+  # by default, so an unbounded stderr/stdout stream (the -vv worker was
+  # writing ~1.4 GB/day) fills the host's disk over time. 10m x 3 files caps
+  # each of the three roles at ~30 MB. Inherited by app/worker/scheduler via
+  # the <<: *app merge.
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
   environment: &app-env
     APP_ENV: prod
     # Set these in Coolify (secrets): APP_SECRET, DATABASE_URL, JWT_PASSPHRASE,
@@ -97,7 +107,6 @@ services:
       - search
       - "--time-limit=3600"
       - "--memory-limit=256M"
-      - "-vv"
     environment:
       <<: *app-env
       AUTO_MIGRATE: "0"
