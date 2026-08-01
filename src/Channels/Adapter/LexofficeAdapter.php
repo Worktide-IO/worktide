@@ -563,6 +563,13 @@ final class LexofficeAdapter implements InboundAdapter, Testable
 
     private function runRevenueSync(Channel $channel, string $apiKey, Workspace $workspace): void
     {
+        // channel:pull runs every 2 minutes; revenue barely moves intra-day and
+        // this fetches lexoffice's full all-time voucherlist, so skip unless the
+        // last revenue sync is stale. Avoids hammering both lexoffice and the DB.
+        if ($channel->isRevenueSyncFresh()) {
+            return;
+        }
+
         $customerByContactId = $this->buildCustomerMap($channel);
         if ($customerByContactId === []) {
             return;
@@ -574,9 +581,16 @@ final class LexofficeAdapter implements InboundAdapter, Testable
         foreach ($customerByContactId as $contactId => $customer) {
             $gross = $grossByContact[$contactId] ?? 0.0;
             $cents = (int) round($gross * 100);
-            $customer->setRevenueCents($cents);
-            $customer->setRevenueSyncedAt($now);
+            // Only touch the row (and so only emit a domain_events row + binlog
+            // write) when the value actually changed — this ran unconditionally
+            // before and, at a 2-minute cadence, silently generated the bulk of
+            // the DB's write load (see cloud2 disk-space incident 2026-08-01).
+            if ($cents !== $customer->getRevenueCents()) {
+                $customer->setRevenueCents($cents);
+                $customer->setRevenueSyncedAt($now);
+            }
         }
+        $channel->setRevenueSyncedAt($now);
         $this->em->flush();
     }
 

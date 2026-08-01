@@ -212,6 +212,17 @@ class Channel
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $syncStartedAt = null;
 
+    /**
+     * Last time {@see \App\Channels\Adapter\LexofficeAdapter::runRevenueSync()}
+     * actually ran (as opposed to {@see self::$lastSyncedAt}, which is touched
+     * on every 2-minute pull tick regardless of sub-sync type). Revenue rarely
+     * changes intra-day and the lexoffice fetch sums the full all-time
+     * voucherlist, so this gates the sync to {@see self::REVENUE_SYNC_INTERVAL_MINUTES}
+     * instead of running it on every pull.
+     */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $revenueSyncedAt = null;
+
     // ---- auto-reply (receipt acknowledgement) ----------------------
     //
     // Per-mailbox auto-responder. Because personal vs shared visibility
@@ -339,6 +350,19 @@ class Channel
     {
         return $this->syncStartedAt !== null
             && $this->syncStartedAt > new \DateTimeImmutable('-' . self::SYNC_STALE_MINUTES . ' minutes');
+    }
+
+    /** Minimum spacing between lexoffice revenue re-syncs (see {@see self::$revenueSyncedAt}). */
+    public const REVENUE_SYNC_INTERVAL_MINUTES = 360;
+
+    public function getRevenueSyncedAt(): ?\DateTimeImmutable { return $this->revenueSyncedAt; }
+    public function setRevenueSyncedAt(?\DateTimeImmutable $t): self { $this->revenueSyncedAt = $t; return $this; }
+
+    /** True when a revenue sync ran recently enough that another one can be skipped. */
+    public function isRevenueSyncFresh(): bool
+    {
+        return $this->revenueSyncedAt !== null
+            && $this->revenueSyncedAt > new \DateTimeImmutable('-' . self::REVENUE_SYNC_INTERVAL_MINUTES . ' minutes');
     }
 
     public function isAutoReplyEnabled(): bool { return $this->autoReplyEnabled; }
